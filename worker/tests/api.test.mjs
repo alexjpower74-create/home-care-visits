@@ -797,6 +797,75 @@ test('worker visits: only this worker\'s visits for the date, in order, with ent
   assert.equal((await visitOf(token, MON, 'Ruby', nl(MON, '10:40'))).status, 'checked_in')
 })
 
+test('worker visits: open_dates lists the earlier days this worker left a visit checked in and not checked out', async () => {
+  const { token, keyOf, workerId, clientId } = await setup()
+  const sam = keyOf('Sam')
+  const jo = keyOf('Jo')
+  const SUN6 = '2026-09-06'
+  const MON7 = '2026-09-07'
+  const TUE8 = '2026-09-08'
+  const WED9 = '2026-09-09'
+  const THU10 = '2026-09-10'
+  const FRI11 = '2026-09-11'
+  const openDates = async (key, date, now = NOW) => {
+    const r = await api('GET', `/api/worker/visits${date ? `?date=${date}` : ''}`, { key, now })
+    assert.equal(r.status, 200, r.text)
+    return r.body.open_dates
+  }
+  assert.deepEqual(await openDates(sam), [], 'nothing open yet')
+
+  // 3 days ago (Friday): Sam checks in at Bill S. and never checks out.
+  const bill11 = await visitOf(token, FRI11, 'Bill')
+  assert.equal((await checkIn(sam, bill11.id, nl(FRI11, '09:02'))).status, 201)
+  assert.deepEqual(await openDates(sam), [FRI11], 'a check-in 3 days ago with no check-out')
+
+  // 7 days back (Monday Sep 7) is listed; 8 days back (Sunday Sep 6, a one-off) is not.
+  const bill7 = await visitOf(token, MON7, 'Bill')
+  assert.equal((await checkIn(sam, bill7.id, nl(MON7, '09:02'))).status, 201)
+  const sun = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Bill'), worker_id: workerId('Sam'), date: SUN6, start: '09:00', end: '10:00' } })
+  assert.equal(sun.status, 201, sun.text)
+  assert.equal((await checkIn(sam, sun.body.id, nl(SUN6, '09:02'))).status, 201)
+
+  // A soft-removed visit with an open check-in counts: the office moves Ruby T.'s pattern at 10:00 on Wednesday, and Sam's
+  // check-in tapped at 10:25 (before the change reached the phone) lands on the removed 10:30 visit.
+  const ruby9 = await visitOf(token, WED9, 'Ruby', nl(WED9, '09:00'))
+  const ruby = (await api('GET', `/api/office/clients/${clientId('Ruby')}`, { token })).body
+  const input = clientInput(ruby)
+  input.patterns[0] = { ...input.patterns[0], start: '11:00', end: '12:30' }
+  const moved = await api('PUT', `/api/office/clients/${ruby.id}`, { token, now: nl(WED9, '10:00'), body: input })
+  assert.ok(moved.body.rebuilt_visits >= 1, moved.text)
+  assert.equal((await checkIn(sam, ruby9.id, nl(WED9, '10:25'), { now: nl(WED9, '10:40') })).status, 201)
+
+  // A voided check-in does not count: Sam's phone check-in on Tuesday is replaced by the office's for the visit's worker, Jo.
+  const frank8 = await visitOf(token, TUE8, 'Frank', nl(TUE8, '07:00'))
+  assert.equal((await api('PUT', `/api/office/visits/${frank8.id}`, { token, now: nl(TUE8, '07:00'), body: moveBody(frank8, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.equal((await checkIn(sam, frank8.id, nl(TUE8, '09:03'))).status, 201, 'the first worker may still check in')
+  const f = await visitOf(token, TUE8, 'Frank', nl(TUE8, '12:00'))
+  const fix = await api('PUT', `/api/office/visits/${f.id}/times`, { token, now: nl(TUE8, '12:00'), body: { check_in_at: nl(TUE8, '09:00'), reason: 'Jo was there (SAMPLE)', version: f.version } })
+  assert.equal(fix.status, 200, fix.text)
+  assert.equal((await storedEvents(f.id)).filter(e => e.voided_at).length, 1, "Sam's check-in is voided")
+
+  // Another worker's open check-in is not Sam's.
+  const margaret10 = await visitOf(token, THU10, 'Margaret')
+  assert.equal((await checkIn(jo, margaret10.id, nl(THU10, '08:32'))).status, 201)
+
+  // Today's open check-in is never listed.
+  const billToday = await visitOf(token, MON, 'Bill')
+  assert.equal((await checkIn(sam, billToday.id, nl(MON, '09:02'))).status, 201)
+
+  const later = nl(MON, '10:00')
+  assert.deepEqual(await openDates(sam, undefined, later), [MON7, WED9, FRI11])
+  assert.deepEqual(await openDates(jo, undefined, later), [TUE8, THU10], "Jo's own: the office's check-in on Tuesday, Thursday's phone check-in")
+  for (const date of [MON, '2026-09-13', '2026-09-16', '2026-09-20', MON7]) {
+    const expected = [MON7, WED9, FRI11].filter(d => d !== date)
+    assert.deepEqual(await openDates(sam, date, later), expected, `the same list for date=${date} (minus the requested date)`)
+  }
+
+  // Its check-out takes Friday off the list.
+  assert.equal((await checkOut(sam, bill11.id, nl(FRI11, '10:00'), { now: later })).status, 201)
+  assert.deepEqual(await openDates(sam, undefined, later), [MON7, WED9])
+})
+
 // ---------------------------------------------------------------- family link
 
 test('family privacy: a checked-out visit with a non-shareable note shows none of what must never reach the family', async () => {
