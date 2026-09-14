@@ -1,41 +1,83 @@
-// Viewport screenshots of the office on the real Worker: the Today board with a late and a missed row, the Week planner with
-// a conflict, and a client form. Each waits for what the picture must show. Run: npx playwright test -c playwright.shots.config.mjs
+// Viewport screenshots of every office screen on the real Worker, with the demo scenario (a lived-in week relative to NOW):
+// Today (late and missed rows), the visit sheet with its times, Week with a conflict, Clients and a client form, Workers and a
+// worker form with the New link confirm, the four reports, Settings. Each waits for what the picture must show.
+// Run: npx playwright test -c playwright.shots.config.mjs
 import { fileURLToPath } from 'node:url';
-import { test, expect, tap, tab, signIn, localToUtcMs, NOW, DAY, addDays } from './helpers.mjs';
+import { test, expect, tap, tab, signIn, setNow, api, NOW, DAY, addDays } from './helpers.mjs';
 
 const OUT = fileURLToPath(new URL('./shots/', import.meta.url));
-const shot = (page, testInfo, name) => page.screenshot({ path: `${OUT}${name}-${testInfo.project.name}.png` });
 
-test('office: Today board with late and missed rows, Week with a conflict, a client form', async ({ page, context }, testInfo) => {
-  const at = localToUtcMs(DAY, '09:20'); // Bill S. (9:00) is late, Margaret P. (8:30) is missed
-  await context.setExtraHTTPHeaders({ 'X-Test-Now': new Date(at).toISOString() });
-  await page.clock.setFixedTime(at);
+test('office: every screen', async ({ page, context, request }, testInfo) => {
+  test.setTimeout(180_000);
+  const wide = testInfo.project.name.endsWith('1280');
+  const shot = name => page.screenshot({ path: `${OUT}office-${name}-${testInfo.project.name}.png` });
+  const top = locator => locator.evaluate(el => el.scrollIntoView({ block: 'start' }));
+  expect((await api(request, 'POST', '/api/test/seed', { data: { scenario: 'demo' } })).status, 'demo seeded').toBe(200);
+  await setNow(page, context, NOW);
   await signIn(page);
-  const missed = page.locator('.board-row[data-alert="missed"]').first();
-  await expect(page.locator('.board-row[data-alert="late"]').first()).toBeVisible();
-  await expect(missed).toContainText('Missed: not checked in 30 minutes after the start');
-  if (!testInfo.project.name.endsWith('1280')) await missed.evaluate(el => el.scrollIntoView({ block: 'start' }));
-  await shot(page, testInfo, 'office-today');
 
-  await context.setExtraHTTPHeaders({ 'X-Test-Now': new Date(NOW).toISOString() });
-  await page.clock.setFixedTime(NOW);
+  // Today: the demo always has one late and one missed visit.
+  const alert = page.locator('.board-row[data-alert="missed"], .board-row[data-alert="late"]').first();
+  await expect(page.locator('.board-row[data-alert="late"]').first()).toBeVisible();
+  await expect(page.locator('.board-row[data-alert="missed"]').first()).toBeVisible();
+  if (!wide) await top(alert);
+  await shot('today');
+
+  // The visit sheet of a finished visit, at its Times section.
+  const done = page.locator('.board-row[data-status="checked_out"] .row-client').first();
+  await tap(page, done, 'a finished visit');
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.locator('#vs-times-now')).toContainText('Check-out:');
+  await top(sheet.locator('#vs-times-now'));
+  await shot('visit-sheet');
+  await tap(page, sheet.getByRole('button', { name: 'Close' }), 'Close');
+
+  // Week with a conflict.
   await tab(page, 'Week');
-  await expect(page.locator('.conflict[data-kind="travel_gap"]').first()).toBeVisible();
-  if (testInfo.project.name.endsWith('1280')) {
-    await expect(page.locator('.chip[data-conflict="problem"]').first()).toBeVisible();
-    await page.locator('.conflicts').evaluate(el => el.scrollIntoView({ block: 'start' }));
+  await expect(page.locator('.conflict').first()).toBeVisible();
+  if (wide) {
+    await expect(page.locator('.chip[data-conflict]').first()).toBeVisible();
+    await top(page.locator('.conflicts'));
   } else {
     await tap(page, page.locator(`.day-tab[data-day="${addDays(DAY, 5)}"]`), 'Sat tab');
     await expect(page.locator('.vcard[data-conflict="problem"]').first()).toBeVisible();
-    await page.locator('.day-tabs').evaluate(el => el.scrollIntoView({ block: 'start' }));
+    await top(page.locator('.day-tabs'));
   }
-  await shot(page, testInfo, 'office-week-conflict');
+  await shot('week-conflict');
 
+  // Clients and a client form.
   await tab(page, 'Clients');
-  await expect(page.locator('#client-list .entity')).toHaveCount(12);
+  await expect(page.locator('#client-list .entity').first()).toBeVisible();
+  await shot('clients');
   await tap(page, page.locator('#client-list .entity', { hasText: 'Walter G. (SAMPLE)' }), 'Walter G.');
   await expect(page.locator('#cf-name')).toHaveValue('Walter G. (SAMPLE)');
-  await expect(page.locator('.warn')).toBeVisible();
-  await page.locator('.view-head h1').evaluate(el => el.scrollIntoView({ block: 'start' }));
-  await shot(page, testInfo, 'office-client-form');
+  await top(page.locator('.view-head h1'));
+  await shot('client-form');
+
+  // Workers and a worker form with the New link confirm open.
+  await tab(page, 'Workers');
+  await expect(page.locator('#worker-list .entity').first()).toBeVisible();
+  await shot('workers');
+  await tap(page, page.locator('#worker-list .entity', { hasText: 'Sam R. (SAMPLE)' }), 'Sam R.');
+  await tap(page, page.getByRole('button', { name: 'New link', exact: true }), 'New link');
+  await expect(page.locator('#link-confirm')).toBeVisible();
+  await top(page.locator('.link-block'));
+  await shot('worker-form-new-link');
+  await tap(page, page.getByRole('button', { name: 'Keep the old link' }), 'Keep the old link');
+
+  // Reports over the last 14 days.
+  await tab(page, 'Reports');
+  await tap(page, page.getByRole('button', { name: 'Last 14 days' }), 'Last 14 days');
+  await expect(page.locator('#payroll-table')).toBeVisible();
+  await shot('report-payroll');
+  for (const [tabName, ready, name] of [['Billing', '#billing-table', 'report-billing'], ['Missed and late', '#missed-table', 'report-missed'], ['Mileage', '.mileage-day', 'report-mileage']]) {
+    await tap(page, page.getByRole('tab', { name: tabName }), tabName);
+    await expect(page.locator(ready).first()).toBeVisible();
+    await shot(name);
+  }
+
+  // Settings.
+  await tab(page, 'Settings');
+  await expect(page.locator('#st-name')).toBeVisible();
+  await shot('settings');
 });

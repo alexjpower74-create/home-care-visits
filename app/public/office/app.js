@@ -5,16 +5,12 @@ import * as today from './board.js';
 import * as week from './week.js';
 import * as clients from './clients.js';
 import * as workers from './workers.js';
+import * as reports from './reports.js';
+import * as settings from './settings.js';
 
-const later = title => ({
-  mount(el) {
-    el.innerHTML = `<div class="view-head"><h1>${title}</h1></div><p class="notice">${title} comes in the next build step.</p>`;
-    return () => {};
-  },
-});
-const VIEWS = { today, week, clients, workers, reports: later('Reports'), settings: later('Settings') };
+const VIEWS = { today, week, clients, workers, reports, settings };
 const $ = id => document.getElementById(id);
-const ctx = { agency: null };
+const ctx = { agency: null, onAgency: a => paintAgency(a) };
 let unmount = null;
 
 function paintAgency(a) {

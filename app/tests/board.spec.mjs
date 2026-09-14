@@ -12,7 +12,9 @@ test('the Today board turns late at 15:00 and missed at 30:00 on the page clock,
   expect(c.status, 'cancel the second visit').toBe(200);
 
   await context.setExtraHTTPHeaders({ 'X-Test-Now': iso(start + 14 * MIN + 59_000) });
-  await page.clock.install({ time: start + 14 * MIN + 59_000 }); // 09:14:59
+  // Paused at 09:14:59: only runFor moves the page clock, so the boundaries below don't depend on the machine's speed.
+  await page.clock.install({ time: start + 14 * MIN + 58_000 });
+  await page.clock.pauseAt(start + 14 * MIN + 59_000);
   await signIn(page);
   const row = page.locator(`.board-row[data-visit-id="${visit.id}"]`);
   const cancelled = page.locator(`.board-row[data-visit-id="${off.id}"]`);

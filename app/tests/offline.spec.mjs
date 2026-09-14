@@ -69,7 +69,7 @@ test('no signal: check-in and check-out are saved, survive a reload, and send la
   // Forty minutes after the check-out, signal comes back.
   await page.clock.setFixedTime(BACK);
   await context.setExtraHTTPHeaders({ 'X-Test-Now': iso(BACK) });
-  const sent = Promise.all([waitEvent(page, 'check_in', { timeout: 90_000 }), waitEvent(page, 'check_out', { timeout: 90_000 })]);
+  const sent = Promise.all([waitEvent(page, 'check_in'), waitEvent(page, 'check_out')]);
   await context.setOffline(false);
   const [rin, rout] = await sent;
   expect(rin.status(), 'check-in sent').toBe(201);
@@ -122,7 +122,7 @@ test.describe('with the service worker blocked', () => {
     await expect(page.locator('#strip-text')).toHaveText('2 saved on this phone. Trying again soon. They keep the time you tapped.');
     expect(await testEvents(request, visit.id), 'still nothing on the server').toHaveLength(0);
 
-    const sent = Promise.all([waitEvent(page, 'check_in'), waitEvent(page, 'check_out')]);
+    const sent = Promise.all([waitEvent(page, 'check_in', { mode: 'install' }), waitEvent(page, 'check_out', { mode: 'install' })]);
     await page.clock.runFor(61_000); // the sender's next try
     const [rin, rout] = await sent;
     expect([rin.status(), rout.status()]).toEqual([201, 201]);
@@ -136,8 +136,14 @@ test.describe('with the service worker blocked', () => {
     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
     expect((await in1).status()).toBe(201);
 
+    // No signal, then signal with one dropped send (the proxy failure QA saw at 866ee71): the test must survive it.
     let offline = true;
-    await page.route('**/api/worker/events', route => (offline ? route.abort('internetdisconnected') : route.continue()));
+    let dropped = 0;
+    await page.route('**/api/worker/events', route => {
+      if (offline) return route.abort('internetdisconnected');
+      if (dropped === 0) { dropped += 1; return route.abort('connectionreset'); }
+      return route.continue();
+    });
     await checkOut(page, card, 1);
     await expect(page.locator('#strip-text')).toHaveText(/(^|\. )1 saved on this phone\./);
 
@@ -146,12 +152,11 @@ test.describe('with the service worker blocked', () => {
       data: { id: randomUUID(), visit_id: visit.id, kind: 'check_out', at: iso(T + MIN), tasks: [] } });
     expect(other.status, 'the other check-out is stored').toBe(201);
 
-    const refused = page.waitForResponse(r => r.url().endsWith('/api/worker/events') && r.request().method() === 'POST' && r.status() === 409, { timeout: 90_000 });
-    // Nothing announces a route change; the sender's own retry finds the signal. The phone's clock moves on, so the
-    // backoff's due time (Date.now() + delay) passes.
+    // Nothing announces a route change: the sender's own retries find the signal while the clock moves (waitEvent).
+    const refused = waitEvent(page, 'check_out', { status: 409 });
     offline = false;
-    await page.clock.setFixedTime(T + 5 * MIN);
     const words = (await (await refused).json()).error;
+    expect(dropped, 'one send was dropped after signal came back').toBe(1);
     expect(words).toMatch(/^This visit already has a check-out at \d{1,2}:\d{2} [AP]M\.$/);
     await expect(page.getByRole('heading', { name: 'Not accepted by the office' })).toBeVisible();
     const item = page.locator('.refused-item');
@@ -182,7 +187,7 @@ test.describe('with the service worker blocked', () => {
     await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/);
     expect(await testEvents(request, visit.id), 'the Worker has not seen it').toHaveLength(0);
 
-    const sent = waitEvent(page, 'check_in');
+    const sent = waitEvent(page, 'check_in', { mode: 'install' });
     for (let s = 0; s < 70 && through === 0; s++) await page.clock.runFor(1000);
     expect((await sent).status(), 'the next try reaches the Worker').toBe(201);
     await expect(page.locator('#strip-text')).toHaveText('All sent');
@@ -227,7 +232,12 @@ test.describe('with the service worker blocked', () => {
   test('a check-in the office already set with Fix times stays on its card: "Not accepted by the office"', async ({ page, context, request, seed }) => {
     const { visit, card } = await phoneOnline(page, context, request, seed);
     let offline = true;
-    await page.route('**/api/worker/events', route => (offline ? route.abort('internetdisconnected') : route.continue()));
+    let dropped = 0;
+    await page.route('**/api/worker/events', route => {
+      if (offline) return route.abort('internetdisconnected');
+      if (dropped === 0) { dropped += 1; return route.abort('connectionreset'); } // one dropped send after the signal returns
+      return route.continue();
+    });
     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in (no signal)');
     await expect(card.locator('.visit-status')).toHaveText('Checked in 10:30 AM · saved on this phone');
 
@@ -238,10 +248,10 @@ test.describe('with the service worker blocked', () => {
       data: { check_in_at: iso(T - 20 * MIN), check_out_at: null, reason: 'Worker phoned the office (SAMPLE)', version: before.version } });
     expect(fix.status, 'Fix times').toBe(200);
 
-    const refused = page.waitForResponse(r => r.url().endsWith('/api/worker/events') && r.request().method() === 'POST' && r.status() === 409, { timeout: 90_000 });
+    const refused = waitEvent(page, 'check_in', { status: 409 });
     offline = false;
-    await page.clock.setFixedTime(T + 5 * MIN);
     const words = (await (await refused).json()).error;
+    expect(dropped, 'one send was dropped after signal came back').toBe(1);
     const notice = card.locator('.visit-notice');
     await expect(notice).toContainText(`Not accepted by the office: check-in tapped at 10:30 AM. Call the office: ${OFFICE_PHONE}`);
     await expect(notice).toContainText(words);

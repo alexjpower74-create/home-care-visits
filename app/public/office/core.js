@@ -13,6 +13,23 @@ export const clearToken = () => { try { localStorage.removeItem(TOKEN_KEY); } ca
 
 let sessionEnded = () => {};
 export const onSessionEnded = fn => { sessionEnded = fn; };
+/** A 401 without `field` from a call made outside office() (the CSV download). */
+export function endSession(message) {
+  clearToken();
+  sessionEnded(message);
+}
+
+/** The inline "New link" block for the worker and client forms: Copy, New link, and a confirm that says what happens. */
+export function linkBlock({ label, help, copyAct, copyLabel, who }) {
+  return `<div class="field link-block"><span class="label">${label}</span><p class="muted">${help}</p>
+    <div class="link-actions"><button type="button" class="btn btn-outline btn-inline" data-act="${copyAct}">${copyLabel}</button>
+      <button type="button" class="btn btn-outline btn-inline" data-act="new-link">New link</button></div>
+    <div class="confirm" id="link-confirm" role="group" aria-label="Make a new link" hidden>
+      <p>The old link stops working at once. ${who} will need the new one.</p>
+      <div class="link-actions"><button type="button" class="btn btn-accent btn-inline" data-act="confirm-new-link">Make a new link</button>
+        <button type="button" class="btn btn-outline btn-inline" data-act="cancel-new-link">Keep the old link</button></div></div>
+    <p class="muted" id="link-msg" role="status"></p><p class="field-error" data-error-for="link" role="alert"></p></div>`;
+}
 
 /** Authorised office call → { status, ok, data }; status 0 when the server can't be reached. A 401 without `field` ends the session. */
 export async function office(method, path, body) {
@@ -23,10 +40,7 @@ export async function office(method, path, body) {
   } catch {
     return { status: 0, ok: false, data: { error: NETWORK } };
   }
-  if (r.status === 401 && !r.data?.field) {
-    clearToken();
-    sessionEnded(errorText(r));
-  }
+  if (r.status === 401 && !r.data?.field) endSession(errorText(r));
   return r;
 }
 

@@ -33,6 +33,23 @@ export function localDate(t, tz = TZ) {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/** "HH:MM" (24 h) of an instant in tz, for time inputs. */
+export function localHm(t, tz = TZ) {
+  const p = parts(t, tz);
+  return `${p.hour === '24' ? '00' : p.hour}:${p.minute}`;
+}
+
+/** "9:00–10:00 AM" / "11:30 AM–12:30 PM" from "HH:MM" local times: the compact label for planner chips. */
+export function compactRange(start, end) {
+  const f = hm => {
+    const [h, m] = hm.split(':').map(Number);
+    return { t: `${h % 12 || 12}:${String(m).padStart(2, '0')}`, ap: h < 12 ? 'AM' : 'PM' };
+  };
+  const a = f(start);
+  const b = f(end);
+  return a.ap === b.ap ? `${a.t}–${b.t} ${b.ap}` : `${a.t} ${a.ap}–${b.t} ${b.ap}`;
+}
+
 /** The UTC milliseconds of a local date + "HH:MM" in tz (DST aware). */
 export function localToUtcMs(date, hm, tz = TZ) {
   const [y, m, d] = date.split('-').map(Number);
