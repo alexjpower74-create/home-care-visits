@@ -36,17 +36,40 @@ port 7909 (`rig qa --ref <sha>`), never from a slice's tree. The slices' own rep
 
 Both go to hc2 before M3 (DECISIONS 36).
 
-## Cross-review findings so far
-- hc1 → hc2 (M1 pages, 10:54): 7 findings, 2 DATA LOSS (captive-portal 200 deletes a queued check-out; a pattern rebuild deletes
-  a visit a phone already checked in to), 2 PAYROLL, 1 PRIVACY, 1 PAYROLL (low), 1 OTHER → API.md clarifications 6-12.
-- hc2 → hc1 (M1 Worker, 11:07): 1 contract gap (inactive worker's key), already fixed by hc1 M2 (clarification 5); 1 route
-  called before it existed (fallback to be removed).
-- hc1 → hc2 (office pages at `7bbd204`, 11:07): 9 findings (2 SECURITY, 1 DATA LOSS still open from R1, 2 PAYROLL, 1 PRIVACY,
-  3 OTHER) and 5 spec gaps where a broken product would still pass → API.md clarification 15 and hc2's M2c.
+## Final QA
+<!-- FINAL-QA-RESULT -->
 
-## Negative controls recorded by the slices (the lead re-runs all of them in the final QA)
-- Worker (hc1): (a) idempotent, (b) original time, (c) family note, (d) alert boundary, (e) travel-gap factor, (f) payroll
-  rounding, (g) mileage order, (h) CSV formula guard, (i) missed excludes cancelled, (j) NL date of check-in, (k) inactive worker
-  key, (l) rebuild hard-delete, (m) note blocks check-out.
-- App (hc2): (a) queue deletes before the answer, (b) `at` stamped at send, (c) board late at 16 min, (d) Worker family answer
-  leaks every note, (e) overlay over Check in.
+## Cross-review: every defect crossed the slice boundary
+The two slices reviewed each other read-only after every milestone (from committed branches, never the other's worktree). Self-tests
+found none of the findings below; each became a numbered clarification in `docs/API.md` and a test that fails without its fix.
+
+| round | reviewer → reviewed | findings | worst | became |
+|---|---|---|---|---|
+| 10:54 | hc1 → hc2 M1 (phone, family) | 7 | DATA LOSS: a Wi-Fi login page's 200 deleted a queued check-out; a pattern rebuild deleted a visit a phone had checked in to | API 6-12 |
+| 11:07 | hc2 → hc1 M1 (Worker) | 2 | a deactivated worker's link refused (already fixed by hc1 M2) | API 5 |
+| 11:07 | hc1 → hc2 office (early, `7bbd204`) | 9 + 5 spec gaps | SECURITY: an inactive worker vanished with no screen to stop their link; specs that passed a check-out stamped at check-in time | API 15 |
+| 11:46 | hc1 → hc2 M2c | 10 | DATA LOSS: the service worker cached a login page as the worker page; a refused old link deleted drafts typed under the new one | API 16 |
+| 12:15 | hc1 → hc2 M3 (office) | 8 | PAYROLL: an AM/PM slip stored as a 14-hour overnight shift; SECURITY: a PIN change left other sessions signed in | API 17 |
+| 12:53 | hc1 → hc2 M3b | 3 + known gaps | PAYROLL: a slow line hid the saved list; Dismiss deleted the refused tap; a lost phone's open visit could not be checked out | API 18 |
+| 13:01 | hc1 → hc2 M3c (early) | 1 + small | PAYROLL: Fix times could not complete a visit whose check-in was after midnight | API 19 |
+| 14:28 | hc1 → hc2 M3d | 1 + known gaps | PAYROLL: a visit reassigned after an offline check-in could not be checked out by anyone | API 21 (Worker) |
+| 15:27 | hc1 → hc2 M3e (maps) | 0 + 4 known gaps | two checks that could not fail (map fallback, unanswered tile request) | M3g |
+
+Lead QA findings: at `866ee71` two spec timing defects (a running page clock, a frozen clock stalling a retry; DECISIONS 36); at
+`6cb9e81` one WebKit-only red that hc1 traced to WebKit logging a handled, cancelled fetch as a page error during navigation
+(DECISIONS 49; fixed in the spec, never filtered). A mid-sprint rule moved the maps to OpenFreeMap (DECISIONS 50, API 20).
+
+## Negative controls (each breaks a copy, must pass unbroken first, then go red)
+- **Worker (hc1), 17:** (a) idempotent event ids, (b) original tap time, (c) family note privacy, (d) late boundary at 15:00,
+  (e) travel-gap road factor, (f) payroll rounded once, (g) mileage in check-in order, (h) CSV formula guard, (i) missed excludes
+  cancelled, (j) NL date of the check-in, (k) inactive worker's link, (l) rebuild soft-removes, (m) a note never blocks a check-out,
+  (n) a duplicate repeats the refusal, (o) PIN change ends other sessions, (p) open_dates reach 7 days, (q) the list keeps reassigned
+  checked-in visits.
+- **App (hc2):** (a) queue deletes before the answer, (b) time stamped at send, (c) board late at 16 minutes, (d) family note leak,
+  (e) overlay over Check in, (f) captive-portal 200, (g) payroll total from rounded rows, (h) service worker caches a login page,
+  (i) silent next-day check-out, (j) presets computed at mount, (k) network before the saved list, (l) open_dates ignored,
+  (m) missing map attribution, plus the proofs in `app/tests/negative-m2c-proofs.mjs` (earlier days, refused link, refused check-in
+  card, note check and notice, inactive list/sheet/row at 390 and 1280, Dismiss, WebGL fallback and required MapLibre, and more).
+
+## Known gaps
+Listed in README.md ("Where to pick this up"), with the reasoning in DECISIONS 45, 52 and 54.
