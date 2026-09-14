@@ -73,5 +73,18 @@ cd app && npm run negative     # app negative controls and proofs
 ## Where to pick this up
 - Read `PLAN.md` (the build contract), `docs/API.md` (the Worker/app contract and its clarifications), `DECISIONS.md` (every call
   made overnight, with why), then `docs/build-report.md`.
-- Known gaps: one shared office PIN and no access log; zones and funders are fixed by the seed; straight-line distances, not
-  road routing; no pay or billing rates (hours only); no scheduled data retention; one deployment per agency.
+- Known gaps (product): one shared office PIN and no access log; zones and funders are fixed by the seed; straight-line
+  distances, not road routing; no pay or billing rates (hours only); no scheduled data retention; one deployment per agency.
+- Known gaps (found in cross-review, judged safe to leave tonight; none loses a tap or pays wrongly, DECISIONS 45 and 52):
+  - For a few seconds after a send on a slow line, a card can offer Check in or Check out again; a second tap is refused
+    ("wasn't accepted") and nothing is lost.
+  - A lost phone opened after "New link" shows the saved entry notes until the Worker's refusal arrives (offline, until it has
+    signal). They were already on the phone.
+  - In Fix times, the "after midnight" box does not untick itself when the time is corrected back to the same evening; the Worker
+    then refuses the time as too far from the visit.
+  - Service worker edge cases: two quick reloads racing a background refresh can make a page fetch a module from the network; a
+    browser that leaves `resultingClientId` unset can mix a new set with an old page; install fails behind a Wi-Fi login page until a
+    later good load; with no cached copy a stalled connection waits for the browser's own timeout.
+  - Drafts saved by builds before this one carry no link key and are never cleared by a refused link; `hcv:dismissed` only grows.
+  - WebKit under Playwright cannot reload a page while offline or read the clipboard; those steps are skipped there with written
+    reasons (Chromium runs them).
