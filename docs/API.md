@@ -578,3 +578,10 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
       sprites only if the fixture style names them). The network guard fails on any other host, `tile.openstreetmap.org` included. A
       spec asserts the attribution text and its three links are visible and hit-test to themselves on the Clients map at 390 and 1280
       in both engines. Negative control (m) `negative-attribution.mjs`: a copy without the attribution goes red.
+21. **(hc1 review of hc2 M3d, PAYROLL) The worker's list includes the visits they checked in to, even after a reassignment.**
+    `GET /api/worker/visits?date=` returns the visits on that date currently assigned to this worker **plus** the visits on that
+    date whose effective check-in was made by this worker and that are now assigned to someone else (or to no one). Those carry
+    `"reassigned": true` (every other visit `false`), keep their check-in and check-out, and sort with the rest by `starts_at`.
+    Otherwise a worker who checked in offline just before the office moved the visit could never check out (only the worker who
+    checked in may), and `open_dates` would name a day whose list has no card for it. The page needs no change; it may add "Moved to
+    another worker by the office" under the time.

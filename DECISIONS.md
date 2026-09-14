@@ -196,3 +196,13 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     OpenFreeMap's quick start loads MapLibre 5; `@maplibre/maplibre-gl-leaflet` 0.1.4 supports it. A browser without WebGL keeps a
     working map with pins and attribution, since a coordinator's old office PC must still be able to place a pin. It goes to hc2 with
     M3e; the lead updates AGENTS.md, README.md and docs/DEPLOY.md.
+
+## 2026-09-14, lead (after hc1's review of hc2 M3d, 14:32)
+
+51. **The worker list follows the check-in, not only the assignment** (API.md 21). Two earlier calls were each right on their own:
+    events are accepted from a worker assigned earlier (DECISIONS 9), and only the worker who checked in may check out. Together
+    they left a visit that nobody could finish when the office reassigned it while the worker was checking in. The fix belongs in
+    the Worker (hc1 M7, with a negative control); the page already draws whatever the list returns.
+52. **hc1's smaller M3d notes are known gaps, not fixes tonight.** None loses a tap or pays wrongly: a card offering Check out again
+    for a few seconds after a send is refused 409 on a second tap; an "after midnight" box left ticked sends a time the Worker refuses;
+    entry notes on a lost phone show until the 401 arrives (they were already on the phone offline). They are listed in the README.
