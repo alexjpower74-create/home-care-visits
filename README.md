@@ -14,7 +14,8 @@ cd ~/Projects/"Home Care Visits" && npm run demo
 
 Then open <http://127.0.0.1:7901/office/> and sign in with PIN **4826**. The demo prints a worker link for each SAMPLE worker
 and a family link for three SAMPLE clients, and writes them all to `.logs/demo-links.txt`. Every client's family link is also on
-the office Clients screen, and every worker's link on Workers. Ctrl+C stops it.
+the office Clients screen, and every worker's link on Workers. Ctrl+C stops it. (The overnight build left one running detached,
+with its output in `.logs/demo.log`; stop that one by the PID listening on port 7901.)
 
 Needs Node 22+ and `wrangler` 4.131+ on the PATH. The demo wipes and reseeds its own local database each time (a lived-in SAMPLE
 week dated around the real date and time, so the Today board always has a late and a missed visit).
@@ -50,8 +51,13 @@ week dated around the real date and time, so the Today board always has a late a
 - **No AI and no paid services.** Model spend: CA$0.
 
 ## Tests
-<!-- FINAL-QA: filled in from the lead's pinned QA run -->
-Numbers come from a QA worktree pinned to one commit; see `docs/build-report.md` for every run and every negative control.
+**Final QA** (lead, QA worktree pinned to `ab47a00`, one run, nothing re-run to green):
+- Worker: unit tests 23 passed / 0 failed / 0 skipped; API tests 71 / 0 / 0.
+- Playwright, chromium + webkit at 390 and 1280, real taps against the real Worker: **224 passed / 0 failed / 4 skipped**. The 4 skips
+  are two offline tests WebKit cannot run under Playwright (it cannot reload a page while offline), each with its reason in the test;
+  Chromium runs both.
+- Negative controls, each passing on an unbroken copy and then going red on its broken copy: 17 Worker controls and 14 app control
+  scripts (13 lettered controls plus the proofs script, every proof red). Every run and every control is in `docs/build-report.md`.
 
 ```sh
 cd worker && npm test          # unit + API tests against a local TEST_MODE Worker (port 7902)
@@ -64,8 +70,9 @@ cd app && npm run negative     # app negative controls and proofs
 - Cloudflare: Worker `home-care-visits`, D1 database `home-care-visits` (create it, put its id in `worker/wrangler.toml`, then
   `wrangler d1 migrations apply home-care-visits --remote`: a deploy does not migrate). No secrets, no cron. HTTPS domain of his
   choice (the offline mode and location check need HTTPS).
-- Before a real agency uses it: change PIN 4826, rename the agency, start without the SAMPLE people, **never set `TEST_MODE`**,
-  and pick a map tile provider if it is sold widely.
+- Before a real agency uses it: change PIN 4826, rename the agency, start without the SAMPLE people, **never set `TEST_MODE`**.
+  The map uses OpenFreeMap (free, commercial use allowed, no SLA); keep its attribution, and if an SLA is ever needed point the one
+  style URL in `app/public/map-config.js` at a paid provider.
 - Outside the code, because this is personal health information under NL's PHIA: a privacy impact assessment and the agency's
   privacy officer's sign-off, client consent for family links, worker notice about the location check, a retention period with
   scheduled clean-up, backups the agency controls, and named office accounts (v1 has one shared PIN).

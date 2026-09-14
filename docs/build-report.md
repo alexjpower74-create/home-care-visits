@@ -22,6 +22,7 @@ port 7909 (`rig qa --ref <sha>`), never from a slice's tree. The slices' own rep
 | 13:30 | `6cb9e81` (main: + hc1 M6 + hc2 M3c) | Playwright, 4 projects | **189 passed / 1 failed / 4 skipped**: `targets.spec` on webkit-390 failed the fixture's no-uncaught-page-errors check, not contrast. The worker page's `GET /api/worker/visits` was still in flight when the test navigated to the office, and WebKit reported the aborted fetch as an uncaught rejection. A real defect: a dropped visits request must never surface uncaught. Sent to hc2 with M3d (API.md 18). |
 | 14:37 | `d9a7401` (hc1 M7) | Worker `npm test` | unit 23/0/0 · API 71/0/0 |
 | 16:32 | `b51d4b1` (main: every milestone; final QA, attempt 1) | Worker suite, 17 Worker controls, Playwright, every app control | unit 23/0/0 · API 71/0/0 · 17/17 Worker controls red · **Playwright 223 passed / 1 failed / 4 skipped** · 14/14 app control scripts red (all proofs included). The red: `worker.spec` across-midnight test on chromium-1280 tapped Check out while the card was redrawn from the saved list to the network answer ("Element is not attached to the DOM"). Sent to hc2 as M3h; not re-run. |
+| 17:23 | `ab47a00` (main: + hc2 M3h; final QA, attempt 2) | Worker suite, Playwright, every app control (Worker controls carried over) | unit 23/0/0 · API 71/0/0 · **Playwright 224 passed / 0 failed / 4 skipped** · 14/14 app control scripts red · 17/17 Worker controls red at `b51d4b1`, `git diff b51d4b1 ab47a00 -- worker/` empty |
 
 ### The two failures at `866ee71`, and why they are spec defects, not flakes to re-run
 1. `board.spec.mjs` on webkit-390: at "09:29:59" the row was already `missed`. The spec calls `page.clock.install({ time })`,
@@ -38,7 +39,16 @@ port 7909 (`rig qa --ref <sha>`), never from a slice's tree. The slices' own rep
 Both go to hc2 before M3 (DECISIONS 36).
 
 ## Final QA
-<!-- FINAL-QA-RESULT -->
+**Green at `ab47a00`** (17:23), one pinned run, nothing re-run to green:
+- Worker `npm test`: unit 23 passed / 0 failed / 0 skipped; API 71 / 0 / 0.
+- Playwright, 4 projects (chromium-390, chromium-1280, webkit-390 iPhone 14, webkit-1280): **224 passed / 0 failed / 4 skipped**.
+  The 4 skips are `offline.spec` "with no signal after midnight, a reload still shows yesterday's open visit and checks it out" and
+  "a Wi-Fi login page answering the worker page's files never replaces them in the cache" on webkit-390 and webkit-1280: Playwright's
+  WebKit cannot reload a page while offline. Both run in Chromium.
+- App negative controls: 14 of 14 scripts red, (a)-(m) and the proofs script with every proof red.
+- Worker negative controls: 17 of 17 red at `b51d4b1`. They carry over because `git diff b51d4b1 ab47a00 -- worker/` is empty.
+- Attempt 1 at `b51d4b1` had one red Playwright test (a spec tapping a card mid-redraw). It was fixed in the spec and in the page (a
+  redraw keeps unchanged nodes), not re-run (DECISIONS 55).
 
 ## Cross-review: every defect crossed the slice boundary
 The two slices reviewed each other read-only after every milestone (from committed branches, never the other's worktree). Self-tests

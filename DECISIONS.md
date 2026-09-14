@@ -224,3 +224,10 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     open from yesterday" card was being redrawn from the saved list to yesterday's answer. It is the redraw race hc2 already fixed in
     the Saturday spec, so the spec waits for the answer; and because a real worker's tap at that instant would also be swallowed, hc2
     checks whether an unchanged card is being replaced and keeps the node if so (M3h). The final QA then runs again from a clean pin.
+
+## 2026-09-14, lead (final QA, 17:23)
+
+56. **The final QA is green at `ab47a00`**: Worker 23 + 71, Playwright 224 passed / 0 failed / 4 skipped, 14 app control scripts
+    red. The 17 Worker controls are carried over from attempt 1 rather than re-run, because `worker/` has no diff since `b51d4b1`
+    (checked in the QA script itself); everything that changed was run again from a clean pin. Nothing was deployed, sent or
+    submitted, and no model API was used (CA$0).
