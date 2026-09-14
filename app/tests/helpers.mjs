@@ -76,11 +76,39 @@ export const test = base.extend({
 });
 
 /** The Worker's clock (X-Test-Now on the page's requests) and the page's clock at ms. mode 'fixed' pins Date (timers run);
- *  'install' fakes timers too, so a test can page.clock.runFor. */
+ *  'install' fakes timers too and pauses the clock at ms, so only page.clock.runFor moves it (DECISIONS 36: an installed clock
+ *  left running adds the machine's own seconds between steps). */
 export async function setNow(page, context, ms, { mode = 'fixed' } = {}) {
   await context.setExtraHTTPHeaders({ 'X-Test-Now': iso(ms) });
-  if (mode === 'install') await page.clock.install({ time: ms });
-  else await page.clock.setFixedTime(ms);
+  if (mode === 'install') {
+    await page.clock.install({ time: ms - 1000 });
+    await page.clock.pauseAt(ms);
+  } else {
+    await page.clock.setFixedTime(ms);
+  }
+}
+
+/**
+ * Wait for a response the queue sends, moving the page's clock 5 s at a time until it arrives. A real phone's clock moves;
+ * a frozen one would leave a send that failed once (a dropped connection) waiting for a backoff that never comes due
+ * (DECISIONS 36). mode 'install' steps with runFor, 'fixed' with setFixedTime. Only the moments between tries move: the
+ * tapped times are already on the queued events.
+ */
+export async function untilAnswer(page, promise, { mode = 'fixed', stepMs = 5000, realMs = 110_000 } = {}) {
+  let settled = false;
+  promise.then(() => { settled = true; }, () => { settled = true; });
+  const deadline = Date.now() + realMs;
+  while (!settled && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 400));
+    if (settled) break;
+    try {
+      if (mode === 'install') await page.clock.runFor(stepMs);
+      else await page.clock.setFixedTime((await page.evaluate(() => Date.now())) + stepMs);
+    } catch {
+      break; // the page closed: the promise settles on its own
+    }
+  }
+  return promise;
 }
 
 /* ---- real input ---- */
@@ -224,9 +252,16 @@ export async function oneOffVisit(request, token, data) {
   return r.body;
 }
 
-/** The POST /api/worker/events answer for an event of this kind. */
-export const waitEvent = (page, kind, opts) => page.waitForResponse(r => r.url().endsWith('/api/worker/events')
-  && r.request().method() === 'POST' && r.request().postDataJSON()?.kind === kind, opts);
+/**
+ * The POST /api/worker/events answer for an event of this kind (and status, when given). Register it before the action;
+ * awaiting it steps the page clock until the answer arrives (untilAnswer), so one dropped send never stalls a test.
+ */
+export function waitEvent(page, kind, { mode = 'fixed', status, timeout = 115_000 } = {}) {
+  const promise = page.waitForResponse(r => r.url().endsWith('/api/worker/events') && r.request().method() === 'POST'
+    && r.request().postDataJSON()?.kind === kind && (status == null || r.status() === status), { timeout });
+  promise.catch(() => {});
+  return { then: (resolve, reject) => untilAnswer(page, promise, { mode }).then(resolve, reject) };
+}
 
 export async function signIn(page, pin = PIN) {
   await page.goto('/office/');

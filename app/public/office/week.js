@@ -3,7 +3,7 @@
 // visits grouped by worker, "Assign to" + Save. The conflict list sits above; choosing a conflict highlights its chips.
 import { office, errorText, esc } from './core.js';
 import { openVisitSheet } from './sheet.js';
-import { localDate, mondayOf, addDays, TZ } from '../time.js';
+import { localDate, mondayOf, addDays, compactRange, TZ } from '../time.js';
 
 const WIDE = '(min-width: 900px)';
 
@@ -55,7 +55,7 @@ export function mount(el, ctx) {
     return `<div class="chip${v.cancelled ? ' is-cancelled' : ''}" data-visit-id="${v.id}" data-conflict="${sev ?? ''}"${on ? ' data-highlight' : ''}
         role="button" tabindex="0" aria-label="${esc(`${v.client_name}, ${v.time_label}${sev ? ', conflict' : ''}`)}">
       <span class="avatar avatar-sm" aria-hidden="true">${esc(v.client_initials)}</span>
-      <span class="chip-text"><span class="chip-client">${esc(v.client_name)}</span><span class="chip-time">${esc(v.time_label)}</span>
+      <span class="chip-text"><span class="chip-client">${esc(v.client_name)}</span><span class="chip-time">${esc(compactRange(v.start, v.end))}</span>
       ${sev ? '<span class="chip-flag">Conflict</span>' : ''}</span></div>`;
   }
 

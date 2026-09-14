@@ -368,3 +368,115 @@ Control (e)'s anchor was updated for the "Check in again" label. The (d) anchor 
 Not proven by a broken copy: the sign-out message, the planner's edge colour / single PUT, the Call-link contrast and the
 advanced-clock assertions. These are new assertions on behaviour that was already right, so there is no fix to remove. Each
 fails if that behaviour regresses.
+
+## Before M3: the two spec timing defects from the lead's pinned QA of 866ee71 (DECISIONS 36)
+
+1. **`board.spec`, clock left running.** The page clock is installed a second before 09:14:59 and `pauseAt(09:14:59)`, so only
+   `runFor` moves it; 15:00, 29:59 and 30:00 no longer depend on the machine's speed. `setNow(..., { mode: 'install' })` in
+   `helpers.mjs` does the same for every other installed clock. The other exact-boundary checks already used a fixed clock
+   with no running between assertions: `targets.spec` contrast at 9:20, and the labels in offline, worker, family and reports.
+2. **`offline.spec`, frozen clock stalling the queue.** `waitEvent` now steps the page clock 5 s every 400 ms of real time until
+   its answer arrives (`untilAnswer`: `runFor` on an installed clock, `setFixedTime` on a fixed one), so a backoff after a
+   dropped send always comes due. Every spec that waits on the queue goes through `waitEvent`: offline, worker, family,
+   reports.
+   - **Proof, kept in the suite for good:** "a check-out the office already has…" and "a check-in the office already set with
+     Fix times…" abort the first event POST after signal comes back (`route.abort('connectionreset')`, the failure QA saw).
+     Each asserts `dropped === 1` and must still get its 409. Both pass in all four projects.
+
+## M3: Reports, Fix times, New link, Settings, chip polish (2026-09-14)
+
+Rebased on main at 0c33594.
+
+### Built
+- **Reports** (`office/reports.js`).
+  - Period: From/To dates, with "This week", "Last week" and "Last 14 days" from the page clock in NL time, and tabs Payroll ·
+    Billing · Missed and late · Mileage.
+  - **Payroll:** worker rows with their client rows, the Worker's own `total` (the page adds nothing up), and "Checked in,
+    not checked out" from `incomplete`.
+  - **Billing:** funder rows with their client rows. Scheduled hours use the API's rounding from `scheduled_minutes`.
+  - **Missed and late:** one row per visit with `what_label`.
+  - **Mileage:** each worker's day with its legs and km, the totals, and the straight-line note.
+  - **Download CSV:** `fetch` with the Bearer token → a blob → a download named from `Content-Disposition`. A 401 without
+    `field` ends the session; any other refusal shows the API's words.
+- **Fix times** in the edit sheet (`office/sheet.js`).
+  - The times section shows each event with its source: "8:30 AM (from the phone, Within 250 m of the client)" or "9:31 AM
+    (set by the office: <correction_reason>)", plus the worked time.
+  - The inputs are NL time. Only a changed time is sent, so the phone's seconds are never overwritten by the same minute. A
+    check-out earlier on the clock than the check-in counts as the next day. A reason is required.
+  - Clarification 14's restore refusal shows in the sheet with the API's words.
+- **New link** on the worker and client forms (`linkBlock` in `office/core.js`).
+  - An inline confirm: "The old link stops working at once. <who> will need the new one." with "Make a new link" and "Keep
+    the old link".
+  - It works on inactive workers and clients, opened from Inactive. Copy link shows "Copied".
+- **Settings** (`office/settings.js`): agency name and office phone (`PUT /api/office/agency`, and the header repaints), and
+  change PIN (`PUT /api/office/pin`). A 401 with `field: "current"` shows by that field and the session stays.
+- **Planner chips:** the name wraps to two lines (no more "Walter G. (S…"), and the time is compact ("9:00–10:00 AM",
+  `compactRange` in `time.js`). Full names and the full time stay in the sheet.
+
+### Specs
+- **`reports.spec`:**
+  - Two real phone journeys with the page clock. Sam R.: Bill S. 9:00:00–10:00:18, then Ruby T. checked in and left open.
+    Jo W.: Margaret P. checked in at 8:30:42, with no check-out.
+  - Payroll first lists Margaret P. as incomplete. Her check-out is then fixed to 9:31 in the edit sheet, and the sheet shows
+    "set by the office: <reason>".
+  - Each worker's visit is exactly 3 618 s, so the API rows are "1.01" and "1.01" and the total is "2.01" (7 236 s). The page
+    shows each row, each client row and the total exactly as the API does; the rows added up would be "2.02".
+  - The CSV download's bytes equal `GET /api/office/reports/payroll.csv` for the same period, with the expected filename.
+  - Billing's funder rows and hours match the API. Missed lists the API's rows. Mileage shows Sam's Bill S. to Ruby T. leg,
+    its km, and the straight-line note. The period buttons set the dates.
+- **`links.spec`:**
+  - New link on Sam R. ("Keep the old link" first changes nothing): the old link says "This link doesn't work any more…" and
+    the new one loads.
+  - New link on Terry O. after he is made inactive, opened from Inactive: the old link is refused.
+  - New family link on Walter G.: the old family link shows the bad-link message and the new one works.
+  - Copy worker link reads back the exact link from the clipboard in Chromium. WebKit asserts "Copied" and skips only the
+    read, with the reason.
+- **`settings.spec`:**
+  - A wrong current PIN answers 401 `field: "current"`, the words show by the field, the session keeps working, and the PIN
+    is unchanged.
+  - A PIN change: the new PIN signs in and the old one doesn't.
+  - Agency name and phone are saved, and the header shows the new name with the SAMPLE badge.
+- **`planner.spec`, clarification 14:** Walter G.'s pattern moves to 10:00, which soft-removes Tuesday 9:00. Alex's phone then
+  checks in to it. The sheet shows "Removed when the visit pattern changed.", and Restore shows "This visit was removed from
+  the schedule, so it can't be restored." (409).
+
+### Results (full suite run alone, 2026-09-14)
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 33 | 0 | 0 |
+| chromium-1280 | 32 | 0 | 0 |
+| webkit-390 | 33 | 0 | 0 |
+| webkit-1280 | 32 | 0 | 0 |
+| **total** | **130** | **0** | **0** |
+
+Steps skipped inside tests, WebKit only, each with its written reason: the offline reload (`offline.spec`) and the clipboard
+read-back (`links.spec`).
+
+### Negative controls (a)–(g) and proofs, run alone after M3 (2026-09-14 14:27–14:32Z, `app/tests/negative-control.log`)
+Each passed on its unbroken copy first, then went red at the named assertion.
+
+| check | break (copy only) | red with |
+|---|---|---|
+| (a) queue | deletes before posting | `/ · saved on this phone$/`: element(s) not found |
+| (b) time | `at` = send time | "check-in keeps the time tapped": expected `…13:00:00.000Z`, received `…15:12:10.000Z` |
+| (c) board | late at 16 min | at 09:15:00 `data-alert` expected `"late"`, received `"none"` |
+| (d) familynote | the copied Worker returns every note | "the note is not on the page": expected 0, received 1 |
+| (e) overlay | transparent `div` over Check in | `tap(Check in) hit-test at 195,476: something else is on top` |
+| (f) portal | any 200 counts as sent | "the check-in is still saved on the phone": received `"All sent"` |
+| **(g) payrollround** (new) | Payroll total = rounded rows added up | "the Worker's total, not the rounded rows added up (2.02)": expected `"2.01"`, received `"2.02"` |
+| proofs (8) | clarifications 8–11 and 15 removed one at a time | each red at its targeted assertion, the same as at M2c |
+
+Run: `node app/tests/negative-<queue|time|board|familynote|overlay|portal|payrollround>.mjs` and `node app/tests/negative-m2c-proofs.mjs`.
+
+### Office screenshots (viewport, all four projects, looked at)
+`app/tests/shots/office-<screen>-<project>.png`, from the demo scenario at Mon Sep 14, 10:30 AM:
+- today, visit-sheet (the Times section with sources and Fix times), week-conflict;
+- clients, client-form, workers, worker-form-new-link;
+- report-payroll, report-billing, report-missed, report-mileage;
+- settings.
+
+Made with `npx playwright test -c playwright.shots.config.mjs`. The first look at the 1280 week showed a chip still cut off
+when its time crosses noon ("10:30 AM–12:00 P"). The chip time now wraps as well, and the avatar is smaller.
+
+After the chip-time CSS change, the full suite ran alone once more: **130 passed, 0 failed, 0 skipped** (33/32/33/32). The office
+screenshots were retaken (4 passed); the 1280 week shows "Irene C. (SAMPLE)" and "10:30 AM–12:00 PM" wrapped inside the cell.

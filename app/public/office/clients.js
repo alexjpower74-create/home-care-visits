@@ -1,6 +1,6 @@
 // Clients: list + Leaflet map; the form places the pin by clicking the map; tasks, visit times (patterns) with the rebuild
 // warning, family contacts, Copy family link.
-import { office, showErrors, copyText, esc, errorText } from './core.js';
+import { office, showErrors, copyText, esc, errorText, linkBlock } from './core.js';
 
 const KINDS = [['personal_care', 'Personal care'], ['meal_prep', 'Meal preparation'], ['medication_reminder', 'Medication reminder'],
   ['housekeeping', 'Light housekeeping'], ['laundry', 'Laundry'], ['companionship', 'Companionship'],
@@ -176,9 +176,8 @@ export function mount(el, ctx) {
         <div id="cf-family-rows">${d.family_contacts.map(familyRow).join('')}</div>
         <button type="button" class="btn btn-outline btn-inline" data-act="add-family">Add a family contact</button>
         <p class="field-error" data-error-for="family_contacts" role="alert"></p></fieldset>
-      ${d.id ? `<div class="field"><span class="label">Family link</span>
-        <p class="muted">The family sees today's and this week's visits. Nothing is sent: copy the link and give it to them.</p>
-        <button type="button" class="btn btn-outline btn-inline" data-act="copy-family">Copy family link</button></div>` : ''}
+      ${d.id ? linkBlock({ label: 'Family link', copyAct: 'copy-family', copyLabel: 'Copy family link', who: 'The family',
+        help: "The family sees today's and this week's visits. Nothing is sent: copy the link and give it to them." }) : ''}
       <div class="form-actions"><button type="submit" class="btn btn-accent btn-inline">Save client</button>
         <button type="button" class="btn btn-outline btn-inline" data-act="cancel">Cancel</button></div>
     </form>`;
@@ -214,6 +213,9 @@ export function mount(el, ctx) {
     if (act === 'edit') return edit(Number(b.dataset.id));
     if (act === 'cancel') { msg = ''; list(); return undefined; }
     if (act === 'copy-family') return copyText(b, draft.family_url);
+    if (act === 'new-link') { main.querySelector('#link-confirm').hidden = false; return undefined; }
+    if (act === 'cancel-new-link') { main.querySelector('#link-confirm').hidden = true; return undefined; }
+    if (act === 'confirm-new-link') return newLink();
     collect();
     const i = Number(b.dataset.i);
     if (act === 'add-task') draft.tasks.push(blank.task());
@@ -226,6 +228,17 @@ export function mount(el, ctx) {
     form();
     return undefined;
   });
+
+  async function newLink() {
+    const form = main.querySelector('#client-form');
+    const r = await office('POST', `/api/office/clients/${draft.id}/new-link`);
+    if (r.status === 401 && !r.data?.field) return;
+    if (!r.ok) { showErrors(form, { ...r, data: { ...r.data, field: 'link' } }); return; }
+    draft.family_url = r.data.family_url;
+    clients = clients.map(c => (c.id === r.data.id ? r.data : c));
+    main.querySelector('#link-confirm').hidden = true;
+    main.querySelector('#link-msg').textContent = 'New family link made. The old link no longer works. Copy the new one and give it to the family.';
+  }
 
   main.addEventListener('submit', async e => {
     e.preventDefault();

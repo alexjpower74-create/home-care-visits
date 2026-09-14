@@ -1,5 +1,5 @@
 // Workers: list and form (phone, travel zones, availability per weekday, weekly hours), Copy worker link.
-import { office, showErrors, copyText, esc, errorText } from './core.js';
+import { office, showErrors, copyText, esc, errorText, linkBlock } from './core.js';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -67,9 +67,8 @@ export function mount(el, ctx) {
       <div class="field"><label for="wf-hours">Most hours a week</label><input type="number" id="wf-hours" min="1" max="80" step="0.5" value="${esc(d.hours)}">
         <p class="field-error" data-error-for="max_week_minutes" role="alert"></p></div>
       <label class="check"><input type="checkbox" id="wf-active"${d.active ? ' checked' : ''}> Active worker</label>
-      ${d.id ? `<div class="field"><span class="label">Worker link</span>
-        <p class="muted">The worker opens this link on their own phone. Nothing is sent: copy it and give it to them.</p>
-        <button type="button" class="btn btn-outline btn-inline" data-act="copy-worker">Copy worker link</button></div>` : ''}
+      ${d.id ? linkBlock({ label: 'Worker link', copyAct: 'copy-worker', copyLabel: 'Copy worker link', who: esc(d.name),
+        help: 'The worker opens this link on their own phone. Nothing is sent: copy it and give it to them. A lost phone or a worker who has left: make a new link.' }) : ''}
       <div class="form-actions"><button type="submit" class="btn btn-accent btn-inline">Save worker</button>
         <button type="button" class="btn btn-outline btn-inline" data-act="cancel">Cancel</button></div>
     </form>`;
@@ -97,7 +96,21 @@ export function mount(el, ctx) {
     else if (b.dataset.act === 'edit') edit(Number(b.dataset.id));
     else if (b.dataset.act === 'cancel') list();
     else if (b.dataset.act === 'copy-worker') copyText(b, draft.worker_url);
+    else if (b.dataset.act === 'new-link') el.querySelector('#link-confirm').hidden = false;
+    else if (b.dataset.act === 'cancel-new-link') el.querySelector('#link-confirm').hidden = true;
+    else if (b.dataset.act === 'confirm-new-link') newLink();
   });
+
+  async function newLink() {
+    const form = el.querySelector('#worker-form');
+    const r = await office('POST', `/api/office/workers/${draft.id}/new-link`);
+    if (r.status === 401 && !r.data?.field) return;
+    if (!r.ok) { showErrors(form, { ...r, data: { ...r.data, field: 'link' } }); return; }
+    draft.worker_url = r.data.worker_url;
+    workers = workers.map(w => (w.id === r.data.id ? r.data : w));
+    el.querySelector('#link-confirm').hidden = true;
+    el.querySelector('#link-msg').textContent = `New link made. The old link no longer works. Copy the new one and give it to ${r.data.name}.`;
+  }
 
   el.addEventListener('submit', async e => {
     e.preventDefault();

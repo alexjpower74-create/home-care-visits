@@ -1,5 +1,5 @@
 // The week planner: a real mouse drag at 1280, "Assign to" at 390, the conflict list, and a stale edit.
-import { test, expect, tap, drag, tab, signIn, api, officeToken, byName, setNow, rgbOfHex, NOW, DAY, addDays } from './helpers.mjs';
+import { test, expect, tap, drag, tab, signIn, api, officeToken, byName, setNow, rgbOfHex, randomUUID, localToUtcMs, NOW, DAY, addDays } from './helpers.mjs';
 
 const MON = DAY;
 const SAT = addDays(DAY, 5);
@@ -34,6 +34,40 @@ async function openWeek(page, context) {
 }
 
 const travelGap = (page, date) => page.locator(`.conflict[data-kind="travel_gap"][data-date="${date}"]`);
+
+test("restoring a visit removed by a pattern change, after the phone checked in, shows the Worker's words (clarification 14)", async ({ page, context, request, seed }, testInfo) => {
+  const TUE = addDays(DAY, 1);
+  const { token, visit } = await weekData(request);
+  const tue = visit('Walter G. (SAMPLE)', TUE); // Alex B., 9:00
+  const walterId = byName(seed.clients, 'Walter G. (SAMPLE)').id;
+  const c = (await api(request, 'GET', `/api/office/clients/${walterId}`, { token })).body;
+  const moved = await api(request, 'PUT', `/api/office/clients/${walterId}`, { token, data: {
+    name: c.name, address: c.address, lat: c.lat, lng: c.lng, zone_id: c.zone_id, entry_notes: c.entry_notes, funder_id: c.funder_id,
+    active: c.active, tasks: c.tasks.map(t => ({ id: t.id, kind: t.kind, detail: t.detail })), family_contacts: c.family_contacts,
+    patterns: c.patterns.map(p => ({ days: p.days, start: '10:00', end: '11:00', worker_id: p.worker_id })),
+  } });
+  expect(moved.status).toBe(200);
+  expect(moved.body.rebuilt_visits).toBeGreaterThan(0);
+  const alex = byName(seed.workers, 'Alex B. (SAMPLE)');
+  const at = localToUtcMs(TUE, '08:55');
+  const late = await api(request, 'POST', '/api/worker/events', { headers: { 'X-Worker-Key': alex.key }, now: localToUtcMs(TUE, '09:30'),
+    data: { id: randomUUID(), visit_id: tue.id, kind: 'check_in', at: new Date(at).toISOString(), location: null } });
+  expect(late.status, "the phone's check-in on the removed visit lands").toBe(201);
+
+  await openWeek(page, context);
+  if (testInfo.project.name.endsWith('1280')) {
+    await tap(page, page.locator(`.chip[data-visit-id="${tue.id}"]`), 'the removed 9:00 visit');
+  } else {
+    await tap(page, page.locator(`.day-tab[data-day="${TUE}"]`), 'Tue tab');
+    await tap(page, page.locator(`[data-open-visit="${tue.id}"]`), 'the removed 9:00 visit');
+  }
+  const sheet = page.getByRole('dialog');
+  await expect(sheet).toContainText('Removed when the visit pattern changed.');
+  const restore = page.waitForResponse(r => r.url().endsWith(`/api/office/visits/${tue.id}/restore`) && r.request().method() === 'POST');
+  await tap(page, sheet.getByRole('button', { name: 'Restore visit' }), 'Restore visit');
+  expect((await restore).status()).toBe(409);
+  await expect(sheet.locator('[data-error-for="_"]')).toHaveText("This visit was removed from the schedule, so it can't be restored.");
+});
 
 test('a mouse drag of Terry O.\'s Saturday chip onto Jo W. clears the travel gap, and a reload keeps it @desktop', async ({ page, context, request }) => {
   const { worker, visit } = await weekData(request);
