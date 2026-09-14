@@ -162,4 +162,89 @@ test.describe('with the service worker blocked', () => {
     const events = await testEvents(request, visit.id);
     expect(events.filter(e => e.kind === 'check_out'), 'still exactly one check-out').toHaveLength(1);
   });
+
+  test("a 200 that is not the Worker's answer (a Wi-Fi login page) keeps the event queued; it then lands exactly once", async ({ page, context, request, seed }) => {
+    const { visit, card } = await phoneOnline(page, context, request, seed, 'install');
+    let portal = 0;
+    let through = 0;
+    await page.route('**/api/worker/events', route => {
+      if (portal === 0) {
+        portal += 1;
+        return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Free Wi-Fi</title><p>Log in to continue.</p>' });
+      }
+      through += 1;
+      return route.continue();
+    });
+
+    await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
+    await expect.poll(() => portal, { message: 'the login page answered the first send' }).toBe(1);
+    await expect(page.locator('#strip-text'), 'the check-in is still saved on the phone').toHaveText(/^1 saved on this phone\./);
+    await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/);
+    expect(await testEvents(request, visit.id), 'the Worker has not seen it').toHaveLength(0);
+
+    const sent = waitEvent(page, 'check_in');
+    for (let s = 0; s < 70 && through === 0; s++) await page.clock.runFor(1000);
+    expect((await sent).status(), 'the next try reaches the Worker').toBe(201);
+    await expect(page.locator('#strip-text')).toHaveText('All sent');
+    await page.clock.runFor(61_000);
+    expect(await testEvents(request, visit.id), 'exactly one check-in stored').toHaveLength(1);
+    expect(through, 'sent once, not again').toBe(1);
+  });
+
+  test('a refused link takes the saved lists and drafts off the phone and keeps the queue', async ({ page, context, request, seed }) => {
+    const { sam, visit, card } = await phoneOnline(page, context, request, seed);
+    await page.route('**/api/worker/events', route => route.abort('internetdisconnected'));
+    await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in (no signal)');
+    await expect(card.locator('.visit-status')).toHaveText('Checked in 10:30 AM · saved on this phone');
+    await typeInto(page, card.locator('textarea'), 'Half a note (SAMPLE)', 'note');
+
+    const saved = () => page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('hcv:visits:') || k.startsWith('hcv:draft:')).sort());
+    const before = await saved();
+    expect(before.some(k => k.startsWith('hcv:visits:')), 'a saved list is on the phone').toBe(true);
+    expect(before, 'the draft is on the phone').toContain(`hcv:draft:${visit.id}`);
+
+    const token = await officeToken(request);
+    const fresh = await api(request, 'POST', `/api/office/workers/${sam.id}/new-link`, { token });
+    expect(fresh.status, 'the office makes a new link').toBe(200);
+
+    await page.reload();
+    await expect(page.getByText("This link doesn't work any more. Ask the office for a new one.")).toBeVisible();
+    await expect.poll(saved, { message: 'no hcv:visits or hcv:draft keys left' }).toEqual([]);
+    expect(await page.content(), 'no entry notes on the page').not.toContain(visit.entry_notes);
+    const queued = await page.evaluate(() => new Promise((resolve, reject) => {
+      const open = indexedDB.open('home-care-visits');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const all = open.result.transaction('queue').objectStore('queue').getAll();
+        all.onsuccess = () => resolve(all.result.map(i => `${i.event.kind}:${i.event.visit_id}`));
+        all.onerror = () => reject(all.error);
+      };
+    }));
+    expect(queued, 'the check-in is still queued').toEqual([`check_in:${visit.id}`]);
+    await expect(page.locator('#strip-text')).toHaveText(/1 saved on this phone/);
+  });
+
+  test('a check-in the office already set with Fix times stays on its card: "Not accepted by the office"', async ({ page, context, request, seed }) => {
+    const { visit, card } = await phoneOnline(page, context, request, seed);
+    let offline = true;
+    await page.route('**/api/worker/events', route => (offline ? route.abort('internetdisconnected') : route.continue()));
+    await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in (no signal)');
+    await expect(card.locator('.visit-status')).toHaveText('Checked in 10:30 AM · saved on this phone');
+
+    // Meanwhile the worker phoned, and the office set the check-in with Fix times.
+    const token = await officeToken(request);
+    const before = await officeVisit(request, token, visit.id);
+    const fix = await api(request, 'PUT', `/api/office/visits/${visit.id}/times`, { token,
+      data: { check_in_at: iso(T - 20 * MIN), check_out_at: null, reason: 'Worker phoned the office (SAMPLE)', version: before.version } });
+    expect(fix.status, 'Fix times').toBe(200);
+
+    const refused = page.waitForResponse(r => r.url().endsWith('/api/worker/events') && r.request().method() === 'POST' && r.status() === 409, { timeout: 90_000 });
+    offline = false;
+    await page.clock.setFixedTime(T + 5 * MIN);
+    const words = (await (await refused).json()).error;
+    const notice = card.locator('.visit-notice');
+    await expect(notice).toContainText(`Not accepted by the office: check-in tapped at 10:30 AM. Call the office: ${OFFICE_PHONE}`);
+    await expect(notice).toContainText(words);
+    await expect(card.locator('.visit-status'), "the office's check-in is the visit's").toHaveText('Checked in 10:10 AM · Location not shared');
+  });
 });

@@ -4,12 +4,13 @@
 export const isMock = new URLSearchParams(location.search).get('mock') === '1';
 let mock = null;
 
-export async function request(method, path, { headers = {}, body, signal } = {}) {
+export async function request(method, path, { headers = {}, body, signal, redirect } = {}) {
   if (isMock) {
     mock ??= await import('./api.mock.js');
     return mock.handle(method, path, { headers, body });
   }
   const init = { method, headers: { ...headers }, signal, cache: 'no-store' };
+  if (redirect) init.redirect = redirect;
   if (body !== undefined) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -25,6 +26,7 @@ export const errorText = r => r?.data?.error || 'Something went wrong on our sid
 export const getAgency = () => request('GET', '/api/agency');
 export const workerVisits = (key, date) =>
   request('GET', `/api/worker/visits${date ? `?date=${encodeURIComponent(date)}` : ''}`, { headers: { 'X-Worker-Key': key } });
+// redirect: 'error' (clarification 6): a Wi-Fi login page that redirects the POST is a network failure, never "sent".
 export const postWorkerEvent = (key, event, signal) =>
-  request('POST', '/api/worker/events', { headers: { 'X-Worker-Key': key }, body: event, signal });
+  request('POST', '/api/worker/events', { headers: { 'X-Worker-Key': key }, body: event, signal, redirect: 'error' });
 export const familyVisits = key => request('GET', `/api/family/${encodeURIComponent(key)}`);

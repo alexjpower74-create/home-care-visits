@@ -1,8 +1,16 @@
 // The week planner: a real mouse drag at 1280, "Assign to" at 390, the conflict list, and a stale edit.
-import { test, expect, tap, drag, tab, signIn, api, officeToken, byName, setNow, NOW, DAY, addDays } from './helpers.mjs';
+import { test, expect, tap, drag, tab, signIn, api, officeToken, byName, setNow, rgbOfHex, NOW, DAY, addDays } from './helpers.mjs';
 
 const MON = DAY;
 const SAT = addDays(DAY, 5);
+
+/** Edged as a problem: the attribute, the computed red left edge (the token), and the word "Conflict". */
+async function problemEdge(page, locator, label) {
+  await expect(locator, label).toHaveAttribute('data-conflict', 'problem');
+  const token = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--missed-edge').trim());
+  expect(await locator.evaluate(el => getComputedStyle(el).borderLeftColor), `${label}: the red edge`).toBe(rgbOfHex(token));
+  await expect(locator.locator('.chip-flag'), `${label}: the word`).toHaveText('Conflict');
+}
 
 async function weekData(request) {
   const token = await officeToken(request);
@@ -67,7 +75,7 @@ test('dragging a visit onto a worker already booked then shows Double-booked wit
   await expect(conflict).toHaveCount(1);
   await expect(conflict).toContainText('Double-booked');
   await expect(conflict.locator('.conflict-msg')).toHaveText(/^Sam R\. \(SAMPLE\) is booked for (Bill S\. \(SAMPLE\) and Walter G\. \(SAMPLE\)|Walter G\. \(SAMPLE\) and Bill S\. \(SAMPLE\)) at the same time on Mon Sep 14\.$/);
-  for (const v of [walter, bill]) await expect(page.locator(`.chip[data-visit-id="${v.id}"]`)).toHaveAttribute('data-conflict', 'problem');
+  for (const v of [walter, bill]) await problemEdge(page, page.locator(`.chip[data-visit-id="${v.id}"]`), `${v.client_name} chip`);
 });
 
 test('"Assign to" at 390 clears the travel gap and makes a double-booking @phone', async ({ page, context, request }) => {
@@ -94,7 +102,7 @@ test('"Assign to" at 390 clears the travel gap and makes a double-booking @phone
   await tap(page, page.locator(`[data-save-assign="${walter.id}"]`), 'Save (Walter G.)');
   expect((await put).status()).toBe(200);
   await expect(page.locator(`.conflict[data-kind="double_booked"][data-date="${MON}"]`)).toContainText('Double-booked');
-  for (const v of [walter, bill]) await expect(page.locator(`.vcard[data-visit-id="${v.id}"]`)).toHaveAttribute('data-conflict', 'problem');
+  for (const v of [walter, bill]) await problemEdge(page, page.locator(`.vcard[data-visit-id="${v.id}"]`), `${v.client_name} card`);
 });
 
 test('a stale edit shows "This visit was changed on another screen. Reload and try again."', async ({ page, context, request }, testInfo) => {
@@ -116,8 +124,14 @@ test('a stale edit shows "This visit was changed on another screen. Reload and t
     data: { worker_id: george.worker_id, date: george.date, start: george.start, end: '10:30', version: george.version } });
   expect(other.status).toBe(200);
 
+  let puts = 0;
+  page.on('request', r => { if (r.method() === 'PUT' && r.url().endsWith(`/api/office/visits/${george.id}`)) puts += 1; });
   const put = page.waitForResponse(r => r.url().endsWith(`/api/office/visits/${george.id}`) && r.request().method() === 'PUT');
   await tap(page, sheet.getByRole('button', { name: 'Save changes' }), 'Save changes');
   expect((await put).status()).toBe(409);
   await expect(sheet).toContainText('This visit was changed on another screen. Reload and try again.');
+  await page.waitForTimeout(2000); // room for a page that would quietly re-send with the new version
+  expect(puts, 'exactly one PUT: nothing is re-sent after a 409').toBe(1);
+  const after = await api(request, 'GET', `/api/office/week?start=${MON}`, { token });
+  expect(after.body.visits.find(v => v.id === george.id).end, "the other screen's change stands").toBe('10:30');
 });

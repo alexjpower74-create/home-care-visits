@@ -59,7 +59,17 @@ export function mount(el, ctx) {
       ${sev ? '<span class="chip-flag">Conflict</span>' : ''}</span></div>`;
   }
 
-  const rows = () => [...data.workers, { id: null, name: 'No worker', hours_label: '' }];
+  // Clarification 15: a worker named on a visit but no longer active still gets a row, so every visit can be opened.
+  function rows() {
+    const active = new Set(data.workers.map(w => w.id));
+    const inactive = new Map();
+    for (const v of data.visits) {
+      if (v.worker_id != null && !active.has(v.worker_id) && !inactive.has(v.worker_id)) {
+        inactive.set(v.worker_id, { id: v.worker_id, name: `${v.worker_name} (inactive)`, hours_label: '' });
+      }
+    }
+    return [...data.workers, ...inactive.values(), { id: null, name: 'No worker', hours_label: '' }];
+  }
 
   function gridHtml() {
     const sev = severities();
@@ -77,8 +87,13 @@ export function mount(el, ctx) {
     const on = lit();
     const tabs = `<div class="day-tabs" role="tablist" aria-label="Day">${data.days.map(d => `<button type="button" role="tab" class="day-tab"
         data-day="${d.date}" aria-selected="${d.date === day}">${esc(d.date_label)}</button>`).join('')}</div>`;
-    const workerOptions = sel => [`<option value=""${sel == null ? ' selected' : ''}>No worker</option>`,
-      ...data.workers.map(w => `<option value="${w.id}"${w.id === sel ? ' selected' : ''}>${esc(w.name)}</option>`)].join('');
+    const workerOptions = v => {
+      const sel = v.worker_id ?? null;
+      const inactive = sel != null && !data.workers.some(w => w.id === sel)
+        ? `<option value="${sel}" selected>${esc(`${v.worker_name} (inactive)`)}</option>` : '';
+      return [`<option value=""${sel == null ? ' selected' : ''}>No worker</option>`, inactive,
+        ...data.workers.map(w => `<option value="${w.id}"${w.id === sel ? ' selected' : ''}>${esc(w.name)}</option>`)].join('');
+    };
     const groups = rows().map(w => {
       const vs = data.visits.filter(v => v.date === day && (v.worker_id ?? null) === w.id);
       if (!vs.length) return '';
@@ -88,7 +103,7 @@ export function mount(el, ctx) {
             <span class="${v.cancelled ? 'is-cancelled' : ''}">${esc(v.time_label)}</span></button>
           <p class="vcard-status">${esc(v.status_label)}${sev.get(v.id) ? ' · <strong class="chip-flag">Conflict</strong>' : ''}</p>
           <div class="assign"><label for="assign-${v.id}">Assign to</label>
-            <select id="assign-${v.id}" data-assign="${v.id}">${workerOptions(v.worker_id ?? null)}</select>
+            <select id="assign-${v.id}" data-assign="${v.id}">${workerOptions(v)}</select>
             <button type="button" class="btn btn-accent btn-inline" data-save-assign="${v.id}">Save</button></div>
         </article>`).join('')}</section>`;
     }).join('');

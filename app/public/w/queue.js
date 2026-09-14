@@ -1,6 +1,6 @@
 // The phone's offline queue (PLAN.md, hc2 M1, "Offline queue", rules 1–6).
 // IndexedDB `home-care-visits`: store `queue` (autoincrement `seq`, oldest first) and store `refused`.
-// An item: { seq, event, key, worker_id, client_name, time_label, office_phone, tz, saved_at, key_refused }.
+// An item: { seq, event, key, worker_id, client_name, time_label, visit_date, office_phone, tz, saved_at, key_refused }.
 const DB_NAME = 'home-care-visits';
 const BACKOFF_MS = [5000, 15000, 30000, 60000];
 const TICK_MS = 20000;
@@ -33,9 +33,10 @@ function timeoutSignal(ms) {
 
 /**
  * send(key, event, signal) → { status, data } (throws on a network error or timeout).
- * onChange() after anything the page should redraw; onSent() after the office accepted or refused something.
+ * onChange() after anything the page should redraw; onSent(answers) after the office accepted or refused something, with
+ * [{ item, data }] for each accepted event; onKeyRefused() when the page's own key answers 401.
  */
-export function createQueue({ send, onChange = () => {}, onSent = () => {} }) {
+export function createQueue({ send, onChange = () => {}, onSent = () => {}, onKeyRefused = () => {} }) {
   const ready = openDb();
   let pageKey = null, pageWorkerId = null, pageKeyRefused = false;
   let failures = 0, retryAt = 0, retryTimer = null, tick = null;
@@ -56,7 +57,8 @@ export function createQueue({ send, onChange = () => {}, onSent = () => {} }) {
     const db = await ready;
     const tx = db.transaction('queue', 'readwrite');
     tx.objectStore('queue').add({ event, key: meta.key, worker_id: meta.worker_id, client_name: meta.client_name ?? '',
-      time_label: meta.time_label ?? '', office_phone: meta.office_phone ?? '', tz: meta.tz ?? '', saved_at: Date.now(), key_refused: false });
+      time_label: meta.time_label ?? '', visit_date: meta.visit_date ?? '', office_phone: meta.office_phone ?? '', tz: meta.tz ?? '',
+      saved_at: Date.now(), key_refused: false });
     await txDone(tx);
     onChange();
     kick();
@@ -84,8 +86,12 @@ export function createQueue({ send, onChange = () => {}, onSent = () => {} }) {
     try { return await send(key, event, timeoutSignal(TIMEOUT_MS)); } catch { return null; }
   }
 
+  // Clarification 6: a 200/201 is the Worker's answer for this event only when it names the event's own id. A Wi-Fi login page
+  // or a proxy can answer 200 too; that is a failure, kept and retried.
+  const answeredFor = (res, item) => String(res.data?.event?.id ?? '').toLowerCase() === String(item.event.id).toLowerCase();
+
   // → 'sent' | 'refused' | 'held' | 'retry'
-  async function sendItem(item) {
+  async function sendItem(item, answers) {
     let key = item.key;
     if (item.key_refused) {
       if (!canRekey(item)) return 'held';
@@ -95,10 +101,14 @@ export function createQueue({ send, onChange = () => {}, onSent = () => {} }) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const res = await post(key, item.event);
       const s = res?.status;
-      if (s === 200 || s === 201) { await confirmSent(item.seq); return 'sent'; }
+      if ((s === 200 || s === 201) && answeredFor(res, item)) {
+        await confirmSent(item.seq);
+        answers.push({ item, data: res.data });
+        return 'sent';
+      }
       if (s === 400 || s === 404 || s === 409) { await moveToRefused(item.seq, res.data); return 'refused'; }
-      if (s !== 401) return 'retry'; // 429, 5xx, network error, timeout, anything unexpected: keep it
-      if (key === pageKey) { pageKeyRefused = true; return 'held'; }
+      if (s !== 401) return 'retry'; // 429, 5xx, a 200 that isn't the Worker's answer, network error, timeout: keep it
+      if (key === pageKey) { pageKeyRefused = true; onKeyRefused(); return 'held'; }
       await patch(item.seq, { key_refused: true });
       if (!canRekey(item)) return 'held';
       key = pageKey;
@@ -112,17 +122,18 @@ export function createQueue({ send, onChange = () => {}, onSent = () => {} }) {
     if (!navigator.onLine) return;
     const { queue } = await contents();
     const waiting = new Set();
+    const answers = [];
     let answered = false;
     for (const item of queue) {
       const visit = item.event.visit_id;
       if (waiting.has(visit)) continue;
-      const result = await sendItem(item);
+      const result = await sendItem(item, answers);
       if (result === 'retry') {
         failures += 1;
         retryAt = Date.now() + BACKOFF_MS[Math.min(failures, BACKOFF_MS.length) - 1];
         clearTimeout(retryTimer);
         retryTimer = setTimeout(() => kick(false), retryAt - Date.now());
-        if (answered) onSent();
+        if (answered) onSent(answers);
         return;
       }
       if (result === 'held') waiting.add(visit);
@@ -131,7 +142,7 @@ export function createQueue({ send, onChange = () => {}, onSent = () => {} }) {
     failures = 0;
     retryAt = 0;
     clearTimeout(retryTimer);
-    if (answered) onSent();
+    if (answered) onSent(answers);
   }
 
   function withLock(fn) {

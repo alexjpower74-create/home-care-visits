@@ -1,15 +1,21 @@
-// Worker phone: today's visits, Navigate, Check in (location never blocks), tasks + note, Check out, offline queue.
+// Worker phone: today's visits (and any visit still open from yesterday), Navigate, Check in (location never blocks),
+// tasks + note, Check out, offline queue.
 import { workerVisits, postWorkerEvent, getAgency } from '../api.js';
 import { createQueue } from './queue.js';
-import { TZ, timeLabel, localDate, esc, telHref } from '../time.js';
+import { TZ, timeLabel, localDate, addDays, esc, telHref } from '../time.js';
 
 const key = new URLSearchParams(location.search).get('k') || '';
 const CACHE_PREFIX = 'hcv:visits:';
 const DRAFT_PREFIX = 'hcv:draft:';
+const NOTICE_PREFIX = 'hcv:notice:';
+// The Worker's note rules (docs/API.md privacy guards, clarification 8), checked while typing.
+const HEALTH_CARD = /\d(?:[ -]?\d){11,}/;
+const NOTE_LINES = 'Keep the note to two short lines.';
+const NOTE_CARD = "Don't put health card numbers in this app.";
 const $ = id => document.getElementById(id);
 
 const S = {
-  answer: null, agency: null, savedAt: null, stale: false, noList: false, keyRefused: false,
+  answer: null, yesterday: null, agency: null, savedAt: null, stale: false, noList: false, keyRefused: false,
   loading: false, reloadAgain: false, items: [], refused: [], openId: null, openChosen: false,
   locating: null, sheetFor: null, sheetOpened: false, confirming: false, error: null,
 };
@@ -18,11 +24,12 @@ let skipLocation = null;
 const queue = createQueue({
   send: (k, event, signal) => postWorkerEvent(k, event, signal),
   onChange: () => refreshQueue(),
-  onSent: () => load(),
+  onSent: answers => { rememberRefusals(answers); load(); },
+  onKeyRefused: () => { if (!S.keyRefused) { forgetLink(); render(); } },
 });
 
-const tz = () => S.answer?.agency?.timezone || TZ;
-const agencyInfo = () => S.answer?.agency || S.agency;
+const tz = () => (S.answer ?? S.yesterday)?.agency?.timezone || TZ;
+const agencyInfo = () => (S.answer ?? S.yesterday)?.agency || S.agency;
 
 /* ---------- storage ---------- */
 function ls(fn, fallback = null) { try { return fn(localStorage); } catch { return fallback; } }
@@ -38,7 +45,8 @@ function saveList(answer) {
   });
 }
 
-function readSavedList() {
+/** The newest list saved under this page's key for a date, or null. */
+function savedList(date) {
   return ls(s => {
     let best = null;
     for (let i = 0; i < s.length; i++) {
@@ -46,17 +54,44 @@ function readSavedList() {
       if (!k?.startsWith(CACHE_PREFIX)) continue;
       try {
         const rec = JSON.parse(s.getItem(k));
-        const today = localDate(Date.now(), rec.answer?.agency?.timezone || TZ);
-        if (rec.key === key && rec.answer?.date === today && (!best || rec.saved_at > best.saved_at)) best = rec;
+        if (rec.key === key && rec.answer?.date === date && (!best || rec.saved_at > best.saved_at)) best = rec;
       } catch { /* a damaged entry is ignored */ }
     }
     return best;
   });
 }
 
+// Clarification 10: when this page's key is refused, the saved lists (entry notes, key-safe codes) and every draft leave the
+// phone. The queue and refused stores stay: they hold worked time and never entry notes.
+function forgetLink() {
+  Object.assign(S, { keyRefused: true, answer: null, yesterday: null, stale: false, sheetFor: null });
+  ls(s => {
+    for (let i = s.length - 1; i >= 0; i--) {
+      const k = s.key(i);
+      if (!k) continue;
+      if (k.startsWith(DRAFT_PREFIX)) { s.removeItem(k); continue; }
+      if (!k.startsWith(CACHE_PREFIX)) continue;
+      let rec = null;
+      try { rec = JSON.parse(s.getItem(k)); } catch { rec = null; }
+      if (!rec || rec.key === key) s.removeItem(k);
+    }
+  });
+  queue.setPageKeyRefused();
+}
+
 const draftOf = id => ls(s => JSON.parse(s.getItem(DRAFT_PREFIX + id)), null) || { done: {}, note: '' };
 const saveDraft = (id, d) => ls(s => s.setItem(DRAFT_PREFIX + id, JSON.stringify(d)));
 const clearDraft = id => ls(s => s.removeItem(DRAFT_PREFIX + id));
+
+// Clarification 8: a check-out whose note or task list the Worker refused is still stored; the phone says so until dismissed.
+const noticeOf = id => ls(s => JSON.parse(s.getItem(NOTICE_PREFIX + id)), null);
+function rememberRefusals(answers = []) {
+  for (const { item, data } of answers) {
+    if (item.event.kind !== 'check_out' || !(data?.note_refused || data?.tasks_refused)) continue;
+    ls(s => s.setItem(NOTICE_PREFIX + item.event.visit_id,
+      JSON.stringify({ note_refused: data.note_refused ?? null, tasks_refused: data.tasks_refused ?? null })));
+  }
+}
 
 /** Trimmed at send time; while typing: \r\n → \n, at most 2 lines, at most 200 characters. */
 function clampNote(s) {
@@ -64,6 +99,14 @@ function clampNote(s) {
   const lines = t.split('\n');
   if (lines.length > 2) t = `${lines[0]}\n${lines.slice(1).join(' ')}`;
   return t.slice(0, 200);
+}
+
+/** The Worker's words for a note it would refuse, or null. */
+function noteProblem(note) {
+  const t = note.replace(/\r\n?/g, '\n').trim();
+  if ([...t].length > 200 || t.split('\n').length > 2) return NOTE_LINES;
+  if (HEALTH_CARD.test(t)) return NOTE_CARD;
+  return null;
 }
 
 /* ---------- loading ---------- */
@@ -77,21 +120,22 @@ async function load() {
       Object.assign(S, { answer: r.data, savedAt: Date.now(), stale: false, noList: false, keyRefused: false });
       saveList(r.data);
       queue.setPage(key, r.data.worker.id, { live: true });
+      await loadYesterday(r.data.date, true);
     } else if (r.status === 401) {
-      S.keyRefused = true;
-      queue.setPageKeyRefused();
+      forgetLink();
       await loadAgency();
     } else {
       throw new Error(`visits answered ${r.status}`);
     }
   } catch {
     if (!S.answer) {
-      const rec = readSavedList();
+      const rec = savedList(localDate(Date.now(), TZ));
       if (rec) {
         Object.assign(S, { answer: rec.answer, savedAt: rec.saved_at });
         queue.setPage(key, rec.answer.worker.id);
       }
     }
+    if (S.answer) await loadYesterday(S.answer.date, false);
     S.stale = !!S.answer;
     S.noList = !S.answer;
   } finally {
@@ -99,6 +143,30 @@ async function load() {
   }
   render();
   if (S.reloadAgain) { S.reloadAgain = false; load(); }
+}
+
+// A visit is still open when it is checked in and its check-out has not reached the Worker yet.
+const stillOpen = x => x.status === 'in' || (x.status === 'done' && x.cout.saved);
+
+// Clarification 9: while yesterday's saved list or the queue holds a visit from yesterday that is checked in and not checked
+// out, the page also loads yesterday and shows those visits first, with their Check out.
+async function loadYesterday(today, online) {
+  const y = addDays(today, -1);
+  const saved = savedList(y)?.answer ?? null;
+  const known = S.yesterday?.date === y ? S.yesterday : saved;
+  const queuedIn = S.items.some(i => i.event.kind === 'check_in' && i.visit_date === y);
+  if (!queuedIn && !known?.visits.map(view).some(stillOpen)) { S.yesterday = null; return; }
+  if (online) {
+    try {
+      const r = await workerVisits(key, y);
+      if (r.status === 200) {
+        saveList(r.data);
+        S.yesterday = r.data.visits.map(view).some(stillOpen) ? r.data : null;
+        return;
+      }
+    } catch { /* no signal: the saved list stands in */ }
+  }
+  S.yesterday = known;
 }
 
 async function loadAgency() {
@@ -126,10 +194,12 @@ function view(v) {
     : qIn ? { label: timeLabel(qIn.event.at, tz()), where: 'saved on this phone', saved: true } : null;
   const cout = v.check_out ? { label: v.check_out.at_label, saved: false }
     : qOut ? { label: timeLabel(qOut.event.at, tz()), saved: true } : null;
-  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : 'todo';
+  // Clarification 11: a refused check-in stays with its visit.
+  const refusedIn = S.refused.filter(i => i.event.visit_id === v.id && i.event.kind === 'check_in').at(-1) ?? null;
+  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : refusedIn ? 'refused' : 'todo';
   const tasksDone = v.check_out ? v.tasks_done : qOut ? qOut.event.tasks : [];
   const note = v.check_out ? v.note?.text : qOut?.event.note;
-  return { v, cin, cout, status, tasksDone: tasksDone.filter(t => t.done), note };
+  return { v, cin, cout, status, refusedIn, tasksDone: tasksDone.filter(t => t.done), note };
 }
 
 function statusLine(x) {
@@ -148,11 +218,11 @@ const TICK = '<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"
 /* ---------- rendering ---------- */
 function bodyHtml(x) {
   const { v } = x;
-  if (x.status === 'todo') {
+  if (x.status === 'todo' || x.status === 'refused') {
     const gettingIn = v.entry_notes ? `<div class="getting-in"><h3>Getting in</h3><p>${esc(v.entry_notes)}</p></div>` : '';
     const action = S.locating === v.id
       ? `<div class="locating" role="status"><p>Getting location…</p><button type="button" class="btn btn-outline" data-act="skip-location">Skip location</button></div>`
-      : `<button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">Check in</button>`;
+      : `<button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">${x.status === 'refused' ? 'Check in again' : 'Check in'}</button>`;
     return `${gettingIn}<a class="btn btn-outline" href="${esc(navigateHref(v))}" target="_blank" rel="noopener noreferrer">Navigate</a>${action}`;
   }
   if (x.status === 'in') {
@@ -162,7 +232,8 @@ function bodyHtml(x) {
     return `<fieldset class="tasks"><legend>Tasks</legend>${tasks}</fieldset>
       <div class="field"><label for="note-${v.id}">Note (two short lines)</label>
       <textarea id="note-${v.id}" data-act="note" data-visit="${v.id}" rows="2" maxlength="200" autocomplete="off">${esc(d.note)}</textarea>
-      <p class="counter" id="count-${v.id}">${d.note.length} / 200</p></div>
+      <p class="counter" id="count-${v.id}">${d.note.length} / 200</p>
+      <p class="field-error note-error" id="note-err-${v.id}" role="alert">${esc(noteProblem(d.note) ?? '')}</p></div>
       <button type="button" class="btn btn-big btn-check-out" data-act="check-out" data-visit="${v.id}">Check out</button>`;
   }
   if (x.status === 'done') {
@@ -170,6 +241,24 @@ function bodyHtml(x) {
     return `${ticks}${x.note ? `<blockquote class="quote">${esc(x.note)}</blockquote>` : ''}`;
   }
   return '';
+}
+
+function noticesHtml(x) {
+  const out = [];
+  const r = x.refusedIn;
+  if (r) {
+    const phone = r.office_phone;
+    out.push(`<div class="visit-notice notice notice-bad" role="alert">
+      <p>Not accepted by the office: check-in tapped at ${esc(timeLabel(r.event.at, r.tz || tz()))}.${phone ? ` Call the office: <a href="${telHref(phone)}">${esc(phone)}</a>` : ' Call the office.'}</p>
+      <p class="server-words">${esc(r.error)}</p></div>`);
+  }
+  const n = noticeOf(x.v.id);
+  if (n) {
+    out.push(`<div class="visit-notice notice notice-bad" role="alert">
+      <p>Checked out.${n.note_refused ? ` The note wasn't saved: ${esc(n.note_refused)}` : ''}${n.tasks_refused ? ` The task list wasn't saved: ${esc(n.tasks_refused)}` : ''}</p>
+      <button type="button" class="btn btn-outline" data-act="dismiss-notice" data-visit="${x.v.id}">OK</button></div>`);
+  }
+  return out.join('');
 }
 
 function cardHtml(x) {
@@ -184,6 +273,7 @@ function cardHtml(x) {
       <span class="visit-town">${esc(town)}</span>
       ${line ? `<span class="visit-status">${esc(line)}</span>` : ''}
     </button>
+    ${noticesHtml(x)}
     ${open ? `<div class="visit-body">${bodyHtml(x)}</div>` : ''}
   </li>`;
 }
@@ -217,8 +307,15 @@ function mainHtml() {
   else if (refusedKey) out.push(`<div class="notice notice-bad" role="alert">This link doesn't work any more. Ask the office for a new one.</div>`);
   else if (S.answer) {
     if (S.stale) out.push(`<p class="notice notice-saved">Saved list from ${esc(timeLabel(S.savedAt, tz()))}</p>`);
+    const ys = (S.yesterday?.visits ?? []).map(view).filter(stillOpen);
     const xs = S.answer.visits.map(view);
-    if (!S.openChosen) S.openId = (xs.find(x => x.status === 'in') || xs.find(x => x.status === 'todo'))?.v.id ?? null;
+    if (!S.openChosen) {
+      S.openId = ([...ys, ...xs].find(x => x.status === 'in') || xs.find(x => x.status === 'todo' || x.status === 'refused'))?.v.id ?? null;
+    }
+    if (ys.length) {
+      out.push(`<section class="still-open" aria-labelledby="still-open-h"><h2 id="still-open-h">Still open from yesterday</h2>
+        <ol class="visits">${ys.map(cardHtml).join('')}</ol></section>`);
+    }
     out.push(xs.length ? `<ol class="visits">${xs.map(cardHtml).join('')}</ol>` : '<p class="empty">No visits for you today.</p>');
   } else if (S.noList) {
     out.push("<p class=\"notice notice-saved\">No saved list on this phone yet. Find signal once to load today's visits.</p>");
@@ -247,18 +344,23 @@ function stripState() {
   return { state, text };
 }
 
+const allVisits = () => [...(S.yesterday?.visits ?? []), ...(S.answer?.visits ?? [])];
+const findVisit = id => allVisits().find(v => v.id === id);
+
 function sheetHtml() {
-  const v = S.answer?.visits.find(x => x.id === S.sheetFor);
+  const v = findVisit(S.sheetFor);
   if (!v) return '';
   const d = draftOf(v.id);
   const ticked = v.tasks.filter(t => d.done[t.id]).length;
   const note = clampNote(d.note).trim();
+  const problem = noteProblem(d.note);
   return `<div class="sheet-back" data-act="sheet-back"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <h2 id="sheet-title" tabindex="-1">Check out now?</h2>
     <p><strong>${esc(v.client_name)}</strong></p>
     <p>${ticked} of ${v.tasks.length} tasks ticked</p>
     ${note ? `<blockquote class="quote">${esc(note)}</blockquote>` : '<p class="muted">No note</p>'}
-    <button type="button" class="btn btn-big btn-check-out" data-act="confirm-check-out"${S.confirming ? ' disabled' : ''}>Yes, check out</button>
+    <p class="field-error note-error" role="alert">${esc(problem ?? '')}</p>
+    <button type="button" class="btn btn-big btn-check-out" data-act="confirm-check-out"${S.confirming || problem ? ' disabled' : ''}>Yes, check out</button>
     <button type="button" class="btn btn-outline" data-act="sheet-cancel">Not yet</button>
   </div></div>`;
 }
@@ -311,9 +413,11 @@ function uuid() {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-const findVisit = id => S.answer?.visits.find(v => v.id === id);
-const metaFor = v => ({ key, worker_id: S.answer.worker.id, client_name: v.client_name, time_label: v.time_label,
-  office_phone: S.answer.agency.office_phone, tz: tz() });
+function metaFor(v) {
+  const a = S.answer ?? S.yesterday;
+  return { key, worker_id: a.worker.id, client_name: v.client_name, time_label: v.time_label, visit_date: v.date,
+    office_phone: a.agency.office_phone, tz: tz() };
+}
 
 /** Resolves with { lat, lng, accuracy_m } or null (denied, error, timeout, Skip). Never rejects, never blocks the visit. */
 function getLocation() {
@@ -335,7 +439,7 @@ function getLocation() {
 
 async function checkIn(id) {
   const v = findVisit(id);
-  if (!v || S.locating != null || view(v).status !== 'todo') return;
+  if (!v || S.locating != null || !['todo', 'refused'].includes(view(v).status)) return;
   const at = new Date().toISOString(); // the time the worker tapped
   S.locating = id;
   render();
@@ -356,9 +460,10 @@ async function checkIn(id) {
 async function confirmCheckOut() {
   const v = findVisit(S.sheetFor);
   if (!v || S.confirming) return;
+  const d = draftOf(v.id);
+  if (noteProblem(d.note)) return;
   const at = new Date().toISOString(); // taken at "Yes, check out"
   S.confirming = true;
-  const d = draftOf(v.id);
   const event = { id: uuid(), visit_id: v.id, kind: 'check_out', at,
     tasks: v.tasks.map(t => ({ task_id: t.id, kind: t.kind, label: t.label, done: !!d.done[t.id] })) };
   const note = clampNote(d.note).trim();
@@ -392,6 +497,7 @@ document.addEventListener('click', e => {
     case 'sheet-cancel': S.sheetFor = null; render(); break;
     case 'sheet-back': if (e.target === t) { S.sheetFor = null; render(); } break;
     case 'confirm-check-out': confirmCheckOut(); break;
+    case 'dismiss-notice': ls(s => s.removeItem(NOTICE_PREFIX + id)); render(); break;
     case 'remove-refused': queue.removeRefused(Number(t.dataset.seq)); break;
     case 'remove-held': queue.removeHeld(Number(t.dataset.seq)); break;
     default: break;
@@ -415,6 +521,7 @@ document.addEventListener('input', e => {
   const id = Number(t.dataset.visit);
   saveDraft(id, { ...draftOf(id), note: t.value });
   $(`count-${id}`).textContent = `${t.value.length} / 200`;
+  $(`note-err-${id}`).textContent = noteProblem(t.value) ?? '';
 });
 
 document.addEventListener('keydown', e => {
@@ -426,6 +533,6 @@ addEventListener('offline', () => render());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/w/sw.js', { scope: '/w/' }).catch(() => {});
-refreshQueue();
-load();
+// The queue first: whether yesterday is still open depends on what the phone holds.
+refreshQueue().then(load);
 queue.start();

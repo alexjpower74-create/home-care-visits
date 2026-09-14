@@ -119,4 +119,6 @@ test('Check in, Check out and the late and missed rows meet 4.5 : 1', async ({ p
   await ratio(missed.locator('.row-status'), 'missed row');
   await ratio(late.locator('.row-client'), 'late row client');
   await ratio(missed.locator('.row-client'), 'missed row client');
+  await ratio(late.locator('a.call'), 'late row "Call …" link');
+  await ratio(missed.locator('a.call'), 'missed row "Call …" link');
 });

@@ -46,6 +46,7 @@
 .entity { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; margin-bottom: 8px; padding: 10px 12px;
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .entity-text { display: grid; min-width: 0; }
+.list-subhead { margin: 20px 0 8px; font-size: 19px; color: var(--muted); }
 .entity-name { font-weight: 700; }
 
 /* Today board */

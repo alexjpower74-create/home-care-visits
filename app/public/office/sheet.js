@@ -8,7 +8,10 @@ export async function openVisitSheet(visit, onChanged) {
   let shareNote = '';
 
   const html = () => {
-    const workerOptions = [`<option value="">No worker</option>`, ...workers.map(w =>
+    // Clarification 15: the visit's current worker is always an option, so saving another change never unassigns the visit.
+    const inactive = v.worker_id != null && !workers.some(w => w.id === v.worker_id)
+      ? `<option value="${v.worker_id}" selected>${esc(`${v.worker_name} (inactive)`)}</option>` : '';
+    const workerOptions = [`<option value="">No worker</option>`, inactive, ...workers.map(w =>
       `<option value="${w.id}"${w.id === v.worker_id ? ' selected' : ''}>${esc(w.name)}</option>`)].join('');
     const cancel = v.cancelled
       ? `<p><strong>Cancelled:</strong> ${esc(v.cancel_reason || '')}</p>
