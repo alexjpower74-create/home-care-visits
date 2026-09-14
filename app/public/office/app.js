@@ -68,14 +68,30 @@ function showSignin(note = '') {
   });
 }
 
+// GET /api/office/agency is a Worker M2 route. Until it answers, the same shape is built from M1 routes: the public agency,
+// the zones and funders named on clients and workers, and the map centred on the clients' pins.
+async function agencyFromM1Routes() {
+  const [pub, cr, wr] = await Promise.all([request('GET', '/api/agency').catch(() => null), office('GET', '/api/office/clients?all=1'), office('GET', '/api/office/workers?all=1')]);
+  if (!pub?.ok || !cr.ok || !wr.ok) return null;
+  const zones = new Map();
+  const funders = new Map();
+  for (const c of cr.data.clients) { zones.set(c.zone_id, c.zone_name); funders.set(c.funder_id, c.funder_name); }
+  for (const w of wr.data.workers) w.zone_ids.forEach((id, i) => zones.set(id, w.zone_names[i]));
+  const pins = cr.data.clients;
+  const mean = k => (pins.length ? pins.reduce((s, c) => s + c[k], 0) / pins.length : null);
+  const byId = m => [...m].sort((a, b) => a[0] - b[0]).map(([id, name]) => ({ id, name }));
+  return { ...pub.data, office: { label: '', lat: mean('lat') ?? 48.95, lng: mean('lng') ?? -55.65 }, zones: byId(zones), funders: byId(funders) };
+}
+
 async function showApp() {
   const r = await office('GET', '/api/office/agency');
-  if (!r.ok) {
-    if (r.status !== 401) $('view').innerHTML = `<p class="notice notice-bad" role="alert">${esc(errorText(r))}</p>`;
+  const agency = r.ok ? r.data : r.status === 404 ? await agencyFromM1Routes() : null;
+  if (!agency) {
+    if (r.status !== 401 && getToken()) $('view').innerHTML = `<p class="notice notice-bad" role="alert">${esc(errorText(r))}</p>`;
     return;
   }
-  ctx.agency = r.data;
-  paintAgency(r.data);
+  ctx.agency = agency;
+  paintAgency(agency);
   $('tabs').hidden = false;
   $('signout').hidden = false;
   route();

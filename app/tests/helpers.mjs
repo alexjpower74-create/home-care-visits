@@ -62,8 +62,11 @@ export async function guard(context) {
 export const test = base.extend({
   guarded: [async ({ context }, use) => {
     const g = await guard(context);
+    const pageErrors = [];
+    context.on('page', p => p.on('pageerror', e => pageErrors.push(`${p.url()}: ${e.message}`)));
     await use(g);
     expect(g.outside, 'every request stays on 127.0.0.1 (map tiles go to the local placeholder)').toEqual([]);
+    expect(pageErrors, 'no uncaught errors in the pages').toEqual([]);
   }, { auto: true }],
   seed: [async ({ request }, use) => {
     const r = await request.post('/api/test/reset');

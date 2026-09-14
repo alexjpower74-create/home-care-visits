@@ -263,6 +263,15 @@ function sheetHtml() {
   </div></div>`;
 }
 
+// Only touch the DOM when the markup changed: a redraw on every queue tick would pull a button out from under a finger.
+const drawn = new WeakMap();
+function setHtml(el, html) {
+  if (drawn.get(el) === html) return false;
+  drawn.set(el, html);
+  el.innerHTML = html;
+  return true;
+}
+
 function render() {
   const a = agencyInfo();
   $('agency').textContent = a?.name || 'Home Care Visits';
@@ -280,16 +289,15 @@ function render() {
   const active = document.activeElement;
   const focusId = active?.id && active.tagName === 'TEXTAREA' ? active.id : null;
   const sel = focusId ? [active.selectionStart, active.selectionEnd] : null;
-  $('main').innerHTML = mainHtml();
-  if (focusId && $(focusId)) { $(focusId).focus(); $(focusId).setSelectionRange(...sel); }
+  if (setHtml($('main'), mainHtml()) && focusId && $(focusId)) { $(focusId).focus(); $(focusId).setSelectionRange(...sel); }
 
   const phone = a?.office_phone;
   // The answer has no legs list; a leg exists once the server holds two check-ins today (DECISIONS 22).
   const legs = (S.answer?.visits.filter(v => v.check_in).length ?? 0) - 1;
   const mileage = legs >= 1 ? S.answer.mileage : null;
-  $('foot').innerHTML = `${mileage ? `<p>${esc(mileage.km)} km between visits today (straight line)</p>` : ''}${phone ? `<p>Office: <a href="${telHref(phone)}">${esc(phone)}</a></p>` : ''}`;
+  setHtml($('foot'), `${mileage ? `<p>${esc(mileage.km)} km between visits today (straight line)</p>` : ''}${phone ? `<p>Office: <a href="${telHref(phone)}">${esc(phone)}</a></p>` : ''}`);
 
-  $('sheet-root').innerHTML = sheetHtml();
+  setHtml($('sheet-root'), sheetHtml());
   if (S.sheetOpened && S.sheetFor) { S.sheetOpened = false; $('sheet-title')?.focus(); }
 }
 
@@ -339,7 +347,9 @@ async function checkIn(id) {
   } finally {
     S.locating = null;
   }
-  S.openChosen = false;
+  // The visit just checked in stays open for its tasks, even if an earlier one is also checked in.
+  S.openId = id;
+  S.openChosen = true;
   await refreshQueue();
 }
 

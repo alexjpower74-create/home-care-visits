@@ -7,8 +7,9 @@ const T = NOW; // Mon Sep 14, 10:30 AM NDT
 const OUT = T + (1 * 3600 + 32 * 60 + 10) * 1000; // 12:02:10 PM
 const BACK = OUT + 40 * MIN;
 const NOTE = 'Swept the porch. Bill asked about Friday. (SAMPLE)';
-const WEBKIT_RELOAD = "webkit: the service worker never took control of the page under Playwright's WebKit, so a reload with no signal "
-  + 'cannot load the page; the reload step runs in Chromium, every other step here runs in both engines';
+const WEBKIT_RELOAD = "webkit: page.reload() with the context offline fails in Playwright's WebKit with \"WebKit encountered an internal "
+  + 'error" (seen 2026-09-14 on webkit-390 and webkit-1280), so the reload-with-no-signal step runs in Chromium only; every other '
+  + 'step here, including the send with the original times, runs in both engines';
 
 test.use({ permissions: ['geolocation'] });
 
@@ -56,13 +57,13 @@ test('no signal: check-in and check-out are saved, survive a reload, and send la
   }
   expect(await testEvents(request, visit.id), 'nothing reached the server with no signal').toHaveLength(0);
 
-  if (controlled) {
+  if (browserName === 'webkit') {
+    test.info().annotations.push({ type: 'skipped step', description: `${WEBKIT_RELOAD} (service worker controlling the page: ${controlled})` });
+  } else {
     await page.reload();
     await expect(card.locator('.visit-status')).toHaveText('Done 10:30 AM – 12:02 PM · saved on this phone');
     await expect(page.locator('#strip-text')).toHaveText(/(^|\. )2 saved on this phone\./);
     await expect(page.locator('.notice-saved')).toHaveText('Saved list from 10:30 AM');
-  } else {
-    test.info().annotations.push({ type: 'skipped step', description: WEBKIT_RELOAD });
   }
 
   // Forty minutes after the check-out, signal comes back.
@@ -110,8 +111,10 @@ test.describe('with the service worker blocked', () => {
     await checkOut(page, card, 1);
     await expect(page.locator('#strip-text')).toHaveText(/(^|\. )2 saved on this phone\./);
 
+    // Run the page clock a second at a time and stop at the 500, before the 5 s backoff can send again.
     mode = 'fail-once';
-    await expect.poll(async () => { await page.clock.runFor(61_000); return failed; }, { message: 'the sender tried and got a 500' }).toBe(1);
+    for (let s = 0; s < 70 && failed === 0; s++) await page.clock.runFor(1000);
+    expect(failed, 'the sender tried and got a 500').toBe(1);
     await expect(page.locator('#strip-text')).toHaveText('2 saved on this phone. Trying again soon. They keep the time you tapped.');
     expect(await testEvents(request, visit.id), 'still nothing on the server').toHaveLength(0);
 
@@ -140,7 +143,10 @@ test.describe('with the service worker blocked', () => {
     expect(other.status, 'the other check-out is stored').toBe(201);
 
     const refused = page.waitForResponse(r => r.url().endsWith('/api/worker/events') && r.request().method() === 'POST' && r.status() === 409, { timeout: 90_000 });
-    offline = false; // nothing announces a route change; the sender's own retry finds the signal
+    // Nothing announces a route change; the sender's own retry finds the signal. The phone's clock moves on, so the
+    // backoff's due time (Date.now() + delay) passes.
+    offline = false;
+    await page.clock.setFixedTime(T + 5 * MIN);
     const words = (await (await refused).json()).error;
     expect(words).toMatch(/^This visit already has a check-out at \d{1,2}:\d{2} [AP]M\.$/);
     await expect(page.getByRole('heading', { name: 'Not accepted by the office' })).toBeVisible();

@@ -10,8 +10,11 @@ async function bigAndOnTop(page, locator, label, min) {
   expect(hit, `${label}: hit-tests to itself`).toBe('');
 }
 
-async function everyButton(page, label) {
-  const controls = page.locator('#main button:visible, #main a.btn:visible, #main label.task:visible, #sheet-root button:visible, #foot a:visible');
+// With the check-out sheet open only its own buttons can be tapped; the page behind it is covered on purpose.
+async function everyButton(page, label, { sheet = false } = {}) {
+  const controls = sheet
+    ? page.locator('#sheet-root button:visible')
+    : page.locator('#main button:visible, #main a.btn:visible, #main label.task:visible, #foot a:visible');
   const n = await controls.count();
   expect(n, `${label}: there are buttons to check`).toBeGreaterThan(0);
   for (let i = 0; i < n; i++) {
@@ -28,13 +31,16 @@ test('every worker-page button is at least 48 px (Check in / Check out 56 px) an
   await context.setGeolocation({ latitude: 49.0187, longitude: -55.48578, accuracy: 10 });
   await page.goto(pathOf(sam.worker_url));
   await expect(page.getByRole('button', { name: 'Check in' })).toBeVisible();
+  await expect(page.locator('#strip-text')).toHaveText('All sent');
   await everyButton(page, 'visit open');
   await tap(page, page.getByRole('button', { name: 'Check in' }), 'Check in');
-  await expect(page.getByRole('button', { name: 'Check out' })).toBeVisible();
+  // Settled: the check-in was sent and the page reloaded the visits with the server's label.
+  await expect(page.locator('.visit-status', { hasText: 'Within 250 m of the client' })).toBeVisible();
+  await expect(page.locator('#strip-text')).toHaveText('All sent');
   await everyButton(page, 'checked in');
   await tap(page, page.getByRole('button', { name: 'Check out' }), 'Check out');
   await expect(page.getByRole('dialog')).toBeVisible();
-  await everyButton(page, 'check-out sheet');
+  await everyButton(page, 'check-out sheet', { sheet: true });
 });
 
 test('the SAMPLE badge is visible on /, /office/, /w/ and /f/', async ({ page, context, seed }) => {
@@ -77,6 +83,9 @@ test('no horizontal scroll at 390 on any page @phone', async ({ page, context, s
   await tab(page, 'Workers');
   await expect(page.locator('#worker-list .entity').first()).toBeVisible();
   await fits('Workers');
+  await tap(page, page.getByRole('button', { name: 'Add worker' }), 'Add worker');
+  await expect(page.locator('#wf-name')).toBeVisible();
+  await fits('worker form');
 });
 
 test('Check in, Check out and the late and missed rows meet 4.5 : 1', async ({ page, context, seed }) => {

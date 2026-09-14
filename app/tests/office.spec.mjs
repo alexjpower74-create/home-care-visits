@@ -16,6 +16,7 @@ async function newClient(page, name, { task }) {
   await tab(page, 'Clients');
   await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
   await expect(page.locator('.leaflet-control-attribution')).toBeVisible();
+  await expect(page.locator('#client-list .entity'), 'the client list has loaded').toHaveCount(12);
   await tap(page, page.getByRole('button', { name: 'Add client' }), 'Add client');
   await typeInto(page, page.locator('#cf-name'), name, 'name');
   await typeInto(page, page.locator('#cf-address'), 'Peterview, NL (SAMPLE: no street address)', 'address');
