@@ -869,3 +869,80 @@ lead did not ask for one.
 
 Nothing for M5. The page side of clarification 17 (the midnight checkbox, presets and CSV at the moment of use, the gap refusal,
 printing `scheduled_hours`, measured retries) belongs to hc2.
+
+## Review of hc2 M3b (f27283c)
+
+Read-only, from `git show f27283c:<path>` and `git diff 5bac755 f27283c -- app/` (merged as `5883591`). Nothing in `app/**` was
+edited. Only what is worth fixing tonight is written out below; everything smaller is one line under Known gaps.
+
+### What holds
+
+- **`w/sw.js`**
+  - A response is kept only when it is 200, not redirected, the right `Content-Type`, and (for `/w/`) carries `<meta
+    name="hcv-page" content="worker">`. The same `checked()` runs at install and on every refresh.
+  - A set is stored only when every required file passed.
+  - A navigation is served from the newest set and pins that set to the page (`resultingClientId`), so its modules come from
+    that same set.
+  - With a set, the network gets 3 s; with no set, the navigation waits for the network with no limit. It never handles
+    `/api/*` (line 97).
+- **`w/app.js`**
+  - Earlier days are looked at up to 7 back, for dates the queue or a saved list shows open, whether or not today's list loaded.
+    Online they are loaded; offline they are rebuilt from the saved list, plus cards made from queued items.
+  - Drafts store `{ key, done, note }`, and a refused link deletes only lists and drafts with its own key.
+  - "Check out without the note" takes the time at that tap and sends no note.
+  - A `200 duplicate` answer's `note_refused` reaches the notice (the answers passed to `onSent` include duplicates).
+  - A refused check-in reads as history once the card has an accepted or queued check-in.
+- **`office/app.js:98`:** a 401 from sign-out now reads "Signed out.".
+- **Control (h) is honest.** It removes the type check and the marker. The unbroken copy passed. The broken run went red at "the
+  worker page, not the login page" (`offline.spec.mjs:86`): the poisoned set was stored and served.
+- **The 17 proofs are honest.** Each was red after its unbroken copy passed, at the assertion its fix owns.
+  - The midnight proof is recorded honestly: `proof-queued-midnight` first stayed GREEN at 15:01:34Z, because in that spec
+    yesterday's saved list also showed the visit.
+  - hc2 logged that and moved the proof to "queued before midnight under an old link", where only the queue knows the visit.
+    It went red there at 15:09:42Z.
+  - No other GREEN or VOID run is left unexplained.
+
+### Findings worth fixing tonight
+
+1. **PAYROLL** · `app/public/w/app.js:118-129` with `app/public/api.js` `workerVisits` (no timeout). On a weak connection that
+   neither answers nor fails, the page shows "Loading today's visits…" and nothing else until the browser gives up on the GET.
+   - The saved list is used only in the `catch` (lines 137-143), and each earlier-day GET in `loadEarlier` (line 188) has no
+     limit either.
+   - **Scenario:** at a client's door with one bar that passes no data, Sam opens the link. For a minute or more there is no
+     visit card and no Check in. Sam waits or gives up; the tapped time is late or never taken, though today's list is saved on
+     the phone.
+   - **Fix:** render the saved list (and the earlier-day cards) before the network call, and give the visits GETs
+     `AbortSignal.timeout(8000)`, like the event POST's 30 s limit.
+2. **PAYROLL** · `app/public/w/app.js:280,541`. "Dismiss" on the history notice calls `queue.removeRefused`, deleting the refused
+   check-in from the phone for good, not just hiding the notice. That record is the only trace of the time the worker first tapped.
+   - **Scenario:** Sam's 9:04 check-in is refused, and Sam checks in again at 9:44, which is accepted. Sam taps Dismiss on "An earlier
+     check-in at 9:04 AM wasn't accepted by the office."; the 9:04 record disappears from the card and from "Not accepted by the
+     office".
+   - When Sam later phones the office, nothing on the phone shows 9:04, so Fix times can't restore the 40 minutes.
+   - **Fix:** Dismiss hides the notice (remember the dismissed `seq`), and the item stays in the panel until Remove.
+3. **PAYROLL** (hc1 can help) · `app/public/w/app.js:52-60,177-184`. An earlier day is looked at only when **this phone** holds the
+   open visit, in a list saved under **this link**'s key or in the queue. A visit whose check-in already reached the Worker is
+   invisible on another phone, or under a new link on the same phone.
+   - **Scenario:** Saturday 9:05, Terry checks in at George N.'s with signal (sent), then drops the phone in the harbour. On Monday
+     the office gives Terry a new link on a borrowed phone.
+   - The Worker has Saturday's visit open, but the new phone holds no saved list and no queue, so there is no "Still open from Sat
+     Sep 12" and no Check out, and the visit stays in payroll's incomplete list.
+   - **Fix** (needs a lead decision): `GET /api/worker/visits` also answers `open_dates` (the NL dates, up to 7 back, of this
+     worker's visits with an effective check-in and no check-out; a small hc1 change), and the page loads those dates as well.
+
+### Known gaps (OTHER)
+
+- `w/sw.js:44-53,74,87`: a navigation that arrives while another refresh is still writing its set reads that newest, half-written
+  set, so a missing module falls back to the network (or fails offline). Mark a set complete last, and read only complete sets.
+- `w/sw.js:82,87`: `event.resultingClientId` is the only pin; where a browser leaves it unset, modules come from the newest set,
+  which a refresh finishing between the page and its modules can change.
+- `w/sw.js:51`: keeping only the previous set can delete the set a still-loading page is pinned to after two quick reloads.
+- `w/sw.js:30`: the set's file fetches have no timeout, so with no cached set a stalled connection holds the navigation until the
+  browser gives up (the contract's "wait for the network", but with no end).
+- `w/sw.js:62`: install fails behind a login page or with no signal, so the phone has no offline copy until a later good online load.
+- `w/app.js:77`: drafts saved before M3b carry no `key`, so a refused link never clears them.
+- `offline.spec.mjs:65-99`: control (h) goes red at the online reload, not the offline one. The one-set rule, keeping the old set
+  when one file fails, and the no-copy wait have no proof.
+- `office.spec.mjs` "Sign out after the session already ended": no proof breaks the 401 branch.
+- `worker.spec.mjs:274` "still queued across midnight" stays in the suite but passes on the saved list, not the queue (hc2 logged
+  this; its proof moved to the old-link test).
