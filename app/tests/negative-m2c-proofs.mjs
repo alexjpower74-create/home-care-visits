@@ -110,6 +110,13 @@ const PROOFS = [
     args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'note refused on its way out'],
     breakIt: copy => replaceOnce(app(copy, 'w/app.js'), '  onSent: answers => { rememberRefusals(answers); load(); },', '  onSent: () => { load(); }, // PROOF'),
   },
+  {
+    name: 'proof-retry-timing',
+    what: 'clarification 17 (item 5): the queue waits 30 s after its first failure instead of 5 s',
+    args: ['offline.spec.mjs', '--project', 'chromium-390', '-g', "not the Worker's answer"],
+    breakIt: copy => replaceOnce(app(copy, 'w/queue.js'), 'const BACKOFF_MS = [5000, 15000, 30000, 60000];',
+      'const BACKOFF_MS = [30000, 30000, 30000, 60000]; // PROOF: a slow retry schedule'),
+  },
   ...inactive('chromium-1280'),
   ...inactive('chromium-390'),
 ];

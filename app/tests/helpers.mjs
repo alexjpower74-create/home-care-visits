@@ -94,9 +94,11 @@ export async function setNow(page, context, ms, { mode = 'fixed' } = {}) {
  * (DECISIONS 36). mode 'install' steps with runFor, 'fixed' with setFixedTime. Only the moments between tries move: the
  * tapped times are already on the queued events.
  */
-export async function untilAnswer(page, promise, { mode = 'fixed', stepMs = 5000, realMs = 110_000 } = {}) {
+export async function untilAnswer(page, promise, { mode = 'fixed', stepMs = mode === 'install' ? 1000 : 5000, realMs = 110_000 } = {}) {
   let settled = false;
   promise.then(() => { settled = true; }, () => { settled = true; });
+  const pageNow = () => page.evaluate(() => Date.now()).catch(() => null);
+  const started = await pageNow();
   const deadline = Date.now() + realMs;
   while (!settled && Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 400));
@@ -108,8 +110,15 @@ export async function untilAnswer(page, promise, { mode = 'fixed', stepMs = 5000
       break; // the page closed: the promise settles on its own
     }
   }
-  return promise;
+  const res = await promise;
+  // How much page time the wait took (clarification 17: retries are measured, not only awaited).
+  const ended = await pageNow();
+  if (res && started != null && ended != null) res.pageWaitMs = ended - started;
+  return res;
 }
+
+/** The page's own clock, for timing a try against the queue's backoff. */
+export const pageNow = page => page.evaluate(() => Date.now());
 
 /* ---- real input ---- */
 export async function hitTest(locator) {
