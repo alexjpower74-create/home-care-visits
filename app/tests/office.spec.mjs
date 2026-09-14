@@ -1,6 +1,15 @@
 // The office: sign-in refusals and sign-out, adding a client with the map pin (its visits on Alex B.'s row), the medication
 // wording guard, adding a worker with ticked availability, and a deactivated worker who stays reachable (clarification 15).
-import { test, expect, tap, tapAt, typeInto, mapPoint, hitTest, intoView, tab, signIn, setNow, api, officeToken, oneOffVisit, byName, NOW, DAY, addDays } from './helpers.mjs';
+import { test, expect, unansweredOf, tap, tapAt, typeInto, mapPoint, hitTest, intoView, tab, signIn, setNow, api, officeToken, oneOffVisit, byName, NOW, DAY, addDays } from './helpers.mjs';
+
+test('the network guard reports a tiles.openfreemap.org request that no fixture route answered', () => {
+  // The comparison the guard makes after every test, shown to fail on a known-bad input (a request seen but never answered).
+  const style = 'https://tiles.openfreemap.org/styles/liberty';
+  const tile = 'https://tiles.openfreemap.org/planet/fixture/9/10/11.pbf';
+  expect(unansweredOf([style, tile, tile], [style, tile, tile])).toEqual([]);
+  expect(unansweredOf([style, tile, tile], [style, tile])).toEqual([tile]);
+  expect(unansweredOf([style], [])).toEqual([style]);
+});
 
 test('a wrong PIN says "That PIN is not right." and the sign-in answers 401', async ({ page, context }) => {
   await setNow(page, context, NOW);
@@ -96,15 +105,13 @@ test('the Clients map: the OpenFreeMap attribution and its three links, a pin pl
   await signIn(page);
   await tab(page, 'Clients');
   const map = page.locator('#cl-map');
-  await expect(map).toHaveAttribute('data-base', /^(maplibre|plain)$/);
-  const base = await map.getAttribute('data-base');
-  console.log(`[map] ${testInfo.project.name}: ${base === 'maplibre' ? 'MapLibre with WebGL' : 'the plain background (no WebGL)'}`);
-  testInfo.annotations.push({ type: 'map base', description: base });
-  if (base === 'maplibre') {
-    await expect(map.locator('canvas.maplibregl-canvas')).toBeAttached();
-    await expect.poll(() => [...new Set(guarded.tiles)].filter(t => !t.endsWith('.pbf')).sort(), { message: 'the style and its TileJSON came from the routed fixtures' })
-      .toEqual(['/planet', '/styles/liberty']);
-  }
+  // Every project runs MapLibre with WebGL (M3e): a regression that drops every browser to the plain background fails here
+  // (DECISIONS 54). The no-WebGL spec below requires "plain".
+  await expect(map, 'MapLibre with WebGL, not the fallback').toHaveAttribute('data-base', 'maplibre');
+  console.log(`[map] ${testInfo.project.name}: MapLibre with WebGL`);
+  await expect(map.locator('canvas.maplibregl-canvas')).toBeAttached();
+  await expect.poll(() => [...new Set(guarded.tiles)].filter(t => !t.endsWith('.pbf')).sort(), { message: 'the style and its TileJSON came from the routed fixtures' })
+    .toEqual(['/planet', '/styles/liberty']);
 
   await attributionAndPin(page, map);
   expect(guarded.outside, 'nothing but tiles.openfreemap.org (routed) left 127.0.0.1').toEqual([]);

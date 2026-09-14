@@ -47,16 +47,31 @@ export const MAP_TILEJSON = {
 const hostOf = url => (url.protocol === 'blob:' ? new URL(url.pathname).hostname : url.hostname);
 const offHost = url => /^(https?|blob):$/.test(url.protocol) && !['127.0.0.1', 'tiles.openfreemap.org'].includes(hostOf(url));
 
+/** The requests seen that no route answered (each answer matches one sighting of the same URL). */
+export function unansweredOf(seen, answered) {
+  const left = [...answered];
+  return seen.filter(url => {
+    const i = left.indexOf(url);
+    if (i === -1) return true;
+    left.splice(i, 1);
+    return false;
+  });
+}
+
 export async function guard(context) {
   const outside = [];
   const tiles = [];
+  const tilesSeen = [];
+  const tilesAnswered = [];
   await context.route(`${OFM}/**`, route => {
-    const { pathname } = new URL(route.request().url());
+    const url = route.request().url();
+    const { pathname } = new URL(url);
     tiles.push(pathname);
-    if (pathname === '/styles/liberty') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MAP_STYLE) });
-    if (pathname === '/planet') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MAP_TILEJSON) });
-    if (/^\/planet\/fixture\/\d+\/\d+\/\d+\.pbf$/.test(pathname)) return route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) });
-    outside.push(`${route.request().url()} (not in the map fixtures)`);
+    const answer = fixture => { tilesAnswered.push(url); return route.fulfill({ status: 200, ...fixture }); };
+    if (pathname === '/styles/liberty') return answer({ contentType: 'application/json', body: JSON.stringify(MAP_STYLE) });
+    if (pathname === '/planet') return answer({ contentType: 'application/json', body: JSON.stringify(MAP_TILEJSON) });
+    if (/^\/planet\/fixture\/\d+\/\d+\/\d+\.pbf$/.test(pathname)) return answer({ contentType: 'application/x-protobuf', body: Buffer.alloc(0) });
+    outside.push(`${url} (not in the map fixtures)`);
     return route.abort('blockedbyclient');
   });
   await context.route(offHost, route => {
@@ -65,9 +80,12 @@ export async function guard(context) {
   });
   // Requests no route sees (a worker's own fetch) still show up here.
   context.on('request', r => {
-    if (offHost(new URL(r.url()))) outside.push(`${r.url()} (seen)`);
+    const url = new URL(r.url());
+    if (url.hostname === 'tiles.openfreemap.org') tilesSeen.push(r.url());
+    else if (offHost(url)) outside.push(`${r.url()} (seen)`);
   });
-  return { outside, tiles };
+  // Every tiles.openfreemap.org request the browser made must have been answered by a fixture route (DECISIONS 54).
+  return { outside, tiles, unanswered: () => unansweredOf(tilesSeen, tilesAnswered) };
 }
 
 export const test = base.extend({
@@ -77,6 +95,7 @@ export const test = base.extend({
     context.on('page', p => p.on('pageerror', e => pageErrors.push(`${p.url()}: ${e.message}`)));
     await use(g);
     expect(g.outside, 'every request stays on 127.0.0.1 (the map background goes to the local fixtures)').toEqual([]);
+    await expect.poll(() => g.unanswered(), { message: 'every tiles.openfreemap.org request was answered by a fixture route', timeout: 5000 }).toEqual([]);
     expect(pageErrors, 'no uncaught errors in the pages').toEqual([]);
   }, { auto: true }],
   seed: [async ({ request }, use) => {

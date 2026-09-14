@@ -6629,3 +6629,108 @@ Running 1 test using 1 worker
         npx playwright show-trace .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/trace.zip
 
 
+== 2026-09-14T18:33:47.013Z proof-webgl-required: DECISIONS 54: office/clients.js never finds WebGL, so every browser gets the plain background
+   spec: playwright test office.spec.mjs --project chromium-1280 -g the OpenFreeMap attribution and its three links on 7906 (inspector 7916), copy in app/.negative/proof-webgl-required
+   unbroken copy:   ✓  1 [chromium-1280] › tests/office.spec.mjs:103:1 › the Clients map: the OpenFreeMap attribution and its three links, a pin placed by clicking, only the routed tiles leave 127.0.0.1 (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/office.spec.mjs:103:1 › the Clients map: the OpenFreeMap attribution and its three links, a pin placed by clicking, only the routed tiles leave 127.0.0.1 
+
+    Error: MapLibre with WebGL, not the fallback
+
+    expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('#cl-map')
+    Expected: "maplibre"
+    Received: "plain"
+    Timeout:  10000ms
+
+    Call log:
+      - MapLibre with WebGL, not the fallback locator('#cl-map') with timeout 10000ms
+      - waiting for locator('#cl-map')
+        24 × locator resolved to <div id="cl-map" tabindex="0" data-base="plain" class="map leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom">…</div>
+           - unexpected value "plain"
+
+
+      108 |   // Every project runs MapLibre with WebGL (M3e): a regression that drops every browser to the plain background fails here
+      109 |   // (DECISIONS 54). The no-WebGL spec below requires "plain".
+    > 110 |   await expect(map, 'MapLibre with WebGL, not the fallback').toHaveAttribute('data-base', 'maplibre');
+          |                                                              ^
+      111 |   console.log(`[map] ${testInfo.project.name}: MapLibre with WebGL`);
+      112 |   await expect(map.locator('canvas.maplibregl-canvas')).toBeAttached();
+      113 |   await expect.poll(() => [...new Set(guarded.tiles)].filter(t => !t.endsWith('.pbf')).sort(), { message: 'the style and its TileJSON came from the routed fixtures' })
+        at <repo>/app/tests/office.spec.mjs:110:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-webgl-required/results/office-the-Clients-map-the-64d47-outed-tiles-leave-127-0-0-1-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T18:34:07.507Z proof-webgl-fallback: clarification 20 (no WebGL) removed: office/clients.js adds the MapLibre layer whether or not WebGL works
+   spec: playwright test office.spec.mjs --project chromium-1280 -g office PC without WebGL on 7906 (inspector 7916), copy in app/.negative/proof-webgl-fallback
+   unbroken copy:   ✓  1 [chromium-1280] › tests/office.spec.mjs:141:1 › an office PC without WebGL: the Clients map shows on its plain background, a pin places by clicking, the attribution and links are there, no page error @desktop (895ms) |   1 passed (5.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/office.spec.mjs:141:1 › an office PC without WebGL: the Clients map shows on its plain background, a pin places by clicking, the attribution and links are there, no page error @desktop 
+
+    Error: the fallback base
+
+    expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('#cl-map')
+    Expected: "plain"
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - the fallback base locator('#cl-map') with timeout 10000ms
+      - waiting for locator('#cl-map')
+        24 × locator resolved to <div id="cl-map" tabindex="0" class="map leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom">…</div>
+           - unexpected value "null"
+
+
+      153 |   await tab(page, 'Clients');
+      154 |   const map = page.locator('#cl-map');
+    > 155 |   await expect(map, 'the fallback base').toHaveAttribute('data-base', 'plain');
+          |                                          ^
+      156 |   await expect(map.locator('canvas'), 'no MapLibre canvas').toHaveCount(0);
+      157 |   await expect(map).toBeVisible();
+      158 |   await expect(map.locator('.leaflet-marker-icon').first(), "the clients' pins show").toBeVisible();
+        at <repo>/app/tests/office.spec.mjs:155:42
+
+    Error: no uncaught errors in the pages
+
+    expect(received).toEqual(expected) // deep equality
+
+== 2026-09-14T18:34:27.789Z attribution: office/clients.js leaves the OpenFreeMap attribution off the map
+   spec: playwright test office.spec.mjs --project chromium-390 -g the OpenFreeMap attribution and its three links on 7906 (inspector 7916), copy in app/.negative/attribution
+   unbroken copy:   ✓  1 [chromium-390] › tests/office.spec.mjs:103:1 › the Clients map: the OpenFreeMap attribution and its three links, a pin placed by clicking, only the routed tiles leave 127.0.0.1 (1.2s) |   1 passed (5.6s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/office.spec.mjs:103:1 › the Clients map: the OpenFreeMap attribution and its three links, a pin placed by clicking, only the routed tiles leave 127.0.0.1 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#cl-map').locator('.leaflet-control-attribution')
+    Expected: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap"
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#cl-map').locator('.leaflet-control-attribution') with timeout 10000ms
+      - waiting for locator('#cl-map').locator('.leaflet-control-attribution')
+        24 × locator resolved to <div class="leaflet-control-attribution leaflet-control"></div>
+           - unexpected value ""
+
+
+      121 | async function attributionAndPin(page, map) {
+      122 |   const attribution = map.locator('.leaflet-control-attribution');
+    > 123 |   await expect(attribution).toHaveText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap');
+          |                             ^
+      124 |   for (const [name, href] of [['OpenFreeMap', 'https://openfreemap.org'], ['© OpenMapTiles', 'https://www.openmaptiles.org/'], ['OpenStreetMap', 'https://www.openstreetmap.org/copyright']]) {
+      125 |     const link = attribution.getByRole('link', { name, exact: true });
+      126 |     await expect(link, `${name}: visible`).toBeVisible();
+        at attributionAndPin (<repo>/app/tests/office.spec.mjs:123:29)
+        at <repo>/app/tests/office.spec.mjs:116:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/attribution/results/office-the-Clients-map-the-64d47-outed-tiles-leave-127-0-0-1-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
