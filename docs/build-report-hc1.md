@@ -1214,3 +1214,58 @@ clarifications 18-19.
 ### Left undone / next
 
 Nothing for M7. On the page side, the optional "Moved to another worker by the office" line belongs to hc2.
+
+## Review of hc2 M3e (55c16ef)
+
+Read-only, from `git diff 15a6801 55c16ef -- app/` (merged as `e41d196`); nothing in `app/**` was edited. Scratch checks ran on
+hc1's ports (7905/7915) from the git-ignored `.negative/diag/`. Checked against API.md clarification 20 and DECISIONS 49.
+
+### What holds
+
+- **The map** (`office/clients.js`, `map-config.js`).
+  - MapLibre is Leaflet's base layer through `L.maplibreGL({ style: MAP_STYLE_URL })`. The style URL appears only in
+    `map-config.js`, and no `tile.openstreetmap.org` is left anywhere in `app/public` (vendor included).
+  - The binding (0.1.4) creates the MapLibre map with `attributionControl: false` and `interactive: false`, so pins, clicks and the
+    draft pin stay Leaflet's.
+  - `customAttribution: ''` keeps it from adding the TileJSON's own text, so the only attribution is Leaflet's.
+  - The attribution is added before the base layer is chosen, so it shows with or without WebGL. Its text is exactly "OpenFreeMap ©
+    OpenMapTiles Data from OpenStreetMap", with the three required links (openfreemap.org, openmaptiles.org,
+    openstreetmap.org/copyright).
+  - **No WebGL:** no WebGL context, no `maplibregl`, or `addTo` throwing gives `data-base="plain"` and a plain background, and
+    MapLibre's later load errors go to `console.warn`, never uncaught.
+- **Vendored files.** `maplibre-gl.js`, `maplibre-gl.css` and `LICENSE.txt` are byte-for-byte `maplibre-gl@5.24.0`, and
+  `leaflet-maplibre-gl.js` and `LICENSE` byte-for-byte `@maplibre/maplibre-gl-leaflet@0.1.4`. Checked by SHA-256 against the installed
+  packages; `app/package-lock.json` pins both. The MapLibre header names v5.24.0 and BSD-3-Clause, and both licence files ship
+  beside the code. No licence or attribution breach found.
+- **`pagehide` abort + 8 s limit** (`w/app.js`). Only the visits GETs use `loadSignal()`; the queue's event POSTs keep their own 30 s
+  signal, so leaving never cancels a send. An aborted load lands in `load()`'s `catch`, so the saved list stays.
+- **Settle before leaving `/w/`.** `settledOnPhone` waits for "All sent" and for the card's own server text: "Checked in … ·
+  Within 250 m…" or "Done … – …", never "saved on this phone". That text appears only after `load()` (and its awaited
+  `loadEarlier`) has answered and redrawn. It is used before every navigation away from `/w/` that follows a send. The contrast spec
+  also sets a real position, so WebKit's check-in is accepted.
+- **The network guard's `blob:` rule** is scoped: a `blob:` URL counts as its inner origin, and passes only for 127.0.0.1 or
+  tiles.openfreemap.org.
+  - **Can a real outside request slip through?** A scratch map, online, with every URL on the unresolvable
+    `tiles.openfreemap.invalid` and a route on that host. In both Chromium and WebKit the route answered **all 8** requests MapLibre
+    made (style, TileJSON and 6 tile fetches from its web worker): 8 seen, 8 routed, none unrouted. So the worker's tile fetches don't
+    bypass the fixtures.
+- **Control (m) is honest.** The unbroken copy passed. The break removes exactly `map.attributionControl.addAttribution(MAP_ATTRIBUTION)`,
+  and the broken copy went red at the attribution assertion (expected the OpenFreeMap text, received ""), not at a harness error.
+  The log adds 31 red entries and no GREEN or VOID.
+
+### Worth fixing tonight
+
+None. No data-loss, payroll, privacy, security, licence or attribution finding in M3e.
+
+### Known gaps (OTHER)
+
+- `w/app.js`: after a restore from the back-forward cache, the HTML spec fires `visibilitychange` before `pageshow`, so `load()` may
+  still take the old, already-aborted `leaving` signal and fail at once. The page then keeps its saved list ("Saved list from …")
+  until the next online event, visible tab or send. Starting a `load()` on `pageshow` with `persisted` would close it.
+- `tests/office.spec.mjs` map test: the MapLibre checks run only when `data-base` is `maplibre`, so a regression that sends every
+  browser to the plain background (a script not loaded, `webgl()` always false) passes the whole suite. MapLibre did run headless here
+  in both engines, so one project could require `maplibre`.
+- `tests/helpers.mjs` `offHost`: tiles.openfreemap.org is left out of the `seen` check, so an OpenFreeMap request no route answered
+  would not fail the guard. None does today (see above); comparing `seen` with the routed `tiles` list would keep it that way.
+- `tests/helpers.mjs` `hostOf`: a `blob:null/…` URL (opaque origin) makes `new URL(url.pathname)` throw inside the route predicate.
+  The app makes none today.
