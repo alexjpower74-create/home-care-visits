@@ -122,3 +122,183 @@ the PIN and family-link rate guards, `POST /api/test/seed {scenario: "demo"}`, a
 
 Nothing. For hc2, when calling M1: every `/api/*` answer in the tests carries `Cache-Control: no-store`, `Referrer-Policy:
 no-referrer` and `X-Content-Type-Options: nosniff`; the event answers use the worker-view shapes of API.md.
+
+## Lead review of M1 (merged f26d2f2)
+
+- Calls 1-5 and 7-10: adopted (API.md clarifications 3-4). **DONE**
+- Call 6 (an inactive worker's key answers 401): **REJECTED** by the lead (clarification 5). Fixed in M2: deactivating a worker
+  never stops their link, and only "New link" does. See the M2 test and control (k) below.
+- Clarification 3 adds `kind` and `visit_id` to the worker-view event. Added in M2, and the event 201 test now checks the exact
+  key set. **DONE**
+
+## M2 (2026-09-14, rebased on main 4c91521)
+
+### What was built: DONE
+
+- **Clarification 5.** `requireWorker` no longer asks for `active = 1`. An inactive worker's `GET /api/worker/visits` answers 200
+  with whatever is still assigned. A visit that already has events stays theirs when they are deactivated.
+- **Remaining routes:**
+  - `PUT /api/office/pin`: 4–8 digits; a wrong `current` is 401 field `current`, the session stays, and it counts toward the guard.
+  - `GET/PUT /api/office/agency`: name 1–80 with the health-card guard; phone normalised; `sample` follows the name.
+  - `POST /api/office/clients/:id/new-link` and `workers/:id/new-link`: a new 144-bit key; the old one stops at once.
+  - `PUT /api/office/visits/:id/times`: every non-null value voids the effective event of that kind and stores a `source: "office"`
+    event for the visit's worker (`location: not_shared` on a check-in, the reason in `correction_reason`). The version bump, the
+    voids and the inserts are one D1 batch, and `SELECT CASE WHEN changes() = 0 THEN json('stale') …` aborts the whole batch when
+    another screen saved first.
+  - The four reports and their CSV, in `src/reports.js` (pure). The Worker fetches every visit dated in the period or checked in
+    within a day of it; the pure code then picks by the check-in's NL date. Missed-visit reports generate the period's visits
+    first, so a week nobody opened still reports.
+- **Guards.** PIN: `COUNT(*)` of `signin_attempts` for the IP inside 15 minutes ≥ 5 → 429 before the PIN is checked, so the
+  right PIN is refused too. Family: `family_lookups` inside 10 minutes ≥ 30 → 429 before the key is looked up, so known keys are
+  refused too.
+- **Demo scenario** (`src/demo.js`, `POST /api/test/seed {scenario: "demo"}`): the base, then last week and this week before
+  today all done. Check-in is 0–9 min after the start and check-out 0–9 min either side of the end, both from the visit id;
+  the lowest id is far, the next not shared, the rest near; notes on even ids, shareable on multiples of 6. Last Friday's Edna F.
+  visit goes to Chris M. Today, every visit past start + 30 min is done except the latest one, left missed (a Gladys W. one-off
+  45 min ago when none has passed yet). One visit in progress, or a Walter G. one-off from 10 min ago, is checked in. A Frank H.
+  one-off for Sam R. starts 20 min ago (late). A one-off for Chris M. overlaps his next visit later this week, or two overlapping
+  one-offs tomorrow. Event ids are derived from visit ids, so the same now gives the same data. The answer adds `office_url`.
+
+### Verified: DONE
+
+`npm test` at `a5706a7`: **23/23 unit, 62/62 API** (48 M1 + 14 M2), nothing skipped. The M2 tests:
+- **worker key:** check in, deactivate, then the saved check-out with its own id is 201 with 56 min worked. `GET visits` still
+  answers 200. After New link the old key is 401 and the new one 200.
+- **new link:** the old worker key is 401 and the old family key 404; the new ones work; unknown ids 404; no token 401.
+- **office agency** (shape, refusals, `sample` flips when SAMPLE leaves the name) and **office PIN** (400 `new`, 401 `current`
+  keeps the session, the new PIN signs in and the old one does not).
+- **rate guards:** 5 wrong → 429 for the right PIN; another IP is fine. Still 429 at 14:59 after, 200 at 15:01. Four wrong
+  sign-ins plus one wrong `current` → 429. 30 unknown family keys → 429 for a known key from that IP; another IP and 10:01
+  later are fine.
+- **fix times:**
+  - Refusals: `check_in_at`, `reason`, a health-card reason, `check_out_at` not after check-in, too far from the visit, stale,
+    no worker, a check-out without a check-in.
+  - A missing check-out set by the office gives 58 min, `source: office`, the reason, and the version bumped.
+  - The phone's later check-out with its own id is 409 `already_checked_out`.
+  - Fixing the check-in too gives 61 min. `/api/test/events` still holds the voided phone event (3 rows, exactly that one
+    voided), and payroll agrees.
+- **payroll exactness:** 1:00:20 + 0:45:20 + 2:10:20 → worker 14 160 s, `"3.93"`, `"3 h 56 min"`. Per client, Bill 11 440 s is
+  `"3.18"` and Ruby `"0.76"`. A second worker, and the total 17 760 s `"4.93"`, come from summed seconds. A check-in with no
+  check-out is in `incomplete` and not in the hours. The whole answer is compared.
+- **NL date of the check-in:** a check-in at 23:50 NDT Tuesday (already Wednesday in UTC; the test asserts that too) counts for
+  Mon–Tue, and 00:10 Wednesday does not.
+- **billing:** grouped by funder, with scheduled minutes, compared whole. Refusals: `to` before `from`, 63 days (62 allowed),
+  missing `from`, no token.
+- **missed:** Margaret checked in at 14:59 is not listed; Walter at exactly 15:00 is late (15). Ruby, cancelled, is excluded. A
+  no-worker one-off is included with `worker_name: null`. Gladys at exactly start + 30 min is missed. A week nobody opened
+  reports its 6 missed Monday visits.
+- **mileage:** Sam taps Walter G. (Botwood) before Margaret P. and Frank H. (Grand Falls-Windsor), against the schedule. The
+  legs are Walter→Margaret, Margaret→Frank. A worker with one check-in has no row. The whole answer is compared.
+- **CSV:** payroll, billing and mileage compared byte for byte; missed by header and first row. Checked on all four:
+  content type, filename, `no-store`, no BOM, CRLF on every line, a final CRLF. A name with a comma and a quote comes out as
+  `"Kit ""K"" O'Brien, Jr. (SAMPLE)"`, and `=SUM(A1) (SAMPLE)` as `'=SUM(A1) (SAMPLE)`.
+- **demo seed**, at Wed 11:00 AM and at Wed 6:10 AM (before any visit has started):
+  - today: exactly one missed, a late Sam R. one-off, exactly one checked in, and every other visit past start + 30 min done;
+  - this week: a Chris M. double-booking; last week: all 36 visits done, Friday's Edna F. with Chris M.;
+  - check-ins 0–9 min after the start; exactly one far and one not shared; notes on a third to two thirds of visits, some
+    shareable and some not;
+  - payroll for the last 14 days is non-empty;
+  - seeding again at the same now gives an identical `GET day`.
+
+### Negative controls: DONE
+
+`npm run negative` runs all eleven, each red after its unbroken copy passed. The whole log was re-recorded against `a5706a7`
+(`worker/tests/negative-control.log`, repo paths scrubbed and checked for machine paths).
+
+| control | break (copy only) | red with |
+|---|---|---|
+| (f) `negative:payrollround` | `reports.js`: `hours: decimalHours(seconds)` → sum of each visit's rounded hundredths | `hours: '3.94'` for `'3.93'`, total `'4.94'` for `'4.93'` |
+| (g) `negative:mileageorder` | `reports.js`: legs sorted by `a.at` → by `a.starts_at` | legs Margaret→Walter→Frank, `metres: 59379` for `30775` |
+| (h) `negative:csvguard` | `reports.js`: the line `if (FORMULA.test(s)) s = \`'${s}\`` removed | `Sam R. (SAMPLE),=SUM(A1) (SAMPLE),…` for `'=SUM(A1) (SAMPLE)` |
+| (i) `negative:missedcancel` | `reports.js`: `!v.cancelled &&` removed from the missed branch | an extra row `Ruby T. (SAMPLE)` `what: 'missed'` (6 rows for 5) |
+| (j) `negative:ndtdate` | `reports.js`: `const date = nlDate(atIso)` → `atIso.slice(0, 10)` | Mon–Tue payroll `[0, 0]` for `[1, 480]` |
+| (k) `negative:inactivekey` | `index.js`: worker key lookup gains `AND active = 1` | `GET /api/worker/visits` for the deactivated worker 401 for 200 |
+
+Controls (a) to (e) from M1 were re-run in the same log against `a5706a7`, still red.
+
+### Calls made in M2 (for the lead)
+
+1. **Messages the contract does not give:** report `from` missing or bad "Pick a start date.", `to` "Pick an end date.";
+   fix-times value not a date "Type the time as a date and a time."; a check-out set with no check-in "Set the check-in time
+   first." (field `check_out_at`); unknown seed scenario 400 field `scenario`.
+2. **`PUT /api/office/pin` checks in this order:** guard (429), then `new` (400), then `current` (401). A malformed new PIN
+   never costs a try.
+3. **An office check-in or check-out is stored for the visit's current worker**, even when the phone's check-in came from a
+   worker assigned earlier. Payroll follows the effective check-in's worker, as the contract says.
+4. **CSV `Date` columns** (missed, mileage) use `YYYY-MM-DD`, which sorts in a spreadsheet. The billing funder and `Total` rows
+   carry the summed scheduled hours.
+5. **Names sort by lower-cased code units**, then id, the same rule as SQLite's `NOCASE`. Locale collation can differ between
+   Node and workerd, and a report's order must not.
+6. **The demo** gives an unassigned visit shown as done (only last Friday's Edna F. visit, unless the demo runs on a Saturday or
+   Sunday) to Chris M., so "every visit before today is done" holds.
+
+## Read-only review of hc2's pages on main after hc1 M2 (main at 4c91521)
+
+Scope: `git log main -- app/` shows only hc2 M1 (`4379983`). Reviewed: `app/public/api.js`, `w/queue.js`, `w/app.js`, `w/sw.js`,
+`f/app.js`, and the heads of `w/index.html` and `f/index.html`. `office/index.html` on main is a placeholder that calls only
+`GET /api/agency`; the office pages of hc2's M2 are not on main yet, so none of their API calls could be checked. Nothing in
+`app/**` was edited. Each finding has a tag, a place and a scenario that fails.
+
+1. **DATA LOSS** · `app/public/w/queue.js:98` with `app/public/api.js:17-20`. Any 200/201 deletes the queued event, and nothing
+   checks the body is the Worker's answer for that event. `fetch` follows redirects, and a body that is not JSON becomes
+   `data: null` with the status kept.
+   Scenario: a worker's phone joins a café or community Wi-Fi with a captive portal. The POST to `/api/worker/events` is
+   redirected to the portal's login page, which answers 200 HTML. `confirmSent` deletes the check-out, the strip says "All
+   sent", and the Worker never saw it: the visit shows "Checked in", and payroll has no hours for it.
+   Suggested fix: treat a 200/201 as sent only when `res.data?.event?.id` equals the queued `event.id`, lower-cased. Anything
+   else is `retry`. Optionally add `redirect: 'error'` for the event POST.
+2. **DATA LOSS** (contract; involves hc1's `updateClient` in `worker/src/index.js`, the `doomed` query). Saving a changed pattern
+   deletes that client's future visits with no events *on the server*, but a phone may still hold a queued check-in for one.
+   `queue.js:99` then moves it to "Not accepted by the office", with the server's "That visit isn't on your list.". The
+   worked time exists only in `refused`, and the Remove button deletes it.
+   Scenario: the worker taps Check in at 8:55 for a 9:00 visit with no signal. At 8:57 the office moves the client's pattern to
+   9:15. The phone syncs at 9:30 and gets a 404. Deactivating the client does the same.
+   Needs a lead decision. Options: the Worker keeps a deleted visit as a tombstone that still accepts events; or the rebuild
+   leaves visits starting within the next 12 hours alone; or the refused item offers "Ask the office to fix it" with the tapped
+   times kept, so the office can re-enter them with Fix times.
+3. **PAYROLL / DATA LOSS** (contract; `app/public/w/app.js:350-353` and `queue.js:99`). The whole check-out, not just the note, is
+   refused when the note trips the health-card guard. Twelve or more digits separated by single spaces or dashes count, so two
+   phone numbers in a row do.
+   Scenario: the note says "Daughter called from 709 555 0152 709 555 0153". The Worker answers 400 field `note`, the check-out
+   lands in "Not accepted by the office", and the visit has no check-out, so no payroll hours. The page gives no warning before
+   "Yes, check out".
+   Suggested fix: the page runs the same `/\d(?:[ -]?\d){11,}/` check on the note while typing and blocks the confirm with
+   the API's words, or the lead lets the Worker store the check-out and refuse only the note.
+4. **PAYROLL** · `app/public/w/app.js:75` (and `:221`). `load()` always asks for the server's today. On a visit from 11:15 PM to
+   11:59 PM, if the worker checks out after midnight or reopens the page after midnight, the list reloads with the next day's
+   visits. The checked-in visit is gone from the page, so there is no Check out button. The check-out is never recorded
+   until the office uses Fix times.
+   Suggested fix: keep asking for the date of any visit that is checked in (on the server or in the queue) and not yet checked
+   out; `GET /api/worker/visits?date=` accepts yesterday.
+5. **PRIVACY** · `app/public/w/app.js:31-38` and `:80-83`. The saved list, including entry notes and key-safe codes, stays in
+   `localStorage`. It is pruned only after a *successful* load, so a phone whose key answers 401 never clears it.
+   Scenario: a worker loses their phone and the office presses New link. The page now says "This link doesn't work any more", but
+   `hcv:visits:<worker id>:<date>` still holds every client's key-safe code, indefinitely, for anyone with the phone and
+   browser devtools.
+   Suggested fix: on a 401 for the page's own key, remove the `hcv:visits:*` entries saved under that key (keep the queue,
+   which API.md clarification 2 requires).
+6. **PAYROLL** (low) · `app/public/w/app.js:121-133` and `:326`. `view()` builds a visit's state from the answer and `queue`
+   only, not `refused`. After a check-in is refused, the card goes back to "Check in".
+   Scenario: a check-in is refused because the location failed validation. The worker taps Check in again 40 minutes later, and
+   that check-in lands with the later time: 40 minutes lost from payroll unless the office notices.
+   Suggested fix: show a refused check-in on the card ("Not accepted, tapped 9:04 AM, call the office") rather than offering a
+   fresh check-in silently.
+7. **OTHER** · `app/public/w/sw.js:3-10`. The page files are served cache-first under a hand-bumped `VERSION`, and `addAll` fails
+   the whole install if any listed file is missing.
+   Scenario: a fix to `queue.js` is deployed without bumping `VERSION`. Installed phones keep running the old queue until the
+   cache is cleared, and so do the finding-1 and finding-3 fixes. Removing the mock files from a deploy breaks the service
+   worker's install, so the page no longer opens offline.
+   Suggested fix: derive `VERSION` from a build stamp, or let the page check a version endpoint.
+
+**Checked and in line with docs/API.md:**
+- The queue writes to IndexedDB before any network call.
+- The two stores `queue` and `refused` are used as specified.
+- 400/404/409 go to refused with the server's `error`; 401 is held with the rekey rule; 429/5xx/network/timeout retry with
+  backoff.
+- A visit's later event waits behind its earlier one.
+- `at` is taken at the tap for check-in (before location) and at "Yes, check out".
+- The tasks snapshot carries `task_id, kind, label, done`; the note is trimmed, ≤ 2 lines and ≤ 200 characters.
+- Location `{ lat, lng, accuracy_m }` or null, 8 s, Skip.
+- The worker key goes in `X-Worker-Key`; labels use the agency time zone; the service worker never intercepts `/api/*`.
+- `no-referrer` meta is on `/w/` and `/f/`; the family page renders only allow-listed fields and stops refreshing on 404.
+- Both pages use the new `kind`/`visit_id` event fields only through the queue item, so clarification 3 needs no page change.
