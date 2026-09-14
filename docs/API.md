@@ -452,3 +452,36 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
    deactivation), and `POST /api/worker/events` accepts events under the usual who-may-send rule (the history keeps the visits they
    were taken off). A worker who is let go with check-ins still saved on their phone must be able to send them; tidying the list
    must not throw away worked time (DECISIONS 9). The office's "New link" is the way to stop a lost or former worker's phone.
+6. **(hc1 review R1, DATA LOSS) A queued event counts as sent only when the Worker says so.** The event POST uses
+   `redirect: 'error'` (a redirect is a network failure). A 200/201 removes the item only when the JSON body's `event.id` equals
+   the queued event's id (lower-cased); any other 200/201 (a Wi-Fi login page, a proxy) is a failure: keep it and back off.
+7. **(hc1 review R2, DATA LOSS) Rebuilt and removed visits are soft-removed, never deleted.** Wherever "Visit generation" says
+   visits are deleted (a changed or ended pattern's future visits with no events, a deactivated client's), the Worker sets
+   `removed_at` = now instead. A soft-removed visit with no effective event is invisible everywhere: week, day, worker visits,
+   family, reports, conflicts and missed; office edits to it answer 404. It **still accepts events** under the who-may-send rule,
+   because a phone may hold a check-in made before the change. Once it has an effective event it reappears everywhere as a
+   cancelled visit with `cancel_reason` "Removed when the visit pattern changed." (or "Removed when the client was made
+   inactive."), `visited_after_cancel: true`, and it counts for payroll, billing and mileage like any visited visit.
+   `rebuilt_visits` counts soft-removed visits.
+8. **(hc1 review R3, PAYROLL) Neither the note nor the task list ever costs a check-out.** On a check-out, a note that breaks a
+   note rule (not a string, over 200 characters, more than 2 lines, the health-card guard) is not stored, and a task list that
+   is malformed or refused is stored as `[]`; the check-out itself is stored, and the 201 answer adds `"note_refused": "<message>"`
+   and/or `"tasks_refused": "<message>"`. A duplicate resend answers as usual. The phone shows the message on that visit
+   ("Checked out. The note wasn't saved: Don't put health card numbers in this app.") until dismissed. The page also checks the
+   note while typing with the same rules and disables "Yes, check out" with the message shown, so the Worker's refusal is
+   normally never reached. The office sees `note: null`.
+9. **(hc1 review R4, PAYROLL) A visit still open after midnight stays on the phone.** Whenever the saved lists or the queue hold
+   a visit from yesterday that is checked in and not checked out, the worker page also loads `?date=<yesterday>` and shows those
+   visits first under "Still open from yesterday", with their Check out.
+10. **(hc1 review R5, PRIVACY) A refused link clears the saved lists.** When the page's own key answers 401, the page deletes every
+    `hcv:visits:*` entry saved under that key (they hold entry notes and key-safe codes) and every `hcv:draft:*`. The `queue` and
+    `refused` stores stay (clarification 2): they hold worked time and never entry notes.
+11. **(hc1 review R6, PAYROLL) A refused check-in stays on its card**: "Not accepted by the office: check-in tapped at 9:04 AM.
+    Call the office: 709-555-0100", with a "Check in again" button below it (a new tap is a new time; the office can set the tapped
+    time with Fix times).
+12. **(hc1 review R7) The worker page's service worker is network-first for its own files**: online it fetches with a 3-second
+    timeout and refreshes the cache, falling back to the cache; offline it serves the cache. Precaching adds files one at a time and
+    tolerates a missing optional file (the mock files), so a deploy without them still installs. It still never touches `/api/*`.
+13. **(hc1 M2) Small shapes adopted** (docs/build-report-hc1.md, M2 calls 1-6): the messages; `PUT /api/office/pin` checks guard →
+    `new` → `current`; an office-set event is stored for the visit's current worker; CSV `Date` columns are `YYYY-MM-DD`; names sort
+    by lower-cased code units then id; the demo gives last Friday's unassigned Edna F. visit to Chris M.

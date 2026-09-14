@@ -82,3 +82,20 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 26. **The cross-review of hc1 M1 is folded into hc2's Part B**: before running its suite against the Worker, hc2 reads hc1's
     handlers for every route it calls and writes any mismatch with API.md in its report. hc1 reviews hc2's queue and API calls
     read-only after hc1's M2, because the phone queue is where data can be lost.
+
+## 2026-09-14, lead (after hc1 M2, QA at `f74b413`, merged 10:58)
+
+27. **hc1 M2 is merged on the lead's pinned run**: unit 23/0/0, API 62/0/0; hc1 recorded 11 negative controls red (the lead
+    re-runs every control in the final QA, not per merge).
+28. **All seven of hc1's review findings on the phone pages are adopted** (API.md 6-12). Two were real data-loss paths across
+    the slice boundary that neither slice's own tests could see: a captive-portal 200 deleting a queued check-out, and a pattern
+    rebuild deleting a visit a phone had already checked in to. Every defect so far crossed a boundary, as on Snow Route.
+29. **Soft-remove, not "leave the next 12 hours alone".** The phone's queue may send days late (the original-time rule allows 7
+    days), so any time window would still lose some check-ins; a removed-but-reachable visit loses none, and it only shows up
+    again when someone actually worked it.
+30. **A note never costs a check-out.** The Worker stores the check-out and reports the note's refusal, rather than refusing the
+    whole event: payroll hours outrank a note, and the page's own check while typing keeps the refusal rare. The same for a bad task
+    snapshot.
+31. **Work split from here.** hc1 M3: the Worker side of clarifications 7 and 8 with tests and negative controls (l) and (m), then a
+    read-only review of hc2's office pages once they are on main. hc2, after Part B: M2c = the page side of clarifications 6 and
+    8-12 with specs and a captive-portal negative control, then M3.
