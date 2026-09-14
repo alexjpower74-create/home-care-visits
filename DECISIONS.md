@@ -71,3 +71,14 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 23. **hc2 starts M2's Worker-independent parts while hc1 finishes M1** (Playwright config, start-worker, helpers, the office
     pages written to the contract), and runs nothing against a mock. Two slices waiting on each other would waste the
     parallel time; the contract is detailed enough that office pages written to it should need small fixes, not rework.
+
+## 2026-09-14, lead (after hc1 M1, QA at `7d50ed2`, merged 10:40)
+
+24. **hc1 M1 is merged on the lead's own pinned run**: unit 23/0/0, API 48/0/0 (QA worktree on 7909), plus hc1's five negative
+    controls each red after passing on an unbroken copy. hc1's calls 1-5 and 7-10 are adopted (API.md clarifications 3-4).
+25. **Deactivating a worker never kills their link** (API.md clarification 5, overrules hc1's call 6). The obvious tidy-up
+    (mark a departed worker inactive) would otherwise strand every check-in still saved on their phone, which is exactly the
+    worked time payroll owes them. "New link" is the deliberate way to stop a phone.
+26. **The cross-review of hc1 M1 is folded into hc2's Part B**: before running its suite against the Worker, hc2 reads hc1's
+    handlers for every route it calls and writes any mismatch with API.md in its report. hc1 reviews hc2's queue and API calls
+    read-only after hc1's M2, because the phone queue is where data can be lost.

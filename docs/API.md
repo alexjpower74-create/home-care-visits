@@ -147,7 +147,7 @@ Worker input: `name` 1–40 ("Give the worker a name."), `phone` as for family c
 least one travel zone."), `availability` keys "1".."7" each `null` or a `start`/`end` window ending after it starts
 ("Availability has to end after it starts."), `max_week_minutes` integer 60–4800 ("Weekly hours are between 1 and 80."),
 `active`. `max_week_label` is hours with up to one decimal (`"37.5 h"`, `"20 h"`). `availability_label` groups consecutive
-days with the same window (`"Mon–Fri 8:00 AM – 4:00 PM"`, `"Sat–Sun 8:00 AM – 4:00 PM, Fri 12:00 PM – 8:00 PM"`, in weekday order of each group's first day) or `"Not available"`.
+days with the same window (`"Mon–Fri 8:00 AM – 4:00 PM"`, `"Fri 12:00 PM – 8:00 PM, Sat–Sun 8:00 AM – 4:00 PM"`, in weekday order of each group's first day) or `"Not available"`.
 
 **Event** (a check-in or check-out; office view)
 ```json
@@ -437,3 +437,18 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
    respect the backoff. A 401 on the page's own key keeps items in `queue` (never `refused`) with the link message; they send if
    the key works again. After the office accepts or refuses anything, the page reloads the visits so the server's labels replace
    "saved on this phone".
+3. **(hc1 M1) Small shapes adopted.** `availability_label` follows the weekday rule (the example above is fixed: Terry O. reads
+   `"Fri 12:00 PM – 8:00 PM, Sat–Sun 8:00 AM – 4:00 PM"`). The event answers (201, 200 `duplicate`, and the `event` in the two
+   409s) use the **worker-view** event shape `{ id, at, at_label, location_label, source }` (with `kind` and `visit_id`); `location`
+   and `distance_m` are office-only. PLAN.md's "201 with `location: near` and `distance_m`" is superseded: those are checked on the
+   office view. hc1's M1 wording for the cases the tables do not give is the contract (docs/build-report-hc1.md, M1 calls 3), and
+   the event route checks, in order: stored id → validation → "That visit isn't on your list." 404 → the 409s.
+4. **(hc1 M1) Worker history.** `visit_workers` records the old and new worker whenever the office changes a visit's worker, the
+   worker of a one-off visit, and the workers taken off visits when a worker is deactivated; the visit's current worker is always
+   allowed. `PUT visits/:id` may keep a now-inactive current worker; assigning a different worker needs an active one. A pattern day
+   whose start or end falls in the spring-forward gap generates no visit that day.
+5. **(lead, overrules hc1 M1 call 6) Deactivating a worker never kills their link. Only "New link" does.** An inactive worker's
+   key still works: `GET /api/worker/visits` answers 200 with the visits currently assigned to them (normally none after
+   deactivation), and `POST /api/worker/events` accepts events under the usual who-may-send rule (the history keeps the visits they
+   were taken off). A worker who is let go with check-ins still saved on their phone must be able to send them; tidying the list
+   must not throw away worked time (DECISIONS 9). The office's "New link" is the way to stop a lost or former worker's phone.
