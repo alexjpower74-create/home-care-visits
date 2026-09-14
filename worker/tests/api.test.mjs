@@ -965,6 +965,23 @@ test('office PIN: 4 to 8 digits; a wrong current PIN is 401 field current and ke
   assert.equal((await api('POST', '/api/office/signin', { body: { pin: '246813' } })).status, 200)
 })
 
+test('office PIN: a successful change ends every other session; a wrong current PIN deletes nothing', async () => {
+  const { token: a } = await setup()
+  const b = (await api('POST', '/api/office/signin', { body: { pin: '4826' } })).body.token
+  const c = (await api('POST', '/api/office/signin', { body: { pin: '4826' } })).body.token
+  expectError(await api('PUT', '/api/office/pin', { token: a, body: { current: '1111', new: '2468' } }), 401, 'unauthorized', 'current')
+  for (const t of [a, b, c]) assert.equal((await api('GET', '/api/office/clients', { token: t })).status, 200, 'a wrong current PIN ends no session')
+  assert.equal((await api('PUT', '/api/office/pin', { token: a, body: { current: '4826', new: '2468' } })).status, 200)
+  assert.equal((await api('GET', '/api/office/clients', { token: a })).status, 200, "the caller's session stays")
+  for (const t of [b, c]) {
+    const r = await api('GET', '/api/office/clients', { token: t })
+    expectError(r, 401, 'unauthorized')
+    assert.equal(r.body.field, undefined, 'a 401 without field: the session ended')
+  }
+  const d = (await api('POST', '/api/office/signin', { body: { pin: '2468' } })).body.token
+  assert.equal((await api('GET', '/api/office/clients', { token: d })).status, 200, 'the new PIN signs in')
+})
+
 test('rate guards: 5 wrong PINs from one IP → 429 even for the right PIN; other IPs and a passed window are fine; wrong current PINs count', async () => {
   const { token } = await setup()
   const ip = '10.9.9.1'
@@ -1109,15 +1126,15 @@ test('reports: billing by funder with scheduled minutes, and the period refusals
     to: MON,
     period_label: 'Mon Sep 14 to Mon Sep 14',
     funders: [
-      { funder_id: 1, funder_name: 'SAMPLE Regional home support program', visits: 2, seconds: 6340, hours: '1.76', hm_label: '1 h 45 min',
+      { funder_id: 1, funder_name: 'SAMPLE Regional home support program', visits: 2, seconds: 6340, hours: '1.76', hm_label: '1 h 45 min', scheduled_hours: '2.50',
         clients: [
-          { client_id: clientId('Bill'), client_name: 'Bill S. (SAMPLE)', visits: 1, scheduled_minutes: 60, seconds: 3620, hours: '1.01', hm_label: '1 h 0 min' },
-          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, scheduled_minutes: 90, seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' }
+          { client_id: clientId('Bill'), client_name: 'Bill S. (SAMPLE)', visits: 1, scheduled_minutes: 60, scheduled_hours: '1.00', seconds: 3620, hours: '1.01', hm_label: '1 h 0 min' },
+          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, scheduled_minutes: 90, scheduled_hours: '1.50', seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' }
         ] },
-      { funder_id: 3, funder_name: 'SAMPLE Veterans program', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min',
-        clients: [{ client_id: clientId('Walter'), client_name: 'Walter G. (SAMPLE)', visits: 1, scheduled_minutes: 60, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min' }] }
+      { funder_id: 3, funder_name: 'SAMPLE Veterans program', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min', scheduled_hours: '1.00',
+        clients: [{ client_id: clientId('Walter'), client_name: 'Walter G. (SAMPLE)', visits: 1, scheduled_minutes: 60, scheduled_hours: '1.00', seconds: 3600, hours: '1.00', hm_label: '1 h 0 min' }] }
     ],
-    total: { visits: 3, seconds: 9940, hours: '2.76', hm_label: '2 h 45 min' },
+    total: { visits: 3, seconds: 9940, hours: '2.76', hm_label: '2 h 45 min', scheduled_hours: '3.50' },
     note: 'Hours worked are check-out minus check-in.'
   })
   expectError(await api('GET', `/api/office/reports/billing?from=${TUE}&to=${MON}`, { token }), 400, 'bad_request', 'to', 'The end date has to be on or after the start date.')
@@ -1125,6 +1142,34 @@ test('reports: billing by funder with scheduled minutes, and the period refusals
   assert.equal((await api('GET', `/api/office/reports/billing?from=2026-07-01&to=2026-08-31`, { token })).status, 200, '62 days is allowed')
   expectError(await api('GET', `/api/office/reports/billing?to=${MON}`, { token }), 400, 'bad_request', 'from')
   expectError(await api('GET', `/api/office/reports/billing?from=${MON}&to=${MON}`), 401, 'unauthorized')
+})
+
+test('reports: billing scheduled_hours come from summed minutes: three 20-minute visits are "0.33" each and "1.00" in total, not "0.99"', async () => {
+  const { token, keyOf, clientId, workerId } = await setup()
+  const clients = ['Margaret', 'Ron', 'Gladys'] // all SAMPLE Regional home support program
+  for (const [i, name] of clients.entries()) {
+    const start = `1${4 + i}:00`
+    const v = await api('POST', '/api/office/visits', { token, body: { client_id: clientId(name), worker_id: workerId('Sam'), date: MON, start, end: `1${4 + i}:20` } })
+    assert.equal(v.status, 201, v.text)
+    assert.equal((await checkIn(keyOf('Sam'), v.body.id, nl(MON, start))).status, 201)
+    assert.equal((await checkOut(keyOf('Sam'), v.body.id, plus(nl(MON, start), 20))).status, 201)
+  }
+  const now = nl(MON, '18:00')
+  const r = await api('GET', `/api/office/reports/billing?from=${MON}&to=${MON}`, { token, now })
+  assert.equal(r.status, 200, r.text)
+  const [funder] = r.body.funders
+  assert.deepEqual(funder.clients.map(c => [c.client_name, c.scheduled_minutes, c.scheduled_hours]),
+    [['Gladys W. (SAMPLE)', 20, '0.33'], ['Margaret P. (SAMPLE)', 20, '0.33'], ['Ron K. (SAMPLE)', 20, '0.33']])
+  assert.equal(funder.scheduled_hours, '1.00', 'the funder from 60 summed minutes, not 0.33 + 0.33 + 0.33')
+  assert.equal(r.body.total.scheduled_hours, '1.00', 'the total from summed minutes')
+  const csv = (await api('GET', `/api/office/reports/billing.csv?from=${MON}&to=${MON}`, { token, now })).text.split('\r\n')
+  assert.deepEqual(csv.slice(1, 6), [
+    'SAMPLE Regional home support program,Gladys W. (SAMPLE),1,0.33,0.33,0 h 20 min,1200',
+    'SAMPLE Regional home support program,Margaret P. (SAMPLE),1,0.33,0.33,0 h 20 min,1200',
+    'SAMPLE Regional home support program,Ron K. (SAMPLE),1,0.33,0.33,0 h 20 min,1200',
+    'SAMPLE Regional home support program total,,3,1.00,1.00,1 h 0 min,3600',
+    'Total,,3,1.00,1.00,1 h 0 min,3600'
+  ])
 })
 
 test('reports: missed excludes cancelled visits, includes a visit with no worker, and late is exactly 15 minutes', async () => {

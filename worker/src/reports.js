@@ -74,6 +74,8 @@ export function payrollReport (rows, from, to) {
 }
 
 const scheduledMinutes = list => list.reduce((sum, v) => sum + v.scheduled_minutes, 0)
+/** Scheduled hours from summed minutes, rounded once like every hours string (clarification 17). */
+const scheduledHours = list => decimalHours(scheduledMinutes(list) * 60)
 
 export function billingReport (rows, from, to) {
   const done = counted(rows, from, to)
@@ -85,12 +87,16 @@ export function billingReport (rows, from, to) {
       funder_id: f.id,
       funder_name: f.name,
       ...totals(f.items),
+      scheduled_hours: scheduledHours(f.items),
       clients: groupSorted(f.items, 'client_id', 'client_name').map(c => {
         const t = totals(c.items)
-        return { client_id: c.id, client_name: c.name, visits: t.visits, scheduled_minutes: scheduledMinutes(c.items), seconds: t.seconds, hours: t.hours, hm_label: t.hm_label }
+        return {
+          client_id: c.id, client_name: c.name, visits: t.visits, scheduled_minutes: scheduledMinutes(c.items),
+          scheduled_hours: scheduledHours(c.items), seconds: t.seconds, hours: t.hours, hm_label: t.hm_label
+        }
       })
     })),
-    total: totals(done),
+    total: { ...totals(done), scheduled_hours: scheduledHours(done) },
     note: BILLING_NOTE
   }
 }
@@ -193,18 +199,12 @@ export function payrollCsv (report) {
 
 export function billingCsv (report) {
   const out = [['Funder', 'Client', 'Visits', 'Scheduled hours', 'Hours worked (decimal)', 'Hours and minutes', 'Seconds']]
-  let allMinutes = 0
   for (const f of report.funders) {
-    let minutes = 0
-    for (const c of f.clients) {
-      minutes += c.scheduled_minutes
-      out.push([f.funder_name, c.client_name, c.visits, decimalHours(c.scheduled_minutes * 60), c.hours, c.hm_label, c.seconds])
-    }
-    allMinutes += minutes
-    out.push([`${f.funder_name} total`, '', f.visits, decimalHours(minutes * 60), f.hours, f.hm_label, f.seconds])
+    for (const c of f.clients) out.push([f.funder_name, c.client_name, c.visits, c.scheduled_hours, c.hours, c.hm_label, c.seconds])
+    out.push([`${f.funder_name} total`, '', f.visits, f.scheduled_hours, f.hours, f.hm_label, f.seconds])
   }
   const t = report.total
-  out.push(['Total', '', t.visits, decimalHours(allMinutes * 60), t.hours, t.hm_label, t.seconds])
+  out.push(['Total', '', t.visits, t.scheduled_hours, t.hours, t.hm_label, t.seconds])
   return toCsv(out)
 }
 
