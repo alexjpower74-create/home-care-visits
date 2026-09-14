@@ -153,13 +153,17 @@ test('a visit still open after midnight shows under "Still open from yesterday" 
   await expect(card.locator('.visit-status')).toHaveText('Checked in 11:20 PM · Within 250 m of the client');
   await expect(page.locator('#strip-text')).toHaveText('All sent');
 
-  // An hour later it is tomorrow; the phone opens the page again.
+  // An hour later it is tomorrow; the phone opens the page again. It draws yesterday from the phone first, then again when
+  // today's and yesterday's lists answer: tap after that.
   await setNow(page, context, outAt);
+  const listOf = date => page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && (new URL(r.url()).searchParams.get('date') ?? '') === date);
+  const lists = [listOf(''), listOf(DAY)];
   await page.reload();
   const section = page.locator('.still-open');
   await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
   const open = section.locator(`.visit[data-visit="${visit.id}"]`);
   await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · Within 250 m of the client');
+  for (const list of lists) expect((await list).status()).toBe(200);
   await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out 12:20 AM');
   const outR = waitEvent(page, 'check_out');
   await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
@@ -301,7 +305,10 @@ test.describe('with the service worker blocked', () => {
 
     // Dismiss only hides the notice (clarification 18): the refused item stays under "Not accepted by the office" until Remove.
     await expect(page.locator('.refused-item'), 'still listed after Dismiss').toHaveCount(1);
+    // The page draws from the phone first, then again when today's list answers: tap Remove after that.
+    const todayList = page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && !new URL(r.url()).searchParams.get('date'));
     await page.reload();
+    expect((await todayList).status()).toBe(200);
     await expect(page.locator(`.visit[data-visit="${first.id}"] .visit-notice`), 'the notice stays hidden after a reload').toHaveCount(0);
     await expect(page.locator('.refused-item')).toHaveCount(1);
     await tap(page, page.locator('.refused-item').getByRole('button', { name: 'Remove' }), 'Remove');
@@ -325,17 +332,36 @@ test.describe('with the service worker blocked', () => {
     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in 11:20 PM (no signal)');
     await expect(card.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
 
+    // After midnight the page draws yesterday from the phone first, then again when today's and yesterday's lists answer.
+    // Today's list is held until the card drawn from the phone is marked, so the redraw is sure to come after it.
     await setNow(page, context, outAt);
+    const isList = date => r => new URL(r.url()).pathname === '/api/worker/visits' && (new URL(r.url()).searchParams.get('date') ?? '') === date;
+    let release;
+    const held = new Promise(r => { release = r; });
+    const hold = async route => { await held; await route.continue(); };
+    await page.route(url => url.pathname === '/api/worker/visits' && !url.searchParams.get('date'), hold);
+    const todayList = page.waitForResponse(isList(''));
+    const yesterdayList = page.waitForResponse(isList(DAY));
     await page.reload();
     const section = page.locator('.still-open');
     await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
     const open = section.locator(`.visit[data-visit="${visit.id}"]`);
     await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
+    await open.evaluate(el => { el.drawnFromThePhone = true; }); // a property, not an attribute: the markup stays the same
+    release();
+    expect((await todayList).status()).toBe(200);
+    expect((await yesterdayList).status()).toBe(200);
+    await page.unroute(url => url.pathname === '/api/worker/visits' && !url.searchParams.get('date'), hold);
+    await expect(page.getByText("No saved list on this phone yet. Find signal once to load today's visits.")).toHaveCount(0);
+    await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
+    // The card's markup did not change across that redraw, so it must be the same node: a tap at that moment is never lost.
+    expect(await open.evaluate(el => el.drawnFromThePhone === true), 'the unchanged card is the node drawn from the phone').toBe(true);
 
-    const sentIn = waitEvent(page, 'check_in');
-    signal = true;
     await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out 12:20 AM');
+    // Signal returns only now, so the queued check-in's send does not redraw the card under the tap.
+    const sentIn = waitEvent(page, 'check_in');
     const sentOut = waitEvent(page, 'check_out');
+    signal = true;
     await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
     expect((await sentIn).status()).toBe(201);
     expect((await sentOut).status()).toBe(201);

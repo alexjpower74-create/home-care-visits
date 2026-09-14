@@ -128,6 +128,12 @@ const PROOFS = [
     },
   },
   {
+    name: 'proof-card-kept',
+    what: 'M3h removed: every redraw replaces all of the worker page, so an unchanged card becomes a new node',
+    args: ['worker.spec.mjs', '--project', 'chromium-1280', '-g', 'still queued across midnight'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'), '  patchChildren(el, next);\n  return true;', '  el.innerHTML = html; // PROOF: replace everything\n  return true;'),
+  },
+  {
     name: 'proof-webgl-required',
     what: 'DECISIONS 54: office/clients.js never finds WebGL, so every browser gets the plain background',
     args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'the OpenFreeMap attribution and its three links'],

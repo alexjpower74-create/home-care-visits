@@ -426,8 +426,47 @@ const drawn = new WeakMap();
 function setHtml(el, html) {
   if (drawn.get(el) === html) return false;
   drawn.set(el, html);
-  el.innerHTML = html;
+  const next = document.createElement(el.tagName);
+  next.innerHTML = html;
+  patchChildren(el, next);
   return true;
+}
+
+// A redraw keeps every node whose markup did not change, so a tap that lands while the lists answer is never swallowed by a
+// fresh copy of the same card (M3h). Cards match by data-visit, other elements by id, the rest by position and tag.
+const keyOf = n => (n.nodeType === 1 ? n.getAttribute('data-visit') ?? (n.id || null) : null);
+const sameKind = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName && keyOf(a) === keyOf(b);
+
+function patchChildren(parent, next) {
+  let cur = parent.firstChild;
+  for (const want of [...next.childNodes]) {
+    let match = cur && sameKind(cur, want) ? cur : null;
+    if (!match && keyOf(want)) {
+      for (let c = cur?.nextSibling; c; c = c.nextSibling) if (sameKind(c, want)) { match = c; break; }
+    }
+    if (match) {
+      if (match !== cur) parent.insertBefore(match, cur);
+      else cur = cur.nextSibling;
+      patchNode(match, want);
+    } else {
+      parent.insertBefore(want, cur);
+    }
+  }
+  while (cur) { const gone = cur; cur = cur.nextSibling; gone.remove(); }
+}
+
+function patchNode(node, want) {
+  if (node.nodeType !== 1) {
+    if (node.nodeValue !== want.nodeValue) node.nodeValue = want.nodeValue;
+    return;
+  }
+  if (node.outerHTML === want.outerHTML) return;
+  for (const { name } of [...node.attributes]) if (!want.hasAttribute(name)) node.removeAttribute(name);
+  for (const { name, value } of [...want.attributes]) if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+  // What the markup says wins over what a control holds, as a fresh copy would; the page writes drafts back into its markup.
+  if (node.tagName === 'INPUT' && node.checked !== want.hasAttribute('checked')) node.checked = want.hasAttribute('checked');
+  if (node.tagName === 'TEXTAREA' && node.value !== want.value) node.value = want.value;
+  patchChildren(node, want);
 }
 
 function render() {

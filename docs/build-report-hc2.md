@@ -976,3 +976,75 @@ Each proof and the control passed on its unbroken copy first, then went red:
 As you asked, the full suite and the other controls were not run this round; your final QA runs them.
 `app/tests/negative-control.log` holds no machine paths. The controls' Worker (7906/7916) and the specs' Worker (7903/7913) were
 stopped by their runners, and all four ports are free.
+
+## M3h: the redraw that replaced an unchanged card (2026-09-14)
+
+Rebased on main at e471149. The lead's final pinned QA at b51d4b1 had one red: chromium-1280, `worker.spec.mjs:311`, "a check-in
+still queued across midnight…". It failed at the Check out tap with "Element is not attached to the DOM".
+
+### Why the card node was replaced
+- **Measured, not guessed.** A diagnostic copy of the test (git-ignored `.negative/diag/`) watched `#main` with a
+  `MutationObserver` across the reload. It recorded every write, the card's full markup and the card node's identity.
+- **Result** (chromium-1280). The page wrote `#main` three times:
+  1. "Loading today's visits…".
+  2. At 7 ms, yesterday's section from the phone, plus "No saved list on this phone yet".
+  3. At 36 ms, the same section plus today's list, once today's list answered. Yesterday's answer (`?date=2026-09-14`) caused no
+     further write.
+- Across those writes the card's markup was **identical** (one distinct markup), but the card was **a new node** (node 1, then
+  node 2).
+- **Cause.** Nothing on the card changed, no label and no attribute. `setHtml` compared the whole of `#main`'s markup and, on any
+  difference, replaced all of it with `innerHTML`. Today's list taking the place of the "No saved list" notice threw away every
+  node in `#main`, the unchanged card included. A real worker's tap in that moment would have been swallowed the same way.
+
+### The fix
+- **App** (`w/app.js` `setHtml`). A redraw still skips when the markup is unchanged. When it has changed, the new markup is
+  built off-page and patched into the live nodes instead of replacing them:
+  - Cards match by `data-visit`, other elements by `id`, and the rest by position and tag.
+  - An element whose markup is unchanged stays exactly as it is. Otherwise its attributes are synced, its text is updated in
+    place, and its children are patched the same way. Nodes no longer in the markup are removed.
+  - What the markup says still wins over a control's live state, as a fresh copy would: a checkbox's `checked` and a textarea's
+    `value` are synced when they differ. The page writes drafts back into its markup, so a note being typed is untouched.
+  - Every listener is delegated on `document`, so a kept node loses nothing. The existing focus restore stays for any textarea
+    that is replaced.
+  - A card that really changed (a new status, a task list) is patched in place, so it too stays the same node.
+- **The assertion.** The failing spec now holds today's list until the card drawn from the phone is marked with a JS property;
+  a data attribute would change the markup. It then releases the list, waits for today's and yesterday's lists to answer, and
+  asserts "the unchanged card is the node drawn from the phone" before tapping Check out. Signal comes back only after the tap.
+- **Proof** `proof-card-kept` (now 21 proofs): the copy's `setHtml` goes back to `el.innerHTML = html`, and that spec must go red
+  at the assertion.
+- **Other specs that tap in a section drawn first from the phone and then from the network.**
+  - "a visit still open after midnight shows…": reloads with yesterday saved. It now checks the heading first (where
+    `proof-yesterday` goes red), then waits for today's and yesterday's lists before tapping Check out.
+  - "Check in again": reloads, then taps Remove under "Not accepted by the office". It now waits for today's list first.
+  - Already waiting from earlier rounds: the Saturday test (74b1c42), the old-link test (its 2 tasks), and the moved-visit test
+    (M3f).
+  - Not affected: the lost-phone Friday test opens a clean phone, so it draws once from the network. The offline tests reload with
+    no signal, so nothing redraws from the network.
+
+### Results (run alone, 19:08Z–19:27Z)
+- **The diagnostic, again, against the fixed page.** The same three writes, one card markup, and now **one node** (node 1 at
+  9 ms and at 54 ms).
+- **`worker.spec` with `--repeat-each 5` in all four projects: 260 passed, 0 failed, 0 skipped.**
+
+  | project | passed |
+  |---|---|
+  | chromium-390 | 65 |
+  | chromium-1280 | 65 |
+  | webkit-390 | 65 |
+  | webkit-1280 | 65 |
+
+- **The other specs that open `/w/`**, because `setHtml` changed: `offline.spec`, `family.spec`, `reports.spec` and
+  `targets.spec` in all four projects gave 76 passed, 0 failed, and the 4 known WebKit skips.
+- **Proofs.** Each passed on its unbroken copy first, then went red:
+
+  | proof | red with |
+  |---|---|
+  | proof-yesterday | the "Still open from yesterday" heading: not found (before the new list wait, as intended) |
+  | proof-queued-midnight | the heading: not found |
+  | proof-earlier-days | `page.waitForResponse` for Saturday's list times out, as since M3d |
+  | proof-earlier-without-today | the same |
+  | **proof-card-kept** (new) | "the unchanged card is the node drawn from the phone": expected true, received false |
+
+As you asked, the full suite and the other controls were not run this round; your final QA runs them.
+`app/tests/negative-control.log` holds no machine paths. The Workers on 7903/7913 and 7906/7916 were stopped by their runners, and
+all four ports are free.
