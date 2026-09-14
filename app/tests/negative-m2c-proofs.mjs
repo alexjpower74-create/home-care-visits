@@ -117,6 +117,16 @@ const PROOFS = [
     breakIt: copy => replaceOnce(app(copy, 'w/queue.js'), 'const BACKOFF_MS = [5000, 15000, 30000, 60000];',
       'const BACKOFF_MS = [30000, 30000, 30000, 60000]; // PROOF: a slow retry schedule'),
   },
+  {
+    name: 'proof-webgl-fallback',
+    what: 'clarification 20 (no WebGL) removed: office/clients.js adds the MapLibre layer whether or not WebGL works',
+    args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'office PC without WebGL'],
+    breakIt: copy => {
+      const file = app(copy, 'office/clients.js');
+      replaceOnce(file, "  if (!window.maplibregl || !L.maplibreGL || !webgl()) return 'plain';", '  // PROOF: no WebGL check');
+      replaceOnce(file, '  try {\n    layer.addTo(map);\n  } catch {', '  layer.addTo(map); // PROOF: no fallback\n  try {\n  } catch {');
+    },
+  },
   ...inactive('chromium-1280'),
   ...inactive('chromium-390'),
 ];

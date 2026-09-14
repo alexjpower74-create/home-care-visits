@@ -868,3 +868,66 @@ The 4 skipped are unchanged, each with its written WebKit reason. All four proje
 
 Servers: the suite's Worker (7903/7913) and the controls' Worker (7906/7916) were stopped by their runners, and all four ports are
 free.
+
+## M3f: the no-WebGL map, and the moved visit (2026-09-14)
+
+Rebased on main at e41d196 (hc1 M7, API.md clarification 21).
+
+### 1. The no-WebGL fallback, run for the first time
+- **New spec** (`office.spec`, `@desktop`, so chromium-1280 and webkit-1280): "an office PC without WebGL…".
+  - Setup: `addInitScript` makes `HTMLCanvasElement.prototype.getContext` return null for `webgl`, `webgl2` and
+    `experimental-webgl`.
+  - On Clients: `#cl-map` is visible with `data-base="plain"`, no canvas, and the clients' pins showing.
+  - The same helper as the OpenFreeMap test (`attributionAndPin`) then checks the exact attribution text, each of the three
+    links visible, with its href and hit-testing to itself, and a pin placed by clicking the map in Add client.
+  - It collects `pageerror` itself and asserts none, on top of the fixture's own check.
+- Both projects passed. The fallback works in both engines: the plain background, the pins, the attribution and pin placing.
+- **Proof** `proof-webgl-fallback` (`negative-m2c-proofs.mjs`, now 19 proofs): the copy drops the WebGL check and moves
+  `layer.addTo(map)` out of its `try`, so the layer is added whatever happens. The unbroken copy passed, and the broken copy went
+  red at "the fallback base: expected 'plain', received ''": MapLibre's "Failed to initialize WebGL" throws out of `mount`, so
+  the map never gets a base.
+
+### 2. Clarification 21: "Moved to another worker by the office"
+- **Page** (`w/app.js`, `style.css`): a visit with `"reassigned": true` shows "Moved to another worker by the office" on its own
+  line under the time. Nothing else about the card changes, so it keeps its status and its Check out.
+- **The spec differs from the prompt, for a reason.** The prompt said Sam checks in, then the office reassigns. But
+  `PUT /api/office/visits/:id` answers 409 `bad_state` ("This visit has started, so it can't be moved.") once a visit has a
+  check-in; my first version of the spec got exactly that in all four projects. So the spec follows the case clarification 21
+  is for, and hc1's M7 test:
+  1. Sam taps Check in with no signal, and the check-in waits on the phone.
+  2. The office moves the visit to Jo W. (200).
+  3. Signal returns, and Sam's check-in lands (201).
+  4. After the settle wait, Sam's page reloads. The card shows the line under its time ("the line sits under the time" compares
+     the boxes), the status "Checked in 10:30 AM · Within 250 m of the client", and it is the only card with the line.
+  5. Check out lands (201) as "Done 10:30 AM – 11:17 AM". The office's visit is still Jo W.'s, with Sam's check-out time.
+- On WebKit the dropped signal did not hold at first, and the move got 409 again. With the service worker controlling the page,
+  WebKit's requests get past `page.route`, the same limit the suite already records. The test runs in its own describe with
+  `serviceWorkers: 'block'`, like the other dropped-signal worker tests, and passed 8/8 (2 runs on each project).
+
+### The first full run, and its one fix
+The first full run alone (ending 18:03Z) had 219 passed, 1 failed and 4 skipped.
+- **Failure.** The new moved-visit test failed on chromium-390 with `Cannot read properties of null (reading 'y')`. The page was
+  right: the error context shows the card with "Moved to another worker by the office" under its time, its status and Check out.
+- **Cause.** The test read the time's and the line's boxes in two separate calls. The saved-first draw was replaced by the loaded
+  card between them, so one read found no element. This is the same kind of redraw race as M3d's Saturday test.
+- **Fix.** The spec waits for today's list to answer after the reload, then reads both boxes in one `evaluate` on the card.
+- No control or proof selects this test, so the `npm run negative` results below still stand.
+
+### `npm run negative` (run alone after the first suite run, 18:03Z–18:18Z)
+It exited 0 with "All 14 negative-control scripts went red as required". That covers controls (a)–(m) and the 19 proofs, each
+passing on its unbroken copy first. The new `proof-webgl-fallback` went red at "the fallback base: expected 'plain', received
+''"; the rest went red at their earlier assertions. `app/tests/negative-control.log` holds no machine paths.
+
+### Results (full suite run alone after the fix, ending 18:28Z)
+The fixed moved-visit test first passed 12/12 (3 runs on each project). Then the full suite, run alone:
+
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 56 | 0 | 0 |
+| chromium-1280 | 56 | 0 | 0 |
+| webkit-390 | 54 | 0 | 2 |
+| webkit-1280 | 54 | 0 | 2 |
+| **total** | **220** | **0** | **4** |
+
+The 4 skipped are unchanged, each with its written WebKit reason. Servers: the suite's Worker (7903/7913) and the controls'
+Worker (7906/7916) were stopped by their runners, and all four ports are free.
