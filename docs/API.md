@@ -524,3 +524,20 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
     - **An old refused check-in reads as history** (finding 8). When the card also has an accepted or queued check-in, the notice
       reads "An earlier check-in at 9:04 AM wasn't accepted by the office." with a Dismiss button.
     - **Sign out after the session expired** (finding 9): a 401 from `POST /api/office/signout` reads "Signed out." like a 200.
+17. **(hc1 review of hc2 M3, findings 1-8) Office time and money rules.**
+    - **No silent next day** (finding 1, PAYROLL). Fix times sends each time on the visit's date. When the typed check-out is
+      earlier than the check-in, the sheet shows a checkbox "The check-out was after midnight"; only when it is ticked is the
+      check-out sent on the next day. Otherwise the Worker's "Check-out has to be after check-in." is shown.
+    - **Presets and downloads read the moment of use** (findings 2 and 3, PAYROLL). "This week", "Last week" and "Last 14 days" are
+      computed from `Date.now()` when pressed, never when the tab opened. "Download CSV" uses the dates in From and To at the moment
+      of the click and shows that period first.
+    - **The spring-forward gap is refused** (finding 6). A fix time that does not exist on the clocks-change day shows "That time
+      doesn't exist on the day the clocks change." and is not sent.
+    - **A PIN change ends every other session** (finding 4, SECURITY). A successful `PUT /api/office/pin` deletes every office
+      session except the caller's, so changing the PIN locks out every other signed-in browser at once.
+    - **Scheduled hours come from the Worker** (finding 5). The billing answer adds `"scheduled_hours"` (decimal string from
+      `scheduled_minutes * 60` seconds, the same rounding as every hours string) on each client, each funder and the total; the
+      page prints them and computes nothing.
+    - **Retries are measured, not only awaited** (hc1's note on `waitEvent`). The specs that wait for a queued send also assert the
+      page time it took: the first retry after one failure within 5 s of page time plus one 20 s tick, a 500 then success within the
+      contract's backoff. A slow or missing retry schedule then fails instead of hiding inside minutes of fast-forwarded clock.

@@ -141,3 +141,17 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     duplicate) with tests and a negative control. hc2 M3b, after M3: the page side of 16, plus the proof gaps hc1 named
     (a check-in still queued across midnight, an offline reload after midnight, two keys on one phone, the "Check in again"
     button, the inactive proofs at 390, and a login page poisoning the cache).
+
+## 2026-09-14, lead (after hc1's review of hc2 M3, 12:18)
+
+41. **All eight M3 findings are adopted** (API.md 17). Three were payroll mistakes a coordinator could make with no warning (an
+    AM/PM slip stored as a 14-hour overnight shift, "Last week" meaning the week before last in a tab left open over the weekend, a
+    CSV for a different period than the one typed), and one was a security gap the contract itself had: changing the PIN did not
+    lock anyone out.
+42. **A PIN change ends every other session.** The only reason an office changes a shared PIN is to lock someone out; leaving
+    their browser signed in for 14 days would make the change look done when it is not.
+43. **The retry schedule is asserted in page time.** hc2's clock-stepping helper made the tests honest about eventually-sent events
+    but hid how long a retry takes (up to about 23 minutes of phone time). The contract names the backoff, so the specs measure it.
+44. **Work split.** hc1 M5 (now): the Worker side of 17 (sessions on PIN change, `scheduled_hours`) with tests and a negative
+    control. hc2 M3c, after M3b: the page side of 17 and the two spec gaps (badge hidden after a rename without SAMPLE; presets on a
+    fall-back Sunday night that is already Monday in UTC).
