@@ -8,6 +8,14 @@ const key = new URLSearchParams(location.search).get('k') || '';
 const CACHE_PREFIX = 'hcv:visits:';
 const DRAFT_PREFIX = 'hcv:draft:';
 const NOTICE_PREFIX = 'hcv:notice:';
+const DISMISSED_KEY = 'hcv:dismissed'; // seqs of refused check-ins whose history notice was dismissed (clarification 18)
+const LOAD_TIMEOUT_MS = 8000; // a visits load that takes longer is a failed load (clarification 18)
+const loadSignal = () => {
+  if (AbortSignal.timeout) return AbortSignal.timeout(LOAD_TIMEOUT_MS);
+  const c = new AbortController();
+  setTimeout(() => c.abort(), LOAD_TIMEOUT_MS);
+  return c.signal;
+};
 const EARLIER_DAYS = 7; // the Worker's original-time window and its visits date range (clarification 16)
 // The Worker's note rules (docs/API.md privacy guards, clarification 8), checked while typing.
 const HEALTH_CARD = /\d(?:[ -]?\d){11,}/;
@@ -91,6 +99,7 @@ const clearDraft = id => ls(s => s.removeItem(DRAFT_PREFIX + id));
 // Clarification 8: a check-out whose note or task list the Worker refused is still stored; the phone says so until dismissed.
 // A 200 duplicate repeats the refusal (clarification 16), so a resend after a lost 201 still says it.
 const noticeOf = id => ls(s => JSON.parse(s.getItem(NOTICE_PREFIX + id)), null);
+const dismissedSeqs = () => ls(s => JSON.parse(s.getItem(DISMISSED_KEY)), null) || [];
 function rememberRefusals(answers = []) {
   for (const { item, data } of answers) {
     if (item.event.kind !== 'check_out' || !(data?.note_refused || data?.tasks_refused)) continue;
@@ -121,7 +130,7 @@ async function load() {
   if (S.loading) { S.reloadAgain = true; return; }
   S.loading = true;
   try {
-    const r = await workerVisits(key);
+    const r = await workerVisits(key, undefined, loadSignal());
     if (r.status === 200) {
       Object.assign(S, { answer: r.data, savedAt: Date.now(), stale: false, noList: false, keyRefused: false });
       saveList(r.data);
@@ -174,18 +183,20 @@ function withQueued(answer, queued, date) {
 
 // Clarification 16: every date up to 7 days back for which the saved lists or the queue hold a visit checked in and not checked
 // out is loaded (or, with no signal, rebuilt from the saved list and the queue) and shown before today, oldest first.
-async function loadEarlier(today, online) {
+// Clarification 18: also every date the Worker names in open_dates (a visit checked in from a lost phone or an old link).
+async function loadEarlier(today, online, openDates = S.answer?.open_dates ?? []) {
   const found = [];
   for (let d = EARLIER_DAYS; d >= 1; d--) {
     const date = addDays(today, -d);
     const queued = S.items.filter(i => i.visit_date === date);
     const known = S.earlier.find(a => a.date === date) ?? savedList(date)?.answer ?? null;
     const queuedIn = queued.some(i => i.event.kind === 'check_in');
-    if (!queuedIn && !known?.visits.map(view).some(stillOpen)) continue;
+    const named = openDates.includes(date);
+    if (!queuedIn && !named && !known?.visits.map(view).some(stillOpen)) continue;
     let answer = null;
     if (online) {
       try {
-        const r = await workerVisits(key, date);
+        const r = await workerVisits(key, date, loadSignal());
         if (r.status === 200) { saveList(r.data); answer = r.data; }
       } catch { /* no signal: the saved list and the queue stand in */ }
     }
@@ -274,10 +285,13 @@ function noticesHtml(x) {
   const out = [];
   const r = x.refusedIn;
   if (r && x.cin) {
-    // Clarification 16: once the visit has an accepted or queued check-in, the refused one is history.
-    out.push(`<div class="visit-notice notice" role="status">
-      <p>An earlier check-in at ${esc(timeLabel(r.event.at, r.tz || tz()))} wasn't accepted by the office.</p>
-      <button type="button" class="btn btn-outline" data-act="dismiss-refused" data-seq="${r.seq}">Dismiss</button></div>`);
+    // Clarification 16: once the visit has an accepted or queued check-in, the refused one is history. Clarification 18:
+    // Dismiss only hides this notice; the item stays under "Not accepted by the office" until Remove.
+    if (!dismissedSeqs().includes(r.seq)) {
+      out.push(`<div class="visit-notice notice" role="status">
+        <p>An earlier check-in at ${esc(timeLabel(r.event.at, r.tz || tz()))} wasn't accepted by the office.</p>
+        <button type="button" class="btn btn-outline" data-act="dismiss-refused" data-seq="${r.seq}">Dismiss</button></div>`);
+    }
   } else if (r) {
     const phone = r.office_phone;
     out.push(`<div class="visit-notice notice notice-bad" role="alert">
@@ -538,7 +552,10 @@ document.addEventListener('click', e => {
     case 'confirm-check-out': confirmCheckOut(); break;
     case 'check-out-without-note': confirmCheckOut({ withoutNote: true }); break;
     case 'dismiss-notice': ls(s => s.removeItem(NOTICE_PREFIX + id)); render(); break;
-    case 'dismiss-refused': queue.removeRefused(Number(t.dataset.seq)); break;
+    case 'dismiss-refused':
+      ls(s => s.setItem(DISMISSED_KEY, JSON.stringify([...dismissedSeqs(), Number(t.dataset.seq)])));
+      render();
+      break;
     case 'remove-refused': queue.removeRefused(Number(t.dataset.seq)); break;
     case 'remove-held': queue.removeHeld(Number(t.dataset.seq)); break;
     default: break;
@@ -574,6 +591,19 @@ addEventListener('offline', () => render());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/w/sw.js', { scope: '/w/' }).catch(() => {});
+// Clarification 18: what the phone already knows (today's saved list, open earlier days, the queue) is on screen before any
+// network call; the load then refreshes it.
+async function showSaved() {
+  if (!key) return;
+  const rec = savedList(localDate(Date.now(), TZ));
+  if (rec && !S.answer) {
+    Object.assign(S, { answer: rec.answer, savedAt: rec.saved_at, stale: true });
+    queue.setPage(key, rec.answer.worker.id);
+  }
+  await loadEarlier(rec?.answer.date ?? localDate(Date.now(), TZ), false);
+  render();
+}
+
 // The queue first: which earlier days are still open depends on what the phone holds.
-refreshQueue().then(load);
+refreshQueue().then(showSaved).then(load);
 queue.start();
