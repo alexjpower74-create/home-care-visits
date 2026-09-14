@@ -320,6 +320,7 @@ function cardHtml(x) {
   return `<li class="visit visit--${x.status}${open ? ' is-open' : ''}" data-visit="${v.id}">
     <button type="button" class="visit-head" data-act="toggle" data-visit="${v.id}" aria-expanded="${open}">
       <span class="visit-time">${esc(v.time_label)}</span>
+      ${v.reassigned ? '<span class="visit-moved">Moved to another worker by the office</span>' : ''}
       <span class="visit-who"><span class="avatar" aria-hidden="true">${esc(v.client_initials)}</span><span class="visit-name">${esc(v.client_name)}</span></span>
       ${town ? `<span class="visit-town">${esc(town)}</span>` : ''}
       ${line ? `<span class="visit-status">${esc(line)}</span>` : ''}

@@ -434,3 +434,61 @@ test.describe('with the service worker blocked', () => {
     expect(v.check_out.at).toBe(iso(NOW));
   });
 });
+
+// The check-in has to wait on the phone while the office moves the visit: WebKit's requests from a page its service worker
+// controls get past page.route, so this one runs with the service worker blocked, like the other dropped-signal tests.
+test.describe('moved by the office while a check-in waited', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('a visit Sam checked in to with no signal, moved to Jo W. before it landed, stays on Sam\'s list with "Moved to another worker by the office" and checks out', async ({ page, context, request, seed }) => {
+    // The office can't move a visit that already has a check-in (409 bad_state), so the move happens while Sam's check-in waits
+    // on the phone: the case clarification 21 is for.
+    const { sam, visits } = await samsDay(page, context, request, seed);
+    const [first] = visits;
+    const jo = byName(seed.workers, 'Jo W. (SAMPLE)');
+    let signal = false;
+    await page.route('**/api/worker/events', route => (signal ? route.continue() : route.abort('internetdisconnected')));
+    await context.grantPermissions(['geolocation']);
+    await context.setGeolocation({ latitude: first.lat, longitude: first.lng, accuracy: 12 });
+    await page.goto(pathOf(sam.worker_url));
+    const card = page.locator(`.visit[data-visit="${first.id}"]`);
+    await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in (no signal)');
+    await expect(card.locator('.visit-status')).toHaveText('Checked in 10:30 AM · saved on this phone');
+    await expect(card.locator('.visit-moved')).toHaveCount(0);
+
+    const token = await officeToken(request);
+    const v = await officeVisit(request, token, first.id);
+    const moved = await api(request, 'PUT', `/api/office/visits/${first.id}`, { token, data: { worker_id: jo.id, date: v.date, start: v.start, end: v.end, version: v.version } });
+    expect(moved.status, `the office moves the visit to Jo W. before the check-in lands: ${JSON.stringify(moved.body)}`).toBe(200);
+    expect(moved.body.worker_id).toBe(jo.id);
+
+    const sent = waitEvent(page, 'check_in');
+    signal = true;
+    expect((await sent).status(), "Sam's check-in still lands").toBe(201);
+    await settledOnPhone(page, card, 'Checked in 10:30 AM · Within 250 m of the client');
+
+    // Sam's page reloads (clarification 21): the visit stays, with the line under its time and its Check out.
+    // The page draws the saved list first, then again when today's list answers: measure and tap after that.
+    const today = page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && !new URL(r.url()).searchParams.get('date'));
+    await page.reload();
+    expect((await today).status()).toBe(200);
+    const again = page.locator(`.visit[data-visit="${first.id}"]`);
+    await expect(again.locator('.visit-moved')).toHaveText('Moved to another worker by the office');
+    await expect(again.locator('.visit-status')).toHaveText('Checked in 10:30 AM · Within 250 m of the client');
+    // One read of the same card for both boxes, so a redraw can't fall between them.
+    const [timeBottom, lineTop] = await again.evaluate(el => [el.querySelector('.visit-time').getBoundingClientRect().bottom, el.querySelector('.visit-moved').getBoundingClientRect().top]);
+    expect(lineTop, 'the line sits under the time').toBeGreaterThanOrEqual(timeBottom - 1);
+    await expect(page.locator('.visit-moved'), 'only the moved visit carries the line').toHaveCount(1);
+
+    await setNow(page, context, OUT);
+    if (!(await again.getByRole('button', { name: 'Check out' }).isVisible())) await tap(page, again.locator('.visit-head'), 'open the moved visit');
+    await tap(page, again.getByRole('button', { name: 'Check out' }), 'Check out');
+    const out = waitEvent(page, 'check_out');
+    await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
+    expect((await out).status(), 'the Worker takes the check-out from Sam').toBe(201);
+    await settledOnPhone(page, again, 'Done 10:30 AM – 11:17 AM');
+    const after = await officeVisit(request, token, first.id, DAY, OUT);
+    expect(after.worker_id, "still Jo W.'s visit").toBe(jo.id);
+    expect(after.check_out.at).toBe(iso(OUT));
+  });
+});

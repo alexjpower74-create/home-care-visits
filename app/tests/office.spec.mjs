@@ -106,6 +106,12 @@ test('the Clients map: the OpenFreeMap attribution and its three links, a pin pl
       .toEqual(['/planet', '/styles/liberty']);
   }
 
+  await attributionAndPin(page, map);
+  expect(guarded.outside, 'nothing but tiles.openfreemap.org (routed) left 127.0.0.1').toEqual([]);
+});
+
+/** The exact attribution with its three links visible and on top, then a pin placed by clicking the map in Add client. */
+async function attributionAndPin(page, map) {
   const attribution = map.locator('.leaflet-control-attribution');
   await expect(attribution).toHaveText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap');
   for (const [name, href] of [['OpenFreeMap', 'https://openfreemap.org'], ['© OpenMapTiles', 'https://www.openmaptiles.org/'], ['OpenStreetMap', 'https://www.openstreetmap.org/copyright']]) {
@@ -123,7 +129,28 @@ test('the Clients map: the OpenFreeMap attribution and its three links, a pin pl
   await tapAt(page, map, fx, fy, 'the map');
   await expect(page.locator('#cf-pin')).toHaveText(/^Pin at 4\d\.\d{5}, -5\d\.\d{5}\. /);
   await expect(map.locator('.pin-new')).toBeVisible();
-  expect(guarded.outside, 'nothing but tiles.openfreemap.org (routed) left 127.0.0.1').toEqual([]);
+}
+
+test('an office PC without WebGL: the Clients map shows on its plain background, a pin places by clicking, the attribution and links are there, no page error @desktop', async ({ page, context }) => {
+  // An old office PC or a locked-down browser: no WebGL context of any kind.
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      return ['webgl', 'webgl2', 'experimental-webgl'].includes(type) ? null : getContext.call(this, type, ...rest);
+    };
+  });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await setNow(page, context, NOW);
+  await signIn(page);
+  await tab(page, 'Clients');
+  const map = page.locator('#cl-map');
+  await expect(map, 'the fallback base').toHaveAttribute('data-base', 'plain');
+  await expect(map.locator('canvas'), 'no MapLibre canvas').toHaveCount(0);
+  await expect(map).toBeVisible();
+  await expect(map.locator('.leaflet-marker-icon').first(), "the clients' pins show").toBeVisible();
+  await attributionAndPin(page, map);
+  expect(errors, 'no uncaught page error').toEqual([]);
 });
 
 test('a task "Give her pills" shows the medication message by the tasks field', async ({ page, context }) => {

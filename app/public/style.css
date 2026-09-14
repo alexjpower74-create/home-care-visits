@@ -60,6 +60,8 @@ h1, h2, h3 { line-height: 1.2; }
 .visit-head { display: block; width: 100%; min-height: 48px; padding: 14px 16px; background: none; border: 0;
   color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .visit-time { display: block; font-size: 22px; font-weight: 600; }
+/* A visit this worker checked in to, since given to someone else (clarification 21): it keeps its Check out. */
+.visit-moved { display: block; margin-top: 2px; font-size: 17px; font-weight: 600; }
 .visit-who { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
 .visit-name { font-size: 24px; font-weight: 700; line-height: 1.2; }
 .visit-town { display: block; margin-top: 2px; padding-left: 52px; font-size: 17px; color: var(--muted); }
