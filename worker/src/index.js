@@ -1,7 +1,7 @@
 // Home Care Visits Worker: the API in docs/API.md. Static files in ../app/public are served by [assets]; only /api/* reaches here.
 
 import { now as clockNow, clientIp, isTestMode } from './clock.js'
-import { randomKey, sha256Hex, verifyPin, isUuidV4 } from './auth.js'
+import { hashPin, randomKey, sha256Hex, verifyPin, isUuidV4 } from './auth.js'
 import {
   addDays, dayLabel, fullLabel, hoursText, isDate, isHm, isoSecond, isoWeekday, localToUtc, minutesOf, mondayOf, nlDate, rangeLabel, timeLabel
 } from './time.js'
@@ -11,6 +11,8 @@ import { HEALTH_CARD_MESSAGE, MEDICATION_MESSAGE, looksLikeHealthCard, recordsMe
 import { DISTANCE_NOTE, KINDS, availabilityLabel, findConflicts } from './conflicts.js'
 import { patternVisits } from './generate.js'
 import { familyUrl, seedSample, workerUrl } from './sample.js'
+import { seedDemo } from './demo.js'
+import { billingCsv, billingReport, mileageCsv, mileageReport, missedCsv, missedReport, payrollCsv, payrollReport } from './reports.js'
 import { TASK_LABELS, daysLabel, firstName, initials, normalizePhone } from './labels.js'
 
 const SESSION_DAYS = 14
@@ -121,13 +123,27 @@ const office = handler => async (ctx, ...args) => {
   return handler(ctx, ...args)
 }
 
+const PIN_WINDOW_MS = 15 * 60000
+const FAMILY_WINDOW_MS = 10 * 60000
+
+/** 5 wrong PINs from one IP inside 15 minutes → 429 for every PIN check, the right PIN included, until the window passes. */
+async function pinGuard (ctx) {
+  const row = await ctx.db.prepare('SELECT COUNT(*) AS n FROM signin_attempts WHERE ip = ?1 AND at > ?2')
+    .bind(ctx.ip, isoSecond(ctx.nowMs - PIN_WINDOW_MS)).first()
+  if (row.n >= 5) throw new HttpError(429, 'rate_limited', 'Too many tries. Wait 15 minutes and try again.')
+}
+
+const recordWrongPin = ctx => ctx.db.prepare('INSERT INTO signin_attempts (ip, at) VALUES (?1, ?2)').bind(ctx.ip, ctx.nowIso).run()
+const pinText = v => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '')
+const storedPin = agency => ({ hash: agency.pin_hash, salt: agency.pin_salt, iterations: agency.pin_iterations })
+
 async function signin (ctx) {
   const body = await readJson(ctx.request)
+  await pinGuard(ctx)
   const agency = await loadAgency(ctx.db)
-  const pin = typeof body.pin === 'string' ? body.pin : typeof body.pin === 'number' ? String(body.pin) : ''
-  const ok = await verifyPin(pin, { hash: agency.pin_hash, salt: agency.pin_salt, iterations: agency.pin_iterations })
+  const ok = await verifyPin(pinText(body.pin), storedPin(agency))
   if (!ok) {
-    await ctx.db.prepare('INSERT INTO signin_attempts (ip, at) VALUES (?1, ?2)').bind(ctx.ip, ctx.nowIso).run()
+    await recordWrongPin(ctx)
     throw unauthorized('That PIN is not right.', 'pin')
   }
   const token = randomKey(32)
@@ -581,6 +597,8 @@ function officeEventView (e) {
 
 const workerEventView = e => ({
   id: e.id,
+  visit_id: e.visit_id,
+  kind: e.kind,
   at: e.at,
   at_label: timeLabel(e.at),
   location_label: e.kind === 'check_in' ? locationLabel(e.location, e.distance_m) : null,
@@ -829,7 +847,8 @@ async function setNoteShareable (ctx, idText) {
 
 async function requireWorker (ctx) {
   const key = ctx.request.headers.get('X-Worker-Key')
-  const worker = key ? await ctx.db.prepare('SELECT * FROM workers WHERE worker_key = ?1 AND active = 1').bind(key).first() : null
+  // An inactive worker's key still works (API.md clarification 5): only "New link" stops a phone, so saved check-ins still land.
+  const worker = key ? await ctx.db.prepare('SELECT * FROM workers WHERE worker_key = ?1').bind(key).first() : null
   if (!worker) throw unauthorized(WORKER_KEY_MESSAGE)
   return worker
 }
@@ -1027,6 +1046,10 @@ function familyVisitView (rec, today, nowMs) {
 
 async function getFamily (ctx, key) {
   const db = ctx.db
+  // 30 unknown keys from one IP inside 10 minutes → 429 for every lookup, known keys included: a guesser cannot spot a hit.
+  const recent = await db.prepare('SELECT COUNT(*) AS n FROM family_lookups WHERE ip = ?1 AND at > ?2')
+    .bind(ctx.ip, isoSecond(ctx.nowMs - FAMILY_WINDOW_MS)).first()
+  if (recent.n >= 30) throw new HttpError(429, 'rate_limited', 'Too many tries. Wait a few minutes and try again.')
   const client = await db.prepare('SELECT id, name FROM clients WHERE family_key = ?1').bind(key).first()
   if (!client) {
     await db.prepare('INSERT INTO family_lookups (ip, at) VALUES (?1, ?2)').bind(ctx.ip, ctx.nowIso).run()
@@ -1067,6 +1090,173 @@ async function testEvents (ctx) {
   return json(200, { events: rows })
 }
 
+// ---- office: PIN, agency, new links ----
+
+async function changePin (ctx) {
+  const body = await readJson(ctx.request)
+  await pinGuard(ctx)
+  if (typeof body.new !== 'string' || !/^\d{4,8}$/.test(body.new)) throw badRequest('new', 'Use 4 to 8 digits.')
+  const agency = await loadAgency(ctx.db)
+  if (!(await verifyPin(pinText(body.current), storedPin(agency)))) {
+    await recordWrongPin(ctx)
+    throw unauthorized('That PIN is not right.', 'current') // the session stays
+  }
+  const h = await hashPin(body.new)
+  await ctx.db.prepare('UPDATE agency SET pin_hash = ?1, pin_salt = ?2, pin_iterations = ?3 WHERE id = 1').bind(h.hash, h.salt, h.iterations).run()
+  return json(200, { ok: true })
+}
+
+async function officeAgencyView (db) {
+  const [agency, refs] = await Promise.all([loadAgency(db), loadRefs(db)])
+  return {
+    ...agencyView(agency),
+    office: { label: agency.office_label, lat: agency.office_lat, lng: agency.office_lng },
+    zones: refs.zones,
+    funders: refs.funders
+  }
+}
+
+async function getOfficeAgency (ctx) {
+  return json(200, await officeAgencyView(ctx.db))
+}
+
+async function updateAgency (ctx) {
+  const body = await readJson(ctx.request)
+  const name = trimmed(body.name)
+  if (!chars(name) || chars(name) > 80) throw badRequest('name', 'Give the agency a name.')
+  guardText(name, 'name')
+  const phone = normalizePhone(body.office_phone)
+  if (!phone) throw badRequest('office_phone', PHONE_MESSAGE)
+  await ctx.db.prepare('UPDATE agency SET name = ?1, office_phone = ?2 WHERE id = 1').bind(name, phone).run()
+  return json(200, await officeAgencyView(ctx.db))
+}
+
+async function newClientLink (ctx, idText) {
+  const id = Number(idText)
+  const r = await ctx.db.prepare('UPDATE clients SET family_key = ?1 WHERE id = ?2').bind(randomKey(), id).run()
+  if (!r.meta.changes) throw notFound("That client isn't on the list.")
+  return json(200, await clientById(ctx, id))
+}
+
+async function newWorkerLink (ctx, idText) {
+  const id = Number(idText)
+  const r = await ctx.db.prepare('UPDATE workers SET worker_key = ?1 WHERE id = ?2').bind(randomKey(), id).run()
+  if (!r.meta.changes) throw notFound("That worker isn't on the list.")
+  return json(200, await workerById(ctx, id))
+}
+
+// ---- office: fix times ----
+
+const TWELVE_HOURS_MS = 12 * 3600000
+
+function officeInstant (value, field) {
+  if (value === null || value === undefined) return null
+  const ms = typeof value === 'string' ? Date.parse(value) : NaN
+  if (!Number.isFinite(ms)) throw badRequest(field, 'Type the time as a date and a time.')
+  return Math.floor(ms / 1000) * 1000
+}
+
+async function fixTimes (ctx, idText) {
+  const rec = await officeVisit(ctx, Number(idText))
+  const r = rec.row
+  const body = await readJson(ctx.request)
+  if (body.version !== r.version) throw stale()
+  if (r.worker_id === null) throw badRequest('worker_id', 'Assign a worker first.')
+  const inMs = officeInstant(body.check_in_at, 'check_in_at')
+  const outMs = officeInstant(body.check_out_at, 'check_out_at')
+  if (inMs === null && outMs === null) throw badRequest('check_in_at', 'Give a check-in or a check-out time.')
+  const reason = trimmed(body.reason)
+  if (!chars(reason) || chars(reason) > 120) throw badRequest('reason', 'Say why the time is being fixed.')
+  guardText(reason, 'reason')
+  const earliest = Date.parse(r.starts_at) - TWELVE_HOURS_MS
+  const latest = Date.parse(r.ends_at) + TWELVE_HOURS_MS
+  for (const [ms, field] of [[inMs, 'check_in_at'], [outMs, 'check_out_at']]) {
+    if (ms !== null && (ms < earliest || ms > latest)) throw badRequest(field, 'That time is too far from the visit.')
+  }
+  const resultIn = inMs ?? (rec.check_in ? Date.parse(rec.check_in.at) : null)
+  const resultOut = outMs ?? (rec.check_out ? Date.parse(rec.check_out.at) : null)
+  if (outMs !== null && resultIn === null) throw badRequest('check_out_at', 'Set the check-in time first.')
+  if (resultIn !== null && resultOut !== null && resultOut <= resultIn) throw badRequest('check_out_at', 'Check-out has to be after check-in.')
+
+  const db = ctx.db
+  const stmts = [
+    db.prepare('UPDATE visits SET version = version + 1 WHERE id = ?1 AND version = ?2').bind(r.id, body.version),
+    // json() of a non-JSON string aborts the batch: nothing below lands when another screen changed the visit first.
+    db.prepare("SELECT CASE WHEN changes() = 0 THEN json('stale') ELSE 1 END AS ok")
+  ]
+  for (const [ms, kind] of [[inMs, 'check_in'], [outMs, 'check_out']]) {
+    if (ms === null) continue
+    stmts.push(
+      db.prepare('UPDATE events SET voided_at = ?1 WHERE visit_id = ?2 AND kind = ?3 AND voided_at IS NULL').bind(ctx.nowIso, r.id, kind),
+      db.prepare(`INSERT INTO events (id, visit_id, worker_id, kind, at, at_adjusted, received_at, source, location, lat, lng, accuracy_m,
+        distance_m, correction_reason, voided_at) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, 'office', ?7, NULL, NULL, NULL, NULL, ?8, NULL)`)
+        .bind(crypto.randomUUID(), r.id, r.worker_id, kind, isoSecond(ms), ctx.nowIso, kind === 'check_in' ? 'not_shared' : null, reason)
+    )
+  }
+  try {
+    await db.batch(stmts)
+  } catch (e) {
+    if (/malformed JSON/i.test(errorText(e))) throw stale()
+    throw e
+  }
+  return json(200, officeVisitView(await officeVisit(ctx, r.id), ctx.nowMs))
+}
+
+// ---- office: reports ----
+
+function reportPeriod (ctx) {
+  const from = ctx.url.searchParams.get('from')
+  const to = ctx.url.searchParams.get('to')
+  if (!isDate(from)) throw badRequest('from', 'Pick a start date.')
+  if (!isDate(to)) throw badRequest('to', 'Pick an end date.')
+  if (to < from) throw badRequest('to', 'The end date has to be on or after the start date.')
+  if (addDays(from, 61) < to) throw badRequest('to', 'Pick up to 62 days at a time.')
+  return { from, to }
+}
+
+/** One row per visit dated in the period or checked in near it (the reports pick by the check-in's NL date themselves). */
+async function reportRows (db, from, to) {
+  return (await db.prepare(`SELECT v.id AS visit_id, v.date, v.start_hm AS start, v.end_hm AS "end", v.starts_at, v.cancelled,
+      v.client_id, c.name AS client_name, c.funder_id, f.name AS funder_name, c.lat, c.lng, w.name AS worker_name,
+      ci.at AS check_in_at, ci.worker_id AS check_in_worker_id, wi.name AS check_in_worker_name, co.at AS check_out_at
+    FROM visits v JOIN clients c ON c.id = v.client_id JOIN funders f ON f.id = c.funder_id
+    LEFT JOIN workers w ON w.id = v.worker_id
+    LEFT JOIN events ci ON ci.visit_id = v.id AND ci.kind = 'check_in' AND ci.voided_at IS NULL
+    LEFT JOIN workers wi ON wi.id = ci.worker_id
+    LEFT JOIN events co ON co.visit_id = v.id AND co.kind = 'check_out' AND co.voided_at IS NULL
+    WHERE (ci.at >= ?1 AND ci.at < ?2) OR v.date BETWEEN ?3 AND ?4`)
+    .bind(`${addDays(from, -1)}T00:00:00.000Z`, `${addDays(to, 2)}T00:00:00.000Z`, from, to).all()).results
+    .map(row => ({ ...row, scheduled_minutes: minutesOf(row.end) - minutesOf(row.start) }))
+}
+
+const REPORTS = {
+  payroll: { build: (rows, ctx, p) => payrollReport(rows, p.from, p.to), csv: payrollCsv },
+  billing: { build: (rows, ctx, p) => billingReport(rows, p.from, p.to), csv: billingCsv },
+  missed: { build: (rows, ctx, p) => missedReport(rows, ctx.nowMs, p.from, p.to), csv: missedCsv },
+  mileage: { build: (rows, ctx, p) => mileageReport(rows, p.from, p.to), csv: mileageCsv }
+}
+
+async function report (ctx, kind, csv) {
+  const p = reportPeriod(ctx)
+  if (kind === 'missed') await ensureVisits(ctx, p.from, p.to) // a missed visit may never have been shown on any screen
+  const data = REPORTS[kind].build(await reportRows(ctx.db, p.from, p.to), ctx, p)
+  if (!csv) return json(200, data)
+  return new Response(REPORTS[kind].csv(data), {
+    status: 200,
+    headers: {
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="home-care-${kind}-${p.from}-to-${p.to}.csv"`,
+      ...BASE_HEADERS
+    }
+  })
+}
+
+async function testSeed (ctx) {
+  const body = await readJson(ctx.request)
+  if (body.scenario !== 'demo') throw badRequest('scenario', 'The only scenario is "demo".')
+  return json(200, await seedDemo(ctx, ensureVisits))
+}
+
 // ---- router ----
 
 const ROUTES = [
@@ -1091,7 +1281,15 @@ const ROUTES = [
   ['POST', /^\/api\/worker\/events$/, postEvent],
   ['GET', /^\/api\/family\/([A-Za-z0-9_-]{1,100})$/, getFamily],
   ['POST', /^\/api\/test\/reset$/, testReset],
-  ['GET', /^\/api\/test\/events$/, testEvents]
+  ['GET', /^\/api\/test\/events$/, testEvents],
+  ['PUT', /^\/api\/office\/pin$/, office(changePin)],
+  ['GET', /^\/api\/office\/agency$/, office(getOfficeAgency)],
+  ['PUT', /^\/api\/office\/agency$/, office(updateAgency)],
+  ['POST', /^\/api\/office\/clients\/(\d+)\/new-link$/, office(newClientLink)],
+  ['POST', /^\/api\/office\/workers\/(\d+)\/new-link$/, office(newWorkerLink)],
+  ['PUT', /^\/api\/office\/visits\/(\d+)\/times$/, office(fixTimes)],
+  ['GET', /^\/api\/office\/reports\/(payroll|billing|missed|mileage)(\.csv)?$/, office((ctx, kind, csv) => report(ctx, kind, !!csv))],
+  ['POST', /^\/api\/test\/seed$/, testSeed]
 ]
 
 async function handle (request, env) {
