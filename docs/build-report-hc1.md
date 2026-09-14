@@ -653,3 +653,43 @@ worktree was not opened and nothing in `app/**` was edited. Checked against docs
   - board: `data-alert` none at 09:15:00;
   - familynote: the note count;
   - overlay: the hit-test finds the transparent element (a follow-on `waitForResponse` error after it is only a consequence).
+
+## Lead review of the M2c review (merged 8977d6a)
+
+- Findings 1-10: all adopted as API.md clarification 16 (DECISIONS 37-40). Findings 5 and 7 needed Worker changes, done in M4.
+  **DONE**
+
+## M4 (2026-09-14, rebased on main 7fb81e0)
+
+### What was built: DONE
+
+- **Worker visits, 7 days back** (clarification 16, findings 2 and 5). `GET /api/worker/visits?date=` now accepts 7 days back to
+  6 days ahead, matching the original-time window. Outside it: 400 field `date` "Pick a day from last week to next week.".
+- **Refusals remembered** (clarification 16, finding 7). `migrations/0004_event_refusals.sql` adds `events.note_refused` and
+  `events.tasks_refused`. The phone's check-out insert stores what `validateEvent` refused. `storedRefusals(stored)` repeats
+  them in the `200 duplicate` answer. They are worker answers only: the office event view and the family view list their fields
+  explicitly and never read these columns; only the test-only raw `GET /api/test/events` shows them.
+
+### Verified: DONE
+
+`npm test` at `2ac4e5a`: **23/23 unit, 66/66 API**, nothing skipped. Changed tests:
+- **Worker visits:** with now on Monday Sep 14, 7 days back (Sep 7) is 200 with last Monday's two visits, and 6 days ahead
+  (Sep 20) is 200. 8 days back (Sep 6) and 7 days ahead (Sep 21) are 400 field `date` with the new message.
+- **Check-out:** each refused case's 201 carries its `note_refused` / `tasks_refused`. A resend of the same id answers `200
+  duplicate: true` with the **same** fields. A new clean check-out (Friday, "A clean note. (SAMPLE)") answers 201 and its resend
+  has neither field. The raw week, five day boards and three family answers contain neither field name nor any refusal message.
+
+### Negative controls: DONE
+
+`npm run negative` runs all fourteen, (a)-(n), each red after its unbroken copy passed. The log was re-recorded against
+`2ac4e5a` and holds no machine paths.
+
+| control | break (copy only) | red with |
+|---|---|---|
+| (n) `negative:duplicaterefusal` | `index.js`: `, ...storedRefusals(stored) })` → ` })` | `resend of Bill 2026-09-14: {"duplicate":true,…}`: `actual: undefined, expected: 'Keep the note to two short lines.'` |
+
+(a)-(m) are unchanged and still red at `2ac4e5a`.
+
+### Left undone / next
+
+Nothing for M4. The page side of clarification 16 belongs to hc2.
