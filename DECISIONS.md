@@ -99,3 +99,11 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 31. **Work split from here.** hc1 M3: the Worker side of clarifications 7 and 8 with tests and negative controls (l) and (m), then a
     read-only review of hc2's office pages once they are on main. hc2, after Part B: M2c = the page side of clarifications 6 and
     8-12 with specs and a captive-portal negative control, then M3.
+
+## 2026-09-14, lead (after hc1 M3, QA at `f367d7d`, merged 11:05)
+
+32. **hc1 M3 is merged on the lead's pinned run**: unit 23/0/0, API 66/0/0, controls (a)-(m) recorded red by hc1. hc1's restore
+    message is adopted (API.md 14).
+33. **hc1 reviews hc2's office pages early, from the committed branch**, while hc2 is still running Part B. Snow Route's
+    early review on a commit still being written found six real findings (their DECISIONS 32); reading `rig/hc2` with
+    `git show` keeps the review stable while hc2's worktree changes.

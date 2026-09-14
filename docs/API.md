@@ -485,3 +485,6 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
 13. **(hc1 M2) Small shapes adopted** (docs/build-report-hc1.md, M2 calls 1-6): the messages; `PUT /api/office/pin` checks guard →
     `new` → `current`; an office-set event is stored for the visit's current worker; CSV `Date` columns are `YYYY-MM-DD`; names sort
     by lower-cased code units then id; the demo gives last Friday's unassigned Edna F. visit to Chris M.
+14. **(hc1 M3) A visited soft-removed visit cannot be restored**: `POST /api/office/visits/:id/restore` answers 409 `bad_state`
+    "This visit was removed from the schedule, so it can't be restored." (it stays cancelled with its removal reason; Fix times
+    and the note toggle still work on it).
