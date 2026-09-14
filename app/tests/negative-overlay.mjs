@@ -8,6 +8,6 @@ process.exit(control({
   what: 'w/app.js wraps Check in with a transparent element laid over it',
   args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'check in near the client'],
   breakIt: copy => replaceOnce(path.join(copy, 'app', 'public', 'w', 'app.js'),
-    '`<button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">Check in</button>`',
-    '`<div style="position:relative"><button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">Check in</button><div style="position:absolute;inset:0;background:transparent"></div></div>` /* NEGATIVE CONTROL (e) */'),
+    '`<button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">${x.status === \'refused\' ? \'Check in again\' : \'Check in\'}</button>`',
+    '`<div style="position:relative"><button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">${x.status === \'refused\' ? \'Check in again\' : \'Check in\'}</button><div style="position:absolute;inset:0;background:transparent"></div></div>` /* NEGATIVE CONTROL (e) */'),
 }));

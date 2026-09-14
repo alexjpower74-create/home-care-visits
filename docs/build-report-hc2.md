@@ -255,3 +255,116 @@ The reruns above replace them.
 - The office agency comes from M1 routes until `GET /api/office/agency` exists, so a funder with no clients is not offered.
 - The `@desktop` drag uses pointer events; touch drag on a tablet-sized planner is not built ("Assign to" is the touch path).
 - Reports, Settings, Fix times and New link are M3.
+
+## M2c: hc1's review findings and clarifications 6–15 (2026-09-14)
+
+Rebased on main at 866ee71 (API.md clarifications 6–15; hc1 M2 and M3 merged). Every finding in hc1's two read-only reviews
+(docs/build-report-hc1.md) is fixed below. Each fix has an assertion that fails without it, proven by breaking a copy:
+negative control (f) for the queue, and the M2c proofs for the rest.
+
+### Phone
+1. **Clarification 6 (R1, data loss).**
+   - Change: `w/queue.js` counts a 200/201 as sent only when `data.event.id` equals the queued id, lower-cased. Any other
+     200/201 is kept and retried with the backoff. `api.js` sends the event POST with `redirect: 'error'`.
+   - Spec (`offline.spec`): `page.route` fulfils the first event POST with `200 text/html` (a Wi-Fi login page). The strip
+     still says "1 saved on this phone", the card still says "saved on this phone" and `/api/test/events` is empty. The next
+     try lands, and exactly one check-in is stored.
+   - Negative control (f), `negative-portal.mjs`: the copy confirms on any 200.
+2. **Clarification 8, page side.**
+   - While typing: the note is checked against the Worker's rules (≤ 200 characters, ≤ 2 lines, `/\d(?:[ -]?\d){11,}/`).
+     The words show under the note and in the sheet, and "Yes, check out" is disabled.
+   - After the answer: a 201 carrying `note_refused`/`tasks_refused` is kept in `localStorage` `hcv:notice:<visit id>`
+     (the Worker's message only, never entry notes). It shows on the visit as "Checked out. The note wasn't saved: …"
+     until OK is tapped.
+   - Specs (`worker.spec`): two phone numbers in a row disable "Yes, check out" with "Don't put health card numbers in this
+     app.", and a clean note enables it again. `page.route` rewrites the check-out's note on its way out: the 201 has
+     `note_refused`, the card says "The note wasn't saved: …", and the office has `worked_seconds` 2 700 and `note: null`.
+3. **Clarification 9 (R4, payroll).**
+   - Change: after today's list, the page also loads `?date=<yesterday>` when yesterday's saved list or the queue (items now
+     carry `visit_date`) holds a visit that is checked in and not checked out. Those visits show first under "Still open
+     from yesterday", with their Check out.
+   - Spec (`worker.spec`): a one-off 23:15–23:55 visit is checked in at 23:20. The page clock moves to 00:20 the next day
+     and the page reloads. The section shows it; the check-out lands with `check_out.at` 00:20 and `worked_seconds` 3 600.
+4. **Clarification 10 (R5, privacy).**
+   - Change: a 401 on the page's own key, from the visits load or from the queue (`onKeyRefused`), removes every
+     `hcv:visits:*` saved under that key and every `hcv:draft:*`. The `queue` and `refused` stores stay.
+   - Spec (`offline.spec`): New link through the API, then reload. The storage keys go from present to `[]`, the entry notes
+     are not in the page, and IndexedDB still holds the check-in.
+5. **Clarification 11 (R6, payroll).**
+   - Change: a refused check-in stays on its card: "Not accepted by the office: check-in tapped at 10:30 AM. Call the
+     office: 709-555-0100", with the server's words. "Check in again" shows while the visit has no other check-in.
+   - Spec (`offline.spec`): the office sets the check-in with Fix times while the phone's check-in waits for signal. The
+     phone's 409 shows on the card, and the card shows the office's "Checked in 10:10 AM".
+6. **Clarification 12 (R7).**
+   - Change: `w/sw.js` is network-first for its own files, with a 3 s timeout, refreshing the cache and falling back to it.
+     Required files are cached one at a time; the mock files are optional. The cache name is `hcv-w-v2`.
+   - **No spec, and why:**
+     - Showing network-first honestly means changing a file the Worker serves while a controlled page is open, which would
+       touch the shipped tree mid-run.
+     - Playwright does not reliably route a service worker's own fetches, so faking it through `page.route` would measure
+       the route, not the service worker.
+     - The precache tolerance would need a deploy without the mock files, which is a copy of the Worker's assets folder,
+       not a browser behaviour.
+   - What still guards it: the Chromium offline reload in `offline.spec` exercises the cache fallback on every run.
+
+### Office (clarification 15)
+7. **Workers and Clients load `?all=1`** and list inactive entries under an "Inactive" heading (`#worker-list-inactive`,
+   `#client-list-inactive`), still openable.
+   - The edit sheet (and the 390 "Assign to") always offers the visit's current worker, as "<name> (inactive)" when needed.
+   - The week grid and day view add a "<name> (inactive)" row for any worker on a visit who is not in `workers`.
+   - Sign out says "Signed out on this computer. The session couldn't be closed at the office. …" when signout doesn't
+     answer 200.
+   - `agencyFromM1Routes` is removed; a failing office route shows the API's words.
+   - Specs (`office.spec`): Terry O. is deactivated in the form, then listed under Inactive and reopened. His earlier 8:00
+     visit opens from his "(inactive)" week row with his name selected, and saves with `worker_id` kept. A sign-out that
+     can't reach the office shows the message and clears the token.
+
+### Spec gaps from hc1's early review
+8. `worker.spec` and `family.spec` move the page clock (and `X-Test-Now`) 47 minutes between check-in and check-out. They
+   assert "Done 10:30 AM – 11:17 AM", `check_out.at`, `worked_seconds` 2 820 and "Arrived 10:30 AM, left 11:17 AM".
+9. `office.spec`:
+   - the new client's pattern is stored with Alex B., and its chips sit in Alex B.'s row (1280) or group (390), not "No
+     worker";
+   - the worker test unticks Friday and ticks Saturday 9:00–1:00, and asserts the stored `availability` exactly.
+10. `planner.spec`:
+    - both chips (1280) or cards (390) have the computed left border colour of `--missed-edge` and the word "Conflict";
+    - after the stale 409, exactly one PUT was sent, and the other screen's change stands.
+11. `targets.spec`: the "Call …" link on the late and the missed row meet 4.5 : 1.
+
+### Results (full suite run alone, 2026-09-14)
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 25 | 0 | 0 |
+| chromium-1280 | 24 | 0 | 0 |
+| webkit-390 | 25 | 0 | 0 |
+| webkit-1280 | 24 | 0 | 0 |
+| **total** | **98** | **0** | **0** |
+
+The only step skipped is still the WebKit offline reload in `offline.spec`, with its reason in the test.
+
+### Negative controls (a)–(f) and M2c proofs (run one at a time on 7906/7916, nothing else running; `app/tests/negative-control.log`)
+Each passed on its unbroken copy first, then went red at the named assertion.
+
+| check | break (copy only) | red with |
+|---|---|---|
+| (a) queue | `w/queue.js` deletes the item before posting | `.visit-status` `/ · saved on this phone$/`: element(s) not found (the check-in was erased on its first failed send) |
+| (b) time | events posted with `at` = send time | "check-in keeps the time tapped": expected `2026-09-14T13:00:00.000Z`, received `2026-09-14T15:12:10.000Z` |
+| (c) board | late at 16 min | at 09:15:00 `data-alert` expected `"late"`, received `"none"` |
+| (d) familynote | the copied **Worker** returns every note | "the note is not on the page": expected 0, received 1 |
+| (e) overlay | transparent `div` over Check in | `tap(Check in) hit-test at 195,476: something else is on top` |
+| **(f) portal** (new) | `w/queue.js` confirms on any 200 | "the check-in is still saved on the phone": expected `/^1 saved on this phone\./`, received `"All sent"` |
+| proof-yesterday | yesterday never loaded | heading "Still open from yesterday": element(s) not found |
+| proof-forget | a refused key keeps saved lists and drafts | "no hcv:visits or hcv:draft keys left": received 4 keys |
+| proof-refusedcard | a refused check-in not on its card | "Not accepted by the office: check-in tapped at 10:30 AM. Call the office: 709-555-0100": element(s) not found |
+| proof-notecheck | no health card check while typing | `.note-error` expected "Don't put health card numbers in this app.", received `""` |
+| proof-notice | `note_refused` ignored | "Checked out. The note wasn't saved: …": element(s) not found |
+| proof-inactive-list | Workers loads active only | heading "Inactive": element(s) not found |
+| proof-inactive-sheet | the sheet leaves out the inactive current worker | "the sheet keeps the inactive worker": expected `"5"`, received `""` |
+| proof-inactive-row | no week row for an inactive worker | `.grid-worker` "Terry O. (SAMPLE) (inactive)": element(s) not found |
+
+Controls: `node app/tests/negative-<queue|time|board|familynote|overlay|portal>.mjs`. Proofs: `node app/tests/negative-m2c-proofs.mjs`.
+Control (e)'s anchor was updated for the "Check in again" label. The (d) anchor was checked against hc1's current Worker.
+
+Not proven by a broken copy: the sign-out message, the planner's edge colour / single PUT, the Call-link contrast and the
+advanced-clock assertions. These are new assertions on behaviour that was already right, so there is no fix to remove. Each
+fails if that behaviour regresses.

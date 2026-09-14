@@ -1,6 +1,6 @@
 // The family link after a real worker journey: arrived/left and the ticked tasks; the note stays off the page until the office
 // marks it shareable in the edit sheet; a bad link shows the plain message.
-import { test, expect, tap, typeInto, byName, pathOf, setNow, signIn, waitEvent, NOW } from './helpers.mjs';
+import { test, expect, tap, typeInto, byName, pathOf, setNow, signIn, waitEvent, NOW, MIN } from './helpers.mjs';
 
 const NOTE = 'Bill had a good morning and asked about the garden. (SAMPLE)';
 
@@ -25,6 +25,7 @@ test('family link: arrived and left with ticked tasks; the note appears only onc
     labels.push((await tasks.nth(i).locator('.task-label').textContent()).trim());
   }
   await typeInto(page, card.locator('textarea'), NOTE, 'note');
+  await setNow(page, context, NOW + 47 * MIN); // 47 minutes at the client
   await tap(page, card.getByRole('button', { name: 'Check out' }), 'Check out');
   const outR = waitEvent(page, 'check_out');
   await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
@@ -34,7 +35,7 @@ test('family link: arrived and left with ticked tasks; the note appears only onc
   await page.goto(pathOf(bill.family_url));
   await expect(page.getByRole('heading', { name: 'Visits for Bill S. (SAMPLE)' })).toBeVisible();
   const today = page.locator('.fam-card[data-status="left"]');
-  await expect(today.locator('.fam-status')).toHaveText('Arrived 10:30 AM, left 10:30 AM');
+  await expect(today.locator('.fam-status'), 'arrived and left are different times').toHaveText('Arrived 10:30 AM, left 11:17 AM');
   await expect(today.locator('.ticks li')).toHaveText(labels);
   await expect(page.getByText(NOTE), 'the note is not on the page').toHaveCount(0);
   expect(await page.content(), 'the note is nowhere in the page').not.toContain(NOTE);

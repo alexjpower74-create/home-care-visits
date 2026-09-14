@@ -1,5 +1,6 @@
-// The office on M1 routes: sign-in refusals, adding a client with the map pin, the medication wording guard, adding a worker.
-import { test, expect, tap, tapAt, typeInto, mapPoint, tab, signIn, setNow, NOW, DAY, addDays } from './helpers.mjs';
+// The office: sign-in refusals and sign-out, adding a client with the map pin (its visits on Alex B.'s row), the medication
+// wording guard, adding a worker with ticked availability, and a deactivated worker who stays reachable (clarification 15).
+import { test, expect, tap, tapAt, typeInto, mapPoint, tab, signIn, setNow, api, officeToken, oneOffVisit, byName, NOW, DAY, addDays } from './helpers.mjs';
 
 test('a wrong PIN says "That PIN is not right." and the sign-in answers 401', async ({ page, context }) => {
   await setNow(page, context, NOW);
@@ -10,6 +11,16 @@ test('a wrong PIN says "That PIN is not right." and the sign-in answers 401', as
   expect((await resp).status()).toBe(401);
   await expect(page.locator('#pin-error')).toHaveText('That PIN is not right.');
   await expect(page.locator('#signout')).toBeHidden();
+});
+
+test("Sign out that can't reach the office says the session is still open there", async ({ page, context }) => {
+  await setNow(page, context, NOW);
+  await signIn(page);
+  await page.route('**/api/office/signout', route => route.abort('internetdisconnected'));
+  await tap(page, page.locator('#signout'), 'Sign out');
+  await expect(page.getByText("Signed out on this computer. The session couldn't be closed at the office. Sign in and out again when the connection is back.")).toBeVisible();
+  await expect(page.locator('#pin')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('hcv:office-token')), 'the token is gone from this computer').toBeNull();
 });
 
 async function newClient(page, name, { task }) {
@@ -31,8 +42,9 @@ async function newClient(page, name, { task }) {
   await typeInto(page, row.locator('[data-f="detail"]'), task.detail, 'task detail');
 }
 
-test('add a client by typing and clicking the map, with a task and a Mon/Wed pattern: in the list, on the map, in the week', async ({ page, context }, testInfo) => {
+test('add a client by typing and clicking the map, with a task and a Mon/Wed pattern: in the list, on the map, on Alex B.\'s row', async ({ page, context, seed }, testInfo) => {
   const name = 'Nora B. (SAMPLE)';
+  const alex = byName(seed.workers, 'Alex B. (SAMPLE)');
   await setNow(page, context, NOW);
   await signIn(page);
   await newClient(page, name, { task: { kind: 'meal_prep', detail: 'Lunch, soft foods' } });
@@ -48,19 +60,20 @@ test('add a client by typing and clicking the map, with a task and a Mon/Wed pat
 
   const post = page.waitForResponse(r => r.url().endsWith('/api/office/clients') && r.request().method() === 'POST');
   await tap(page, page.getByRole('button', { name: 'Save client' }), 'Save client');
-  expect((await post).status()).toBe(201);
+  const saved = await post;
+  expect(saved.status()).toBe(201);
+  expect((await saved.json()).patterns[0], 'the pattern as stored').toMatchObject({ days: [1, 3], start: '13:00', end: '14:00', worker_id: alex.id });
   await expect(page.locator('#client-list .entity-name', { hasText: name })).toBeVisible();
   await expect(page.locator(`.leaflet-marker-icon[title="${name}"]`), 'on the map').toBeAttached();
 
   await tab(page, 'Week');
-  if (testInfo.project.name.endsWith('1280')) {
-    for (const date of [DAY, addDays(DAY, 2)]) {
-      await expect(page.locator(`.cell[data-date="${date}"] .chip`, { hasText: name }), `a chip on ${date}`).toHaveCount(1);
-    }
-  } else {
-    for (const date of [DAY, addDays(DAY, 2)]) {
+  for (const date of [DAY, addDays(DAY, 2)]) {
+    if (testInfo.project.name.endsWith('1280')) {
+      await expect(page.locator(`.cell[data-worker-id="${alex.id}"][data-date="${date}"] .chip`, { hasText: name }), `a chip on Alex B.'s row on ${date}`).toHaveCount(1);
+      await expect(page.locator(`.cell[data-worker-id="none"] .chip`, { hasText: name })).toHaveCount(0);
+    } else {
       await tap(page, page.locator(`.day-tab[data-day="${date}"]`), `day ${date}`);
-      await expect(page.locator('.vcard', { hasText: name }), `a visit on ${date}`).toHaveCount(1);
+      await expect(page.locator(`.wgroup[data-worker-id="${alex.id}"] .vcard`, { hasText: name }), `a visit under Alex B. on ${date}`).toHaveCount(1);
     }
   }
 });
@@ -75,7 +88,7 @@ test('a task "Give her pills" shows the medication message by the tasks field', 
   await expect(page.locator('[data-error-for="tasks"]')).toHaveText('This app records medication reminders only, not medication given. Reword this task.');
 });
 
-test('add a worker', async ({ page, context }) => {
+test('add a worker with the days ticked: the stored availability is what was ticked', async ({ page, context }) => {
   const name = 'Dana K. (SAMPLE)';
   await setNow(page, context, NOW);
   await signIn(page);
@@ -84,8 +97,66 @@ test('add a worker', async ({ page, context }) => {
   await typeInto(page, page.locator('#wf-name'), name, 'name');
   await typeInto(page, page.locator('#wf-phone'), '709-555-0199', 'phone');
   await tap(page, page.locator('label.check', { hasText: 'Grand Falls-Windsor' }), 'Grand Falls-Windsor zone');
+  // The form starts at Mon–Fri 8:00–4:00: take Friday off, add Saturday 9:00–1:00.
+  await tap(page, page.locator('.avail-row[data-day="5"] label.check'), 'Fri');
+  await expect(page.locator('[data-avail-on="5"]')).not.toBeChecked();
+  await tap(page, page.locator('.avail-row[data-day="6"] label.check'), 'Sat');
+  await expect(page.locator('[data-avail-on="6"]')).toBeChecked();
+  await page.locator('[data-avail-start="6"]').fill('09:00');
+  await page.locator('[data-avail-end="6"]').fill('13:00');
+
   const post = page.waitForResponse(r => r.url().endsWith('/api/office/workers') && r.request().method() === 'POST');
   await tap(page, page.getByRole('button', { name: 'Save worker' }), 'Save worker');
-  expect((await post).status()).toBe(201);
+  const res = await post;
+  expect(res.status()).toBe(201);
+  const day = { start: '08:00', end: '16:00' };
+  expect((await res.json()).availability, 'the availability as stored').toEqual({
+    1: day, 2: day, 3: day, 4: day, 5: null, 6: { start: '09:00', end: '13:00' }, 7: null,
+  });
   await expect(page.locator('#worker-list .entity', { hasText: name })).toContainText('709-555-0199');
+});
+
+test('a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row', async ({ page, context, request, seed }, testInfo) => {
+  const terry = byName(seed.workers, 'Terry O. (SAMPLE)');
+  const token = await officeToken(request);
+  const visit = await oneOffVisit(request, token, { client_id: byName(seed.clients, 'George N. (SAMPLE)').id, worker_id: terry.id, date: DAY, start: '08:00', end: '09:00' });
+  await setNow(page, context, NOW);
+  await signIn(page);
+
+  await tab(page, 'Workers');
+  await tap(page, page.locator('#worker-list .entity', { hasText: 'Terry O. (SAMPLE)' }), 'Terry O.');
+  await tap(page, page.locator('label.check', { hasText: 'Active worker' }), 'Active worker');
+  await expect(page.locator('#wf-active')).not.toBeChecked();
+  const put = page.waitForResponse(r => r.url().endsWith(`/api/office/workers/${terry.id}`) && r.request().method() === 'PUT');
+  await tap(page, page.getByRole('button', { name: 'Save worker' }), 'Save worker');
+  const saved = await put;
+  expect(saved.status()).toBe(200);
+  expect((await saved.json()).active).toBe(false);
+
+  await expect(page.getByRole('heading', { name: 'Inactive' })).toBeVisible();
+  const inactive = page.locator('#worker-list-inactive .entity', { hasText: 'Terry O. (SAMPLE)' });
+  await expect(inactive).toBeVisible();
+  await expect(page.locator('#worker-list .entity', { hasText: 'Terry O. (SAMPLE)' })).toHaveCount(0);
+  await tap(page, inactive, 'Terry O. under Inactive');
+  await expect(page.locator('#wf-name'), 'still openable').toHaveValue('Terry O. (SAMPLE)');
+
+  await tab(page, 'Week');
+  if (testInfo.project.name.endsWith('1280')) {
+    await expect(page.locator('.grid-worker', { hasText: 'Terry O. (SAMPLE) (inactive)' })).toBeVisible();
+    await tap(page, page.locator(`.cell[data-worker-id="${terry.id}"][data-date="${DAY}"] .chip[data-visit-id="${visit.id}"]`), 'the 8:00 visit');
+  } else {
+    await expect(page.locator(`.wgroup[data-worker-id="${terry.id}"] h3`)).toContainText('Terry O. (SAMPLE) (inactive)');
+    await tap(page, page.locator(`[data-open-visit="${visit.id}"]`), 'the 8:00 visit');
+  }
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.locator('#vs-worker'), 'the sheet keeps the inactive worker').toHaveValue(String(terry.id));
+  await expect(sheet.locator('#vs-worker option:checked')).toHaveText('Terry O. (SAMPLE) (inactive)');
+  await sheet.locator('#vs-end').fill('09:15');
+  const save = page.waitForResponse(r => r.url().endsWith(`/api/office/visits/${visit.id}`) && r.request().method() === 'PUT');
+  await tap(page, sheet.getByRole('button', { name: 'Save changes' }), 'Save changes');
+  const res = await save;
+  expect(res.status()).toBe(200);
+  expect(await res.json(), 'saved with the worker kept').toMatchObject({ worker_id: terry.id, end: '09:15' });
+  const day = await api(request, 'GET', `/api/office/day?date=${DAY}`, { token });
+  expect(day.body.visits.find(v => v.id === visit.id).worker_id).toBe(terry.id);
 });

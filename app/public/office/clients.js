@@ -39,7 +39,7 @@ export function mount(el, ctx) {
   function drawPins() {
     pins.clearLayers();
     // While a client is open its own marker gives way to the draggable-by-click draft pin.
-    for (const c of clients.filter(x => x.id !== draft?.id)) {
+    for (const c of clients.filter(x => x.active && x.id !== draft?.id)) {
       L.marker([c.lat, c.lng], { title: c.name, alt: c.name, icon: icon(c.initials) })
         .on('click', () => { if (!draft) edit(c.id); })
         .addTo(pins);
@@ -64,7 +64,8 @@ export function mount(el, ctx) {
   });
 
   async function load() {
-    const [cr, wr] = await Promise.all([office('GET', '/api/office/clients'), office('GET', '/api/office/workers')]);
+    // ?all=1 (clarification 15): an inactive client stays openable (reactivate, replace the family link).
+    const [cr, wr] = await Promise.all([office('GET', '/api/office/clients?all=1'), office('GET', '/api/office/workers')]);
     if (!alive) return;
     if (cr.ok) clients = cr.data.clients; else if (cr.status !== 401) msg = errorText(cr);
     if (wr.ok) workers = wr.data.workers;
@@ -77,12 +78,15 @@ export function mount(el, ctx) {
     drawPins();
     drawDraftPin();
     hint.textContent = "Each pin is a client's map point. Straight-line distances only.";
+    const entry = c => `<li><button type="button" class="entity" data-act="edit" data-id="${c.id}">
+      <span class="avatar" aria-hidden="true">${esc(c.initials)}</span><span class="entity-text"><span class="entity-name">${esc(c.name)}</span>
+      <span class="muted">${esc(c.zone_name)} · ${esc(c.funder_name)}</span>
+      <span class="muted">${c.patterns.length ? c.patterns.map(p => `${esc(p.days_label)} ${esc(p.time_label)}`).join('; ') : 'No visit times'}</span></span></button></li>`;
+    const inactive = clients.filter(c => !c.active);
     main.innerHTML = `<div class="view-head"><h1>Clients</h1><button type="button" class="btn btn-accent btn-inline" data-act="new">Add client</button></div>
       ${msg ? `<p class="notice" role="status" id="cl-msg">${esc(msg)}</p>` : ''}
-      <ul class="plain entity-list" id="client-list">${clients.map(c => `<li><button type="button" class="entity" data-act="edit" data-id="${c.id}">
-        <span class="avatar" aria-hidden="true">${esc(c.initials)}</span><span class="entity-text"><span class="entity-name">${esc(c.name)}</span>
-        <span class="muted">${esc(c.zone_name)} · ${esc(c.funder_name)}</span>
-        <span class="muted">${c.patterns.length ? c.patterns.map(p => `${esc(p.days_label)} ${esc(p.time_label)}`).join('; ') : 'No visit times'}</span></span></button></li>`).join('')}</ul>`;
+      <ul class="plain entity-list" id="client-list">${clients.filter(c => c.active).map(entry).join('')}</ul>
+      ${inactive.length ? `<h2 class="list-subhead">Inactive</h2><ul class="plain entity-list" id="client-list-inactive">${inactive.map(entry).join('')}</ul>` : ''}`;
     setTimeout(() => map.invalidateSize(), 0);
   }
 

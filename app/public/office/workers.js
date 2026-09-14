@@ -11,20 +11,25 @@ export function mount(el, ctx) {
   let alive = true;
 
   async function load() {
-    const r = await office('GET', '/api/office/workers');
+    // ?all=1 (clarification 15): an inactive worker stays openable, the only place their link can be stopped.
+    const r = await office('GET', '/api/office/workers?all=1');
     if (!alive) return;
     if (r.ok) workers = r.data.workers; else if (r.status !== 401) msg = errorText(r);
     if (!draft) list();
   }
 
+  const entry = w => `<li><button type="button" class="entity" data-act="edit" data-id="${w.id}">
+    <span class="avatar" aria-hidden="true">${esc(w.initials)}</span><span class="entity-text"><span class="entity-name">${esc(w.name)}</span>
+    <span class="muted">${esc(w.phone)} · ${esc(w.zone_names.join(', '))}</span>
+    <span class="muted">${esc(w.availability_label)} · up to ${esc(w.max_week_label)} a week</span></span></button></li>`;
+
   function list() {
     draft = null;
+    const inactive = workers.filter(w => !w.active);
     el.innerHTML = `<div class="view-head"><h1>Workers</h1><button type="button" class="btn btn-accent btn-inline" data-act="new">Add worker</button></div>
       ${msg ? `<p class="notice" role="status">${esc(msg)}</p>` : ''}
-      <ul class="plain entity-list" id="worker-list">${workers.map(w => `<li><button type="button" class="entity" data-act="edit" data-id="${w.id}">
-        <span class="avatar" aria-hidden="true">${esc(w.initials)}</span><span class="entity-text"><span class="entity-name">${esc(w.name)}</span>
-        <span class="muted">${esc(w.phone)} · ${esc(w.zone_names.join(', '))}</span>
-        <span class="muted">${esc(w.availability_label)} · up to ${esc(w.max_week_label)} a week</span></span></button></li>`).join('')}</ul>`;
+      <ul class="plain entity-list" id="worker-list">${workers.filter(w => w.active).map(entry).join('')}</ul>
+      ${inactive.length ? `<h2 class="list-subhead">Inactive</h2><ul class="plain entity-list" id="worker-list-inactive">${inactive.map(entry).join('')}</ul>` : ''}`;
   }
 
   function edit(id) {
