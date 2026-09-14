@@ -2,7 +2,18 @@
 // requests. A check-in tapped at T and a check-out tapped at T + 1:32:10 with no signal must reach the database with exactly
 // those times when signal comes back 40 minutes later.
 import { test, expect, tap, typeInto, api, officeToken, officeVisit, oneOffVisit, testEvents, byName, pathOf, setNow, waitEvent, randomUUID, iso,
-  localToUtcMs, addDays, NOW, DAY, MIN, OFFICE_PHONE } from './helpers.mjs';
+  localToUtcMs, addDays, pageNow, NOW, DAY, MIN, OFFICE_PHONE } from './helpers.mjs';
+
+// The queue's retry schedule (API.md, the offline queue; clarification 17: retries are measured, not only awaited).
+const BACKOFF_MS = [5000, 15000, 30000, 60000];
+const TICK_MS = 20000;
+/** The page time between two tries after `failures` failures in a row: not before the backoff, and within `slack` after it. */
+function expectRetryGap(from, to, failures, label, slack = TICK_MS) {
+  const backoff = BACKOFF_MS[Math.min(failures, BACKOFF_MS.length) - 1];
+  const gap = to - from;
+  expect(gap, `${label}: ${gap} ms of page time after ${failures} failure(s), not before the ${backoff / 1000} s backoff`).toBeGreaterThanOrEqual(backoff - 1000);
+  expect(gap, `${label}: ${gap} ms of page time, within the ${backoff / 1000} s backoff plus ${slack / 1000} s`).toBeLessThanOrEqual(backoff + slack);
+}
 
 const T = NOW; // Mon Sep 14, 10:30 AM NDT
 const OUT = T + (1 * 3600 + 32 * 60 + 10) * 1000; // 12:02:10 PM
@@ -156,6 +167,10 @@ test('no signal: check-in and check-out are saved, survive a reload, and send la
   const [rin, rout] = await sent;
   expect(rin.status(), 'check-in sent').toBe(201);
   expect(rout.status(), 'check-out sent').toBe(201);
+  // The `online` event sends at once: no backoff and no tick in between (one 5 s clock step of slack).
+  for (const [res, label] of [[rin, 'check-in'], [rout, 'check-out']]) {
+    expect(res.pageWaitMs, `${label}: sent within ${res.pageWaitMs} ms of page time after signal came back`).toBeLessThanOrEqual(5000);
+  }
 
   const token = await officeToken(request);
   const v = await officeVisit(request, token, visit.id, undefined, BACK);
@@ -178,14 +193,18 @@ test.describe('with the service worker blocked', () => {
     let mode = 'offline';
     let failed = 0;
     let aborted = 0;
-    await page.route('**/api/worker/events', route => {
-      if (mode === 'offline') { aborted += 1; return route.abort('internetdisconnected'); }
+    const tries = []; // { t: page time, ok }
+    await page.route('**/api/worker/events', async route => {
+      const t = await pageNow(page);
+      if (mode === 'offline') { aborted += 1; tries.push({ t, ok: false }); return route.abort('internetdisconnected'); }
       if (mode === 'fail-once') {
         mode = 'through';
         failed += 1;
+        tries.push({ t, ok: false });
         return route.fulfill({ status: 500, contentType: 'application/json',
           body: JSON.stringify({ error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' }) });
       }
+      tries.push({ t, ok: true });
       return route.continue();
     });
 
@@ -204,26 +223,35 @@ test.describe('with the service worker blocked', () => {
     await expect(page.locator('#strip-text')).toHaveText('2 saved on this phone. Trying again soon. They keep the time you tapped.');
     expect(await testEvents(request, visit.id), 'still nothing on the server').toHaveLength(0);
 
-    const sent = Promise.all([waitEvent(page, 'check_in', { mode: 'install' }), waitEvent(page, 'check_out', { mode: 'install' })]);
-    await page.clock.runFor(61_000); // the sender's next try
-    const [rin, rout] = await sent;
+    // The sender's next try, the clock moved a second at a time (waitEvent) so each try's page time is known.
+    const sentIn = waitEvent(page, 'check_in', { mode: 'install' });
+    const sentOut = waitEvent(page, 'check_out', { mode: 'install' });
+    const rin = await sentIn;
+    const rout = await sentOut;
     expect([rin.status(), rout.status()]).toEqual([201, 201]);
     expect(await testEvents(request, visit.id), 'both sent on the next try').toHaveLength(2);
     await expect(page.locator('#strip-text')).toHaveText('All sent');
+    // A 500, then success within the named backoff for that many failures in a row.
+    const firstOk = tries.findIndex(x => x.ok);
+    expectRetryGap(tries[firstOk - 1].t, tries[firstOk].t, firstOk, 'after the 500', 2000);
   });
 
   test("a check-out the office already has lands in \"Not accepted by the office\" with the server's words", async ({ page, context, request, seed }) => {
-    const { sam, visit, card } = await phoneOnline(page, context, request, seed);
-    const in1 = waitEvent(page, 'check_in');
+    // A paused page clock: the only tries are the queue's own, so their spacing can be measured.
+    const { sam, visit, card } = await phoneOnline(page, context, request, seed, 'install');
+    const in1 = waitEvent(page, 'check_in', { mode: 'install' });
     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
     expect((await in1).status()).toBe(201);
 
     // No signal, then signal with one dropped send (the proxy failure QA saw at 866ee71): the test must survive it.
     let offline = true;
     let dropped = 0;
-    await page.route('**/api/worker/events', route => {
-      if (offline) return route.abort('internetdisconnected');
-      if (dropped === 0) { dropped += 1; return route.abort('connectionreset'); }
+    const tries = [];
+    await page.route('**/api/worker/events', async route => {
+      const t = await pageNow(page);
+      if (offline) { tries.push({ t, ok: false }); return route.abort('internetdisconnected'); }
+      if (dropped === 0) { dropped += 1; tries.push({ t, ok: false }); return route.abort('connectionreset'); }
+      tries.push({ t, ok: true });
       return route.continue();
     });
     await checkOut(page, card, 1);
@@ -235,10 +263,13 @@ test.describe('with the service worker blocked', () => {
     expect(other.status, 'the other check-out is stored').toBe(201);
 
     // Nothing announces a route change: the sender's own retries find the signal while the clock moves (waitEvent).
-    const refused = waitEvent(page, 'check_out', { status: 409 });
+    const refused = waitEvent(page, 'check_out', { status: 409, mode: 'install' });
     offline = false;
     const words = (await (await refused).json()).error;
     expect(dropped, 'one send was dropped after signal came back').toBe(1);
+    expect(tries.map(x => x.ok), 'no signal, the dropped send, then the answer').toEqual([false, false, true]);
+    expectRetryGap(tries[0].t, tries[1].t, 1, 'the try after one failure');
+    expectRetryGap(tries[1].t, tries[2].t, 2, 'the try after the dropped send');
     expect(words).toMatch(/^This visit already has a check-out at \d{1,2}:\d{2} [AP]M\.$/);
     await expect(page.getByRole('heading', { name: 'Not accepted by the office' })).toBeVisible();
     const item = page.locator('.refused-item');
@@ -254,7 +285,9 @@ test.describe('with the service worker blocked', () => {
     const { visit, card } = await phoneOnline(page, context, request, seed, 'install');
     let portal = 0;
     let through = 0;
-    await page.route('**/api/worker/events', route => {
+    const tries = [];
+    await page.route('**/api/worker/events', async route => {
+      tries.push(await pageNow(page));
       if (portal === 0) {
         portal += 1;
         return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Free Wi-Fi</title><p>Log in to continue.</p>' });
@@ -272,6 +305,8 @@ test.describe('with the service worker blocked', () => {
     const sent = waitEvent(page, 'check_in', { mode: 'install' });
     for (let s = 0; s < 70 && through === 0; s++) await page.clock.runFor(1000);
     expect((await sent).status(), 'the next try reaches the Worker').toBe(201);
+    // After one failure the next try comes within the 5 s backoff plus one 20 s tick.
+    expectRetryGap(tries[0], tries[1], 1, 'the try after the login page');
     await expect(page.locator('#strip-text')).toHaveText('All sent');
     await page.clock.runFor(61_000);
     expect(await testEvents(request, visit.id), 'exactly one check-in stored').toHaveLength(1);
@@ -312,12 +347,15 @@ test.describe('with the service worker blocked', () => {
   });
 
   test('a check-in the office already set with Fix times stays on its card: "Not accepted by the office"', async ({ page, context, request, seed }) => {
-    const { visit, card } = await phoneOnline(page, context, request, seed);
+    const { visit, card } = await phoneOnline(page, context, request, seed, 'install');
     let offline = true;
     let dropped = 0;
-    await page.route('**/api/worker/events', route => {
-      if (offline) return route.abort('internetdisconnected');
-      if (dropped === 0) { dropped += 1; return route.abort('connectionreset'); } // one dropped send after the signal returns
+    const tries = [];
+    await page.route('**/api/worker/events', async route => {
+      const t = await pageNow(page);
+      if (offline) { tries.push({ t, ok: false }); return route.abort('internetdisconnected'); }
+      if (dropped === 0) { dropped += 1; tries.push({ t, ok: false }); return route.abort('connectionreset'); } // one dropped send after the signal returns
+      tries.push({ t, ok: true });
       return route.continue();
     });
     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in (no signal)');
@@ -330,10 +368,13 @@ test.describe('with the service worker blocked', () => {
       data: { check_in_at: iso(T - 20 * MIN), check_out_at: null, reason: 'Worker phoned the office (SAMPLE)', version: before.version } });
     expect(fix.status, 'Fix times').toBe(200);
 
-    const refused = waitEvent(page, 'check_in', { status: 409 });
+    const refused = waitEvent(page, 'check_in', { status: 409, mode: 'install' });
     offline = false;
     const words = (await (await refused).json()).error;
     expect(dropped, 'one send was dropped after signal came back').toBe(1);
+    expect(tries.map(x => x.ok), 'no signal, the dropped send, then the answer').toEqual([false, false, true]);
+    expectRetryGap(tries[0].t, tries[1].t, 1, 'the try after one failure');
+    expectRetryGap(tries[1].t, tries[2].t, 2, 'the try after the dropped send');
     expect(words).toMatch(/^This visit already has a check-in at /);
     // The visit has the office's check-in, so the refused one reads as history (clarification 16).
     await expect(card.locator('.visit-status'), "the office's check-in is the visit's").toHaveText('Checked in 10:10 AM · Location not shared');
