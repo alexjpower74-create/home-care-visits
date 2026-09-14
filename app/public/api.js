@@ -24,8 +24,8 @@ export async function request(method, path, { headers = {}, body, signal, redire
 export const errorText = r => r?.data?.error || 'Something went wrong on our side. Try again in a minute.';
 
 export const getAgency = () => request('GET', '/api/agency');
-export const workerVisits = (key, date) =>
-  request('GET', `/api/worker/visits${date ? `?date=${encodeURIComponent(date)}` : ''}`, { headers: { 'X-Worker-Key': key } });
+export const workerVisits = (key, date, signal) =>
+  request('GET', `/api/worker/visits${date ? `?date=${encodeURIComponent(date)}` : ''}`, { headers: { 'X-Worker-Key': key }, signal });
 // redirect: 'error' (clarification 6): a Wi-Fi login page that redirects the POST is a network failure, never "sent".
 export const postWorkerEvent = (key, event, signal) =>
   request('POST', '/api/worker/events', { headers: { 'X-Worker-Key': key }, body: event, signal, redirect: 'error' });

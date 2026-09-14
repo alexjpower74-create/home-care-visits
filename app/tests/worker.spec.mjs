@@ -3,7 +3,7 @@
 // rules while typing; a note refused on its way out; a visit still open after midnight. Each test sets its geolocation
 // permission before the page loads: WebKit keeps a page's first answer, and clearing a grant mid-page does not deny in Chromium.
 import { test, expect, tap, typeInto, api, officeToken, officeVisit, oneOffVisit, byName, pathOf, setNow, waitEvent, iso,
-  addDays, localToUtcMs, NOW, DAY, MIN, OFFICE_PHONE } from './helpers.mjs';
+  addDays, localToUtcMs, randomUUID, NOW, DAY, MIN, OFFICE_PHONE } from './helpers.mjs';
 
 const NOTE = 'Swept the porch. Bill was in good spirits. (SAMPLE)';
 const OUT = NOW + 47 * MIN; // 11:17 AM
@@ -85,6 +85,35 @@ test('Sam R.: visits in order, Navigate, check in near the client, tasks and not
   expect(v.worked_seconds, 'check-out minus check-in').toBe(47 * 60);
   expect(v.tasks_done).toEqual(first.tasks.map(t => ({ task_id: t.id, kind: t.kind, label: t.label, done: ticked.includes(t.id) })));
   expect(v.note).toMatchObject({ text: NOTE, shareable: false });
+});
+
+test('a visit checked in from a lost phone three days ago opens on a clean phone from open_dates, and checks out', async ({ page, context, request, seed }) => {
+  const sam = byName(seed.workers, 'Sam R. (SAMPLE)');
+  const friday = addDays(DAY, -3);
+  const bill = (await api(request, 'GET', `/api/worker/visits?date=${friday}`, { headers: { 'X-Worker-Key': sam.key } })).body.visits
+    .find(v => v.client_name === 'Bill S. (SAMPLE)');
+  const inAt = localToUtcMs(friday, '09:05');
+  const checkIn = await api(request, 'POST', '/api/worker/events', { headers: { 'X-Worker-Key': sam.key }, now: inAt + MIN,
+    data: { id: randomUUID(), visit_id: bill.id, kind: 'check_in', at: iso(inAt), location: null } });
+  expect(checkIn.status, "Friday's check-in, from the phone that was lost").toBe(201);
+  const today = await api(request, 'GET', '/api/worker/visits', { headers: { 'X-Worker-Key': sam.key } });
+  expect(today.body.open_dates, 'the Worker names Friday').toEqual([friday]);
+
+  // A new phone: no saved list, no queue.
+  await setNow(page, context, NOW);
+  await page.goto(pathOf(sam.worker_url));
+  const section = page.locator('.still-open');
+  await expect(section.getByRole('heading', { name: 'Still open from Fri Sep 11' })).toBeVisible();
+  const open = section.locator(`.visit[data-visit="${bill.id}"]`);
+  await expect(open.locator('.visit-status')).toHaveText('Checked in 9:05 AM · Location not shared');
+  await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out');
+  const out = waitEvent(page, 'check_out');
+  await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
+  expect((await out).status()).toBe(201);
+  const token = await officeToken(request);
+  const v = await officeVisit(request, token, bill.id, friday, NOW);
+  expect(v.check_out.at).toBe(iso(NOW));
+  expect(v.worked_seconds, 'Friday 9:05 AM to Monday 10:30 AM').toBe((NOW - inAt) / 1000);
 });
 
 test('with location denied, Check in still checks the visit in: "Location not shared"', async ({ page, context, request, seed }) => {
@@ -269,6 +298,14 @@ test.describe('with the service worker blocked', () => {
     await expect(card.locator('.visit-notice')).toContainText("An earlier check-in at 10:30 AM wasn't accepted by the office.");
     await tap(page, card.locator('.visit-notice').getByRole('button', { name: 'Dismiss' }), 'Dismiss');
     await expect(card.locator('.visit-notice')).toHaveCount(0);
+
+    // Dismiss only hides the notice (clarification 18): the refused item stays under "Not accepted by the office" until Remove.
+    await expect(page.locator('.refused-item'), 'still listed after Dismiss').toHaveCount(1);
+    await page.reload();
+    await expect(page.locator(`.visit[data-visit="${first.id}"] .visit-notice`), 'the notice stays hidden after a reload').toHaveCount(0);
+    await expect(page.locator('.refused-item')).toHaveCount(1);
+    await tap(page, page.locator('.refused-item').getByRole('button', { name: 'Remove' }), 'Remove');
+    await expect(page.locator('.refused-item')).toHaveCount(0);
   });
 
   test('a check-in still queued across midnight shows under "Still open from yesterday", then both land', async ({ page, context, request, seed }) => {
@@ -335,6 +372,9 @@ test.describe('with the service worker blocked', () => {
     await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
     const open = section.locator(`.visit[data-visit="${visit.id}"]`);
     await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
+    // First the card built from the queued item alone (clarification 18, drawn before any request); the loaded card, with Ron
+    // K.'s two care tasks, replaces it. Tap on the loaded one.
+    await expect(open.locator('.task'), "the loaded card, with the client's tasks").toHaveCount(2);
 
     const sentIn = waitEvent(page, 'check_in', { status: 201 }); // re-sent with the new link's key (same worker)
     signal = true;
@@ -369,17 +409,22 @@ test.describe('with the service worker blocked', () => {
       ? route.continue()
       : route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' }) })));
     await setNow(page, context, NOW);
+    // The page draws Saturday from this phone first, then again when Saturday's list answers: tap after that.
+    const satList = page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && new URL(r.url()).searchParams.get('date') === sat);
     await page.reload();
+    expect((await satList).status()).toBe(200);
     const section = page.locator('.still-open');
     await expect(section.getByRole('heading', { name: 'Still open from Sat Sep 12' })).toBeVisible();
     await expect(page.getByText("No saved list on this phone yet. Find signal once to load today's visits.")).toBeVisible();
     const open = section.locator(`.visit[data-visit="${george.id}"]`);
     await expect(open.locator('.visit-status')).toHaveText('Checked in 9:05 AM · saved on this phone');
 
-    const sentIn = waitEvent(page, 'check_in');
-    signal = true;
+    await expect(open.getByRole('button', { name: 'Check out' })).toBeVisible();
     await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out Monday');
+    // Signal returns only now, so the queued check-in's send does not redraw the card under the tap.
+    const sentIn = waitEvent(page, 'check_in');
     const sentOut = waitEvent(page, 'check_out');
+    signal = true;
     await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
     expect((await sentIn).status()).toBe(201);
     expect((await sentOut).status()).toBe(201);

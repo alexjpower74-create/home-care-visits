@@ -676,3 +676,94 @@ Each passed on its unbroken copy first, then went red at the named assertion. Th
 
 Run: `node app/tests/negative-<queue|time|board|familynote|overlay|portal|payrollround|swpoison|silentnextday|presetsmount>.mjs`, and
 `node app/tests/negative-m2c-proofs.mjs` (18 proofs; `PROOF=<name>` runs one).
+
+## M3d: the page side of clarifications 18 and 19 (2026-09-14)
+
+Rebased on main at 6cb9e81 (hc1 M6: `open_dates` on `GET /api/worker/visits`).
+
+### Built, with the spec that fails without it
+1. **Saved list first** (clarification 18, `w/app.js`).
+   - Change: `refreshQueue().then(showSaved).then(load)` draws today's saved list (with "Saved list from …"), the open earlier
+     days from the saved lists, and the queue before any request. Every `GET /api/worker/visits` carries a
+     `AbortSignal.timeout(8000)`, and a timeout is a failed load, so the saved list stays.
+   - Spec (`offline.spec`): the visits GET is routed so it never answers; after a reload the saved list's Check in is visible
+     within 1 s with "Saved list from 10:30 AM".
+   - Negative control (k), `negative-savedfirst.mjs`: the copy draws only after the GET.
+2. **Dismiss hides, never deletes.** Dismiss adds the refused item's `seq` to `localStorage` `hcv:dismissed` and hides only the
+   history notice.
+   - Spec (`worker.spec`, "Check in again"): after Dismiss the item is still under "Not accepted by the office", a reload keeps
+     the notice hidden and the item listed, and Remove takes it away.
+3. **`open_dates`.** `loadEarlier` also loads every date the Worker names in the day's `open_dates` (the saved answer's when
+   offline).
+   - Spec (`worker.spec`): Sam's Friday 9:05 AM check-in is made through the API (the lost phone), and the Monday answer names
+     Friday. A clean context on Monday shows "Still open from Fri Sep 11" with "Checked in 9:05 AM · Location not shared". Check
+     out lands, and `worked_seconds` is Monday 10:30 AM minus Friday 9:05 AM.
+   - Negative control (l), `negative-opendatespage.mjs`: the copy ignores `open_dates`.
+4. **Fix times dates each time from the event it replaces** (clarification 19, `office/sheet.js`).
+   - A typed check-in is on the visit's date, or the next day when "The check-in was after midnight" is ticked. That box is
+     offered when the typed time is earlier than the visit's start, and starts ticked when the stored check-in is on a later
+     date.
+   - A typed check-out is on the check-in's own NL date, or the next day when "The check-out was after midnight" is ticked.
+     That box is offered when the check-out instant would be at or before the check-in instant, and starts ticked when the
+     stored check-out is on a later date than its check-in.
+   - A time is sent only when its date or minute differs from the stored event.
+   - Spec (`sheet.spec`): an 11:00–11:55 PM visit is checked in at 12:10 AM the next day. The check-in box is shown and ticked,
+     and 12:50 AM typed needs no check-out box. The PUT sends only `check_out_at` at 12:50 AM the next day, stored with 2 400 s
+     worked.
+   - Control (i)'s break now sits on the new check-out line.
+5. **Small items.**
+   - Report tabs take the dates typed in From and To. Spec: dates typed, then the "Missed and late" tab shows "Tue Sep 1 to Thu
+     Sep 10".
+   - Billing spec: three 20-minute clients each print "0.33" on screen as the API gives, and the total prints "1.00" (rounded
+     rows would add up to 0.99).
+   - `app/package.json` `npm run negative` runs `tests/run-negatives.mjs`: every `negative-*.mjs` except the library, in name
+     order, one at a time, exiting non-zero if any is not red.
+
+### A spec race found in the final run, and fixed
+The first full run failed once, on chromium-390: "a Saturday check-in still open on Monday…" hit "Element is not attached
+to the DOM" at the Check out tap. The same race had made `proof-earlier-days` and `proof-earlier-without-today` VOID.
+- Cause: since item 1 the page draws Saturday from the phone first, then again when Saturday's list answers. The tap could
+  land in that redraw. The old-link test hit the same race earlier this round and got the same kind of wait.
+- Fix: the spec waits for Saturday's list to answer, and brings the signal back only after Check out is tapped. The test
+  passed 12/12 (3 runs on each project).
+- With the break in place, both proofs now go red at `page.waitForResponse` for Saturday's list, because the broken copy never
+  asks for it. Before the fix they went red at the heading.
+
+### Results (full suite run alone, 2026-09-14 16:32Z)
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 54 | 0 | 0 |
+| chromium-1280 | 53 | 0 | 0 |
+| webkit-390 | 52 | 0 | 2 |
+| webkit-1280 | 51 | 0 | 2 |
+| **total** | **210** | **0** | **4** |
+
+The 4 skipped are unchanged from M3b and M3c, each with its written WebKit reason.
+
+### Negative controls (a)–(l) and all 18 proofs (`npm run negative`, run alone after the suite, 16:38–16:52Z)
+`npm run negative` exited 0 with "All 13 negative-control scripts went red as required". Each script passed on its unbroken copy
+first, then went red at the named assertion. `app/tests/negative-control.log` holds no machine paths.
+
+| check | break (copy only) | red with |
+|---|---|---|
+| (a) queue | deletes before posting | `/ · saved on this phone$/`: element(s) not found |
+| (b) time | `at` = send time | "check-in keeps the time tapped": expected `…13:00:00.000Z`, received `…15:12:10.000Z` |
+| (c) board | late at 16 min | `data-alert` expected `"late"`, received `"none"` |
+| (d) familynote | the copied Worker returns every note | "the note is not on the page": expected 0, received 1 |
+| (e) overlay | transparent `div` over Check in | `tap(Check in) hit-test at 195,476: something else is on top` |
+| (f) portal | any 200 counts as sent | "the check-in is still saved on the phone": received `"All sent"` |
+| (g) payrollround | Payroll total = rounded rows added up | expected `"2.01"`, received `"2.02"` |
+| (h) swpoison | the service worker caches any 200 | "the worker page, not the login page": not found |
+| (i) silentnextday | the check-out moves to the next day without the box (new anchor) | expected 400, received 200 |
+| (j) presetsmount | presets computed at mount | "the week before Tue Sep 15, not before Sat Sep 12": the inputs differ |
+| **(k) savedfirst** (new) | the saved list is drawn only after the visits GET | "the saved list, without waiting for the network": not found |
+| **(l) opendatespage** (new) | the page ignores `open_dates` | the "Still open from Fri Sep 11" heading: not found |
+| proof-earlier-days, proof-earlier-without-today | as in M3b | `page.waitForResponse` for Saturday's list times out (the broken copy never asks for it) |
+| the other 16 proofs | as in M3b and M3c | each red at the same assertion as before |
+
+About the log: in the first run (16:10–16:20Z) those two proofs were VOID, from the spec race above. The entries from that run
+were then lost when I edited the log file to add a note, so I restored the committed log, wrote the note again, and reran
+everything. The entries from 16:38Z on are the ones that count.
+
+Servers: the suite's Worker (7903/7913) and the controls' Worker (7906/7916) were stopped by their runners, and all four ports
+are free.

@@ -385,6 +385,15 @@ test.describe('with the service worker blocked', () => {
     await expect(card.locator('.visit-notice')).toHaveCount(0);
   });
 
+  test('the saved list and its Check in are on screen within 1 s when the visits request never answers', async ({ page, context, request, seed }) => {
+    const { visit, card } = await phoneOnline(page, context, request, seed); // today's list is saved
+    await page.route('**/api/worker/visits*', () => {}); // the request hangs: no answer, no error
+    await page.reload();
+    await expect(card.getByRole('button', { name: 'Check in' }), 'the saved list, without waiting for the network').toBeVisible({ timeout: 1000 });
+    await expect(card.locator('.visit-name')).toHaveText(visit.client_name);
+    await expect(page.locator('.notice-saved')).toHaveText('Saved list from 10:30 AM');
+  });
+
   test('two links on one phone: a refused link clears only its own saved lists and drafts', async ({ page, context, request, seed }) => {
     const sam = byName(seed.workers, 'Sam R. (SAMPLE)');
     const jo = byName(seed.workers, 'Jo W. (SAMPLE)');

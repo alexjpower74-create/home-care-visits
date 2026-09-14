@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "negative": "node tests/run-negatives.mjs"
   },
   "dependencies": {
     "leaflet": "1.9.4"

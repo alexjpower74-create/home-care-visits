@@ -115,7 +115,9 @@ export function mount(el, ctx) {
       [from, to] = presetRange(b.dataset.preset);
       load();
     } else if (b.dataset.kind) {
+      // Clarification 19: a tab shows the dates typed in From and To, never silently the old ones.
       kind = b.dataset.kind;
+      [from, to] = [q('#rp-from').value, q('#rp-to').value];
       load();
     } else if (b.id === 'rp-csv') {
       // Clarification 17: the dates in From and To at the moment of the click, and that period is shown first.
