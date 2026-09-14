@@ -1,0 +1,28 @@
+/* Design tokens (PLAN.md, Design). Every text/background pair here is at least 4.5 : 1. */
+:root {
+  color-scheme: light;
+  --ground: #f6f4ef;
+  --surface: #ffffff;
+  --raised: #fbfaf7;
+  --line: #e2ddd2;
+  --ink: #1d2733;
+  --muted: #5b6573;
+  --accent: #0e6b6b;
+  --on-accent: #ffffff;
+  --check-in: #17663a;
+  --check-out: #0e6b6b;
+  --done-bg: #dcefe2;
+  --done-ink: #17663a;
+  --late-bg: #fdecc8;
+  --late-edge: #d97706;
+  --late-ink: #7a4204;
+  --missed-bg: #fbdada;
+  --missed-edge: #dc2626;
+  --missed-ink: #8f1d1d;
+  --badge-ink: #8a4b00;
+  --badge-bg: #fff4dc;
+  --badge-edge: #d97706;
+  --avatar-bg: #e1eeed;
+  --radius: 12px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}

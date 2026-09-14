@@ -1,0 +1,8 @@
+== 2026-09-14T12:46:27Z M1 control: refused events must be listed (shots-m1.mjs, chromium-390)
+break: copy of app/public in app/.negative/refused-m1; w/queue.js moveToRefused deletes the item without putting it in 'refused'
+unbroken app/public on 7901: GREEN on all four projects in a separate, earlier run of the same script
+broken copy on 7906, exit 1:
+RED   chromium-390
+      step failed: locator.waitFor: Timeout 10000ms exceeded.
+RESULT: went red as required
+
