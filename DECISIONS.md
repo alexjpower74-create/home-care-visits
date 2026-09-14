@@ -117,3 +117,11 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 35. **The remaining page work stays in hc2's slice; hc1 waits for the next review round.** Moving office files to hc1 mid-build
     would split `app/**` ownership that `rig guard` checks by glob, and the weekly usage budget is at 70%, so an idle reviewer is
     the cheaper choice.
+
+## 2026-09-14, lead (pinned e2e QA of main `866ee71`, 11:22)
+
+36. **A red pinned run is fixed, never re-run to green.** The first lead run of the whole Playwright suite on integrated main
+    gave 64 passed / 2 failed. Both failures are specs whose result depends on how fast the machine is: one lets the page clock
+    run in real time between clock steps, the other freezes `Date.now()` so a single transient failure stalls the queue's retry
+    forever. Neither is a product defect, but a check that can fail for the wrong reason can also pass for the wrong reason.
+    hc2 fixes both (pause the clock; step it until the answer arrives) before M3, and the final QA must be one clean run.
