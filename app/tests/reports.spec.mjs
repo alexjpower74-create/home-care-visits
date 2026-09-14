@@ -2,7 +2,7 @@
 // up to "1.01" on its own, while the exact total of 7 236 s is "2.01". A screen that added the rounded rows would show "2.02".
 // Jo's missing check-out is fixed through the edit sheet. The CSV download must be the Worker's bytes.
 import fs from 'node:fs/promises';
-import { test, expect, tap, typeInto, tab, signIn, api, officeToken, byName, pathOf, setNow, waitEvent, iso, localToUtcMs, addDays, DAY } from './helpers.mjs';
+import { test, expect, tap, typeInto, tab, signIn, api, officeToken, oneOffVisit, byName, pathOf, setNow, waitEvent, randomUUID, iso, localToUtcMs, addDays, DAY } from './helpers.mjs';
 
 const SAM_IN = localToUtcMs(DAY, '09:00');          // Bill S. 9:00
 const SAM_OUT = SAM_IN + 3618 * 1000;               // 10:00:18 AM
@@ -59,6 +59,52 @@ test('Download CSV uses the From and To typed at the click, and shows that perio
   await expect(page.locator('#rp-label'), 'the page shows the period it downloaded').toHaveText('Tue Sep 1 to Thu Sep 10');
   const direct = await request.get('/api/office/reports/payroll.csv?from=2026-09-01&to=2026-09-10', { headers: { Authorization: `Bearer ${token}` } });
   expect(Buffer.compare(await fs.readFile(await file.path()), await direct.body())).toBe(0);
+});
+
+test('switching report tabs uses the From and To typed in the page', async ({ page, context }) => {
+  await setNow(page, context, localToUtcMs(DAY, '10:30'));
+  await signIn(page);
+  await tab(page, 'Reports');
+  await page.locator('#rp-from').fill('2026-09-01');
+  await page.locator('#rp-to').fill('2026-09-10');
+  await tap(page, page.getByRole('tab', { name: 'Missed and late' }), 'Missed and late');
+  await expect(page.locator('#rp-label'), 'the typed period, not the old one').toHaveText('Tue Sep 1 to Thu Sep 10');
+  await expect.poll(() => inputs(page)).toEqual(['2026-09-01', '2026-09-10']);
+});
+
+test("Billing prints the Worker's scheduled hours: three 20-minute clients are 0.33 each and 1.00 in total", async ({ page, context, request, seed }) => {
+  const sam = byName(seed.workers, 'Sam R. (SAMPLE)');
+  const token = await officeToken(request);
+  const names = ['Ron K. (SAMPLE)', 'Doris L. (SAMPLE)', 'Gladys W. (SAMPLE)'];
+  for (const [i, name] of names.entries()) {
+    const start = `${13 + Math.floor(i / 2)}:${i === 1 ? '30' : '00'}`;
+    const v = await oneOffVisit(request, token, { client_id: byName(seed.clients, name).id, worker_id: sam.id, date: DAY, start: start.padStart(5, '0'),
+      end: `${start.slice(0, 2)}:${String(Number(start.slice(3)) + 20).padStart(2, '0')}` });
+    const inAt = Date.parse(v.starts_at);
+    for (const [kind, at, extra] of [['check_in', inAt, { location: null }], ['check_out', inAt + 20 * 60_000, { tasks: [] }]]) {
+      const r = await api(request, 'POST', '/api/worker/events', { headers: { 'X-Worker-Key': sam.key }, now: at + 60_000,
+        data: { id: randomUUID(), visit_id: v.id, kind, at: iso(at), ...extra } });
+      expect(r.status, `${name} ${kind}`).toBe(201);
+    }
+  }
+  const billing = (await api(request, 'GET', `/api/office/reports/billing?from=${DAY}&to=${DAY}`, { token, now: localToUtcMs(DAY, '15:00') })).body;
+  const clients = billing.funders.flatMap(f => f.clients.map(c => ({ ...c, funder_id: f.funder_id })));
+  expect(clients.map(c => c.scheduled_hours), 'each 20-minute client').toEqual(['0.33', '0.33', '0.33']);
+  expect(billing.total.scheduled_hours, 'the total from the minutes, not 0.99').toBe('1.00');
+
+  await setNow(page, context, localToUtcMs(DAY, '15:00'));
+  await signIn(page);
+  await tab(page, 'Reports');
+  await page.locator('#rp-from').fill(DAY);
+  await page.locator('#rp-to').fill(DAY);
+  await tap(page, page.getByRole('tab', { name: 'Billing' }), 'Billing');
+  for (const c of clients) {
+    await expect(page.locator(`#billing-table tr.row-sub[data-funder-id="${c.funder_id}"][data-client-id="${c.client_id}"] .scheduled`)).toHaveText('0.33');
+  }
+  for (const f of billing.funders) {
+    await expect(page.locator(`#billing-table tr.row-funder[data-funder-id="${f.funder_id}"] .scheduled`)).toHaveText(f.scheduled_hours);
+  }
+  await expect(page.locator('#billing-total .scheduled')).toHaveText('1.00');
 });
 
 async function checkInOnPhone(page, context, worker, visit, at) {
