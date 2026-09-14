@@ -4,8 +4,6 @@ import { office, errorText, esc, getToken, endSession, showErrors, NETWORK } fro
 import { localDate, addDays, mondayOf, TZ } from '../time.js';
 
 const KINDS = [['payroll', 'Payroll'], ['billing', 'Billing'], ['missed', 'Missed and late'], ['mileage', 'Mileage']];
-// Scheduled minutes as decimal hours, with the API's rounding (half up, from whole seconds).
-const scheduledHours = minutes => (Math.floor((minutes * 60 * 100 + 1800) / 3600) / 100).toFixed(2);
 const table = (id, head, body, foot = '') => `<div class="table-scroll"><table class="report" id="${id}">
   <thead><tr>${head.map(([label, cls]) => `<th scope="col"${cls ? ` class="${cls}"` : ''}>${label}</th>`).join('')}</tr></thead>
   <tbody>${body}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ''}</table></div>`;
@@ -27,15 +25,13 @@ function payrollHtml(d) {
     <h2 class="report-sub">Checked in, not checked out</h2>${incomplete}`;
 }
 
+// Scheduled hours are the Worker's `scheduled_hours` (clarification 17); the page computes nothing.
 function billingHtml(d) {
-  const body = d.funders.map(f => {
-    const minutes = f.clients.reduce((sum, c) => sum + c.scheduled_minutes, 0);
-    return `<tr class="row-funder" data-funder-id="${f.funder_id}"><th scope="row">${esc(f.funder_name)}</th><td class="num">${f.visits}</td>
-      <td class="num">${scheduledHours(minutes)}</td><td class="num hours">${esc(f.hours)}</td><td class="num">${esc(f.hm_label)}</td></tr>${
-      f.clients.map(c => `<tr class="row-sub" data-client-id="${c.client_id}"><td class="indent">${esc(c.client_name)}</td><td class="num">${c.visits}</td>
-        <td class="num">${scheduledHours(c.scheduled_minutes)}</td><td class="num hours">${esc(c.hours)}</td><td class="num">${esc(c.hm_label)}</td></tr>`).join('')}`;
-  }).join('');
-  const foot = `<tr id="billing-total"><th scope="row">Total</th><td class="num">${d.total.visits}</td><td class="num"></td>
+  const body = d.funders.map(f => `<tr class="row-funder" data-funder-id="${f.funder_id}"><th scope="row">${esc(f.funder_name)}</th><td class="num">${f.visits}</td>
+      <td class="num scheduled">${esc(f.scheduled_hours)}</td><td class="num hours">${esc(f.hours)}</td><td class="num">${esc(f.hm_label)}</td></tr>${
+    f.clients.map(c => `<tr class="row-sub" data-funder-id="${f.funder_id}" data-client-id="${c.client_id}"><td class="indent">${esc(c.client_name)}</td><td class="num">${c.visits}</td>
+        <td class="num scheduled">${esc(c.scheduled_hours)}</td><td class="num hours">${esc(c.hours)}</td><td class="num">${esc(c.hm_label)}</td></tr>`).join('')}`).join('');
+  const foot = `<tr id="billing-total"><th scope="row">Total</th><td class="num">${d.total.visits}</td><td class="num scheduled">${esc(d.total.scheduled_hours)}</td>
     <td class="num hours">${esc(d.total.hours)}</td><td class="num">${esc(d.total.hm_label)}</td></tr>`;
   return `<p class="muted report-note">${esc(d.note)}</p>${d.funders.length
     ? table('billing-table', [['Funder and client'], ['Visits', 'num'], ['Scheduled hours', 'num'], ['Hours worked', 'num'], ['Hours and minutes', 'num']], body, foot)
@@ -64,14 +60,15 @@ const RENDER = { payroll: payrollHtml, billing: billingHtml, missed: missedHtml,
 
 export function mount(el, ctx) {
   const tz = ctx.agency.timezone || TZ;
-  const today = localDate(Date.now(), tz);
-  const monday = mondayOf(today);
-  const PRESETS = {
-    'this-week': [monday, addDays(monday, 6)],
-    'last-week': [addDays(monday, -7), addDays(monday, -1)],
-    'last-14': [addDays(today, -13), today],
-  };
-  let [from, to] = PRESETS['this-week'];
+  // Clarification 17: a preset is computed from Date.now() when it is pressed, never when the tab opened.
+  function presetRange(name) {
+    const today = localDate(Date.now(), tz);
+    const monday = mondayOf(today);
+    if (name === 'last-week') return [addDays(monday, -7), addDays(monday, -1)];
+    if (name === 'last-14') return [addDays(today, -13), today];
+    return [monday, addDays(monday, 6)];
+  }
+  let [from, to] = presetRange('this-week');
   let kind = 'payroll';
   let alive = true;
   let seq = 0;
@@ -115,12 +112,18 @@ export function mount(el, ctx) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.preset) {
-      [from, to] = PRESETS[b.dataset.preset];
+      [from, to] = presetRange(b.dataset.preset);
       load();
     } else if (b.dataset.kind) {
       kind = b.dataset.kind;
       load();
     } else if (b.id === 'rp-csv') {
+      // Clarification 17: the dates in From and To at the moment of the click, and that period is shown first.
+      const typed = [q('#rp-from').value, q('#rp-to').value];
+      if (typed[0] !== from || typed[1] !== to) {
+        [from, to] = typed;
+        await load();
+      }
       await download(b);
     }
   });

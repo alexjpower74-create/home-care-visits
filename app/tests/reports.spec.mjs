@@ -13,6 +13,54 @@ const OFFICE_AT = localToUtcMs(DAY, '12:30');
 const WEEK = [DAY, addDays(DAY, 6)];
 const REASON = "Jo's phone battery died; she phoned at 9:31 (SAMPLE)";
 
+const inputs = page => Promise.all([page.locator('#rp-from').inputValue(), page.locator('#rp-to').inputValue()]);
+
+test('presets read the page clock when pressed: three days on without a reload, "Last week" is the new last week', async ({ page, context }) => {
+  const saturday = localToUtcMs('2026-09-12', '10:30');
+  await setNow(page, context, saturday);
+  await signIn(page);
+  await tab(page, 'Reports');
+  await expect(page.locator('#rp-from')).toHaveValue('2026-09-07');
+  await expect(page.locator('#rp-to')).toHaveValue('2026-09-13');
+
+  // Tuesday Sep 15, the tab still open.
+  await setNow(page, context, saturday + 3 * 24 * 3600 * 1000);
+  await tap(page, page.getByRole('button', { name: 'Last week' }), 'Last week');
+  await expect.poll(() => inputs(page), { message: 'the week before Tue Sep 15, not before Sat Sep 12' }).toEqual(['2026-09-07', '2026-09-13']);
+  await tap(page, page.getByRole('button', { name: 'Last 14 days' }), 'Last 14 days');
+  await expect.poll(() => inputs(page)).toEqual(['2026-09-02', '2026-09-15']);
+  await tap(page, page.getByRole('button', { name: 'This week' }), 'This week');
+  await expect.poll(() => inputs(page)).toEqual(['2026-09-14', '2026-09-20']);
+});
+
+test('presets on Sunday Nov 1 2026 at 11:30 PM NL, the day the clocks go back', async ({ page, context }) => {
+  await setNow(page, context, localToUtcMs('2026-11-01', '23:30'));
+  await signIn(page);
+  await tab(page, 'Reports');
+  await expect.poll(() => inputs(page), { message: 'This week' }).toEqual(['2026-10-26', '2026-11-01']);
+  await tap(page, page.getByRole('button', { name: 'Last 14 days' }), 'Last 14 days');
+  await expect.poll(() => inputs(page)).toEqual(['2026-10-19', '2026-11-01']);
+  await tap(page, page.getByRole('button', { name: 'Last week' }), 'Last week');
+  await expect.poll(() => inputs(page)).toEqual(['2026-10-19', '2026-10-25']);
+});
+
+test('Download CSV uses the From and To typed at the click, and shows that period first', async ({ page, context, request }) => {
+  await setNow(page, context, localToUtcMs(DAY, '10:30'));
+  const token = await officeToken(request);
+  await signIn(page);
+  await tab(page, 'Reports');
+  await expect(page.locator('#rp-label')).toHaveText('Mon Sep 14 to Sun Sep 20');
+  await page.locator('#rp-from').fill('2026-09-01');
+  await page.locator('#rp-to').fill('2026-09-10');
+  const download = page.waitForEvent('download');
+  await tap(page, page.getByRole('button', { name: 'Download CSV' }), 'Download CSV (not pressing Show)');
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('home-care-payroll-2026-09-01-to-2026-09-10.csv');
+  await expect(page.locator('#rp-label'), 'the page shows the period it downloaded').toHaveText('Tue Sep 1 to Thu Sep 10');
+  const direct = await request.get('/api/office/reports/payroll.csv?from=2026-09-01&to=2026-09-10', { headers: { Authorization: `Bearer ${token}` } });
+  expect(Buffer.compare(await fs.readFile(await file.path()), await direct.body())).toBe(0);
+});
+
 async function checkInOnPhone(page, context, worker, visit, at) {
   await setNow(page, context, at);
   await context.setGeolocation({ latitude: visit.lat, longitude: visit.lng, accuracy: 10 });
@@ -107,8 +155,16 @@ test('Payroll shows the Worker\'s exact hours after two phone journeys and a Fix
   await tap(page, page.getByRole('tab', { name: 'Billing' }), 'Billing');
   const billing = await report('billing');
   await expect(page.locator('#billing-table tr.row-funder th')).toHaveText(billing.funders.map(f => f.funder_name));
-  for (const f of billing.funders) await expect(page.locator(`#billing-table tr.row-funder[data-funder-id="${f.funder_id}"] .hours`)).toHaveText(f.hours);
+  for (const f of billing.funders) {
+    await expect(page.locator(`#billing-table tr.row-funder[data-funder-id="${f.funder_id}"] .hours`)).toHaveText(f.hours);
+    // Scheduled hours are the Worker's scheduled_hours, on funders and clients (clarification 17).
+    await expect(page.locator(`#billing-table tr.row-funder[data-funder-id="${f.funder_id}"] .scheduled`)).toHaveText(f.scheduled_hours);
+    for (const c of f.clients) {
+      await expect(page.locator(`#billing-table tr.row-sub[data-funder-id="${f.funder_id}"][data-client-id="${c.client_id}"] .scheduled`)).toHaveText(c.scheduled_hours);
+    }
+  }
   await expect(page.locator('#billing-total .hours')).toHaveText(billing.total.hours);
+  await expect(page.locator('#billing-total .scheduled')).toHaveText(billing.total.scheduled_hours);
 
   // Missed and late.
   await tap(page, page.getByRole('tab', { name: 'Missed and late' }), 'Missed and late');

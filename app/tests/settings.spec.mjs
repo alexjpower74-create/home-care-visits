@@ -19,6 +19,28 @@ test('a wrong current PIN keeps the session and shows the message by the field',
   expect((await api(request, 'POST', '/api/office/signin', { data: { pin: PIN } })).status, 'the PIN is unchanged').toBe(200);
 });
 
+test('the SAMPLE badge follows the agency name: hidden without SAMPLE, back with it', async ({ page, context, request }) => {
+  await setNow(page, context, NOW);
+  await signIn(page);
+  await tab(page, 'Settings');
+  const save = async name => {
+    await typeInto(page, page.locator('#st-name'), name, 'agency name');
+    const put = page.waitForResponse(r => r.url().endsWith('/api/office/agency') && r.request().method() === 'PUT');
+    await tap(page, page.getByRole('button', { name: 'Save agency' }), 'Save agency');
+    const res = await put;
+    expect(res.status()).toBe(200);
+    return res.json();
+  };
+  expect((await save('Exploits Home Support (demo)')).sample).toBe(false);
+  await expect(page.locator('#agency')).toHaveText('Exploits Home Support (demo)');
+  await expect(page.locator('#badge'), 'no SAMPLE in the name: no badge').toBeHidden();
+  expect((await api(request, 'GET', '/api/agency')).body.sample).toBe(false);
+
+  expect((await save('SAMPLE Exploits Home Support (demo)')).sample).toBe(true);
+  await expect(page.locator('#badge'), 'SAMPLE back in the name: the badge is back').toBeVisible();
+  await expect(page.locator('#badge')).toHaveText('SAMPLE');
+});
+
 test('change the PIN, and the agency name and office phone', async ({ page, context, request }) => {
   await setNow(page, context, NOW);
   await signIn(page);
