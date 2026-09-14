@@ -1105,3 +1105,66 @@ leaving, and the rejection it logged is handled, so nothing is lost or shown to 
 - The same rule applies to any spec that leaves `/w/` straight after a queued send.
 - Optional app hardening, not required: when the visits GETs gain `AbortSignal.timeout(8000)` (clarification 18), also abort them
   on `pagehide`, so an unloading page cancels its own fetch instead of letting WebKit fail it mid-teardown.
+
+## Review of hc2 M3d (fcd24d4)
+
+Read-only, from `git diff 6cb9e81 fcd24d4 -- app/` (merged as `15a6801`); nothing in `app/**` was edited. Checked against API.md
+clarifications 18-19.
+
+### What holds
+
+- **Saved list first, with the 8 s limit** (`w/app.js` `showSaved`, `loadSignal`).
+  - At start the page draws today's saved list (marked "Saved list from …") and the earlier days it can rebuild offline, then loads.
+  - Every visits GET carries an 8 s abort signal. A timeout, a stalled body (`res.json()` aborted, so `data: null`, so `saveList`
+    throws inside the `try`) or a failure all land in the `catch`, which keeps the saved list and the "Saved list from" notice.
+  - A loaded answer replaces it and clears `stale`, so stale data never passes as fresh.
+- **Dismiss hides only.** The dismissed `seq` is kept in `hcv:dismissed`; the item stays under "Not accepted by the office" until
+  Remove. `worker.spec` proves it through a reload.
+- **`open_dates`.** The page loads each named date online, and offline uses the saved answer's `open_dates`. Earlier days and today
+  come from different dates, so a visit can't be carded twice. `withQueued` adds a card only for a queued item missing from its
+  date's list.
+- **Fix times dated from the events.**
+  - An 11:00–11:55 PM visit checked in at 12:10 AM: "The check-in was after midnight" starts ticked, and a 12:50 AM check-out goes
+    on the check-in's day (40 min). `sheet.spec` proves it.
+  - The check-out date comes from the check-in's NL date. The gap check uses each time's own date.
+  - A typed check-in earlier than the start offers the check-in box.
+- **Report tabs** read From and To at the click.
+- **`npm run negative` exits non-zero** whenever any control or the proofs script does not go red.
+  - `run-negatives.mjs` runs every `negative-*.mjs` except the library, and exits 1 if any exits non-zero: a VOID control returns
+    2, a GREEN one 1, a thrown anchor or a signal is non-zero, and the proofs script exits 1 unless every proof is red.
+- **Controls (k) and (l) are honest.** The unbroken copies passed. (k) (the network first) went red at "the saved list, without
+  waiting for the network" (`offline.spec.mjs:392`), with the visits request hanging. (l) (`named = false`) went red at "Still open
+  from Fri Sep 11" (`worker.spec.mjs:106`) on a clean phone.
+
+### Worth fixing tonight
+
+1. **PAYROLL** (Worker and contract; hc1's `GET /api/worker/visits` in `worker/src/index.js`, `loadVisitRecords(db, 'v.date = ?1 AND
+   v.worker_id = ?2', …)`, with `app/public/w/app.js` `withQueued`). The worker list returns only visits **currently assigned** to
+   the worker, while `open_dates` and the check-out rule follow the worker who **checked in**.
+   - The Worker accepts a check-in from a worker who was assigned earlier, and only that worker may check out. The page can show
+     such a visit only while its check-in is still queued.
+   - **Scenario:** Sam is driving to Bill S.'s 9:00 visit with no signal, and at 8:50 the office moves the visit to Jo. Sam's phone
+     still has the saved card, and Sam checks in at 9:02; it is accepted.
+   - The refresh after the send reloads today's list without Bill (now Jo's), so the card disappears. Sam can't check out, and Jo
+     can't either ("Another worker checked in to this visit.").
+   - The same visit is then named in Sam's `open_dates` every day for a week, and each load finds no card. It stays in payroll's
+     incomplete list until the office uses Fix times.
+   - **Fix** (needs a lead decision; hc1 would do it): `GET /api/worker/visits` also returns, for the requested date, the visits
+     where this worker holds the effective check-in, marked `"reassigned": true` when the current worker is someone else. The page
+     needs no change to show them.
+
+### Known gaps (OTHER)
+
+- `w/app.js` load and the queue: between a send's confirmation and the refresh's answer (up to 8 s on a slow line), a card falls
+  back to the older answer and offers Check in or Check out again. A second tap is refused 409: nothing is lost, but the worker sees
+  a confusing "wasn't accepted" notice.
+- `w/app.js` `showSaved`: saved entry notes and key-safe codes are drawn before the key is checked, so a lost phone opened after New
+  link shows them until the 401 arrives (offline, until it has signal). Offline this was already true before M3d.
+- `office/sheet.js` `syncOvernight`: "The check-out was after midnight" is never unticked when the check-out stops being at or before
+  the check-in, so a corrected same-evening check-out is sent on the next day; the Worker then refuses it as too far.
+- `w/app.js` `hcv:dismissed` only grows and isn't keyed by link, so a reused `seq` after IndexedDB is cleared could hide a new
+  notice.
+- `sheet.spec`: the check-out box starting ticked and a same-day check-in typed before the visit's start have no test.
+- Control (k) proves "saved list first" but not the 8 s limit; a page that never times out would still pass.
+- `negative-control.log`: the first M3d run's two VOID entries ("proof-earlier-days", "proof-earlier-without-today") are replaced by a
+  note, so their raw output is no longer in the record. The later runs are red.
