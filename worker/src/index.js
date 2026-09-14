@@ -1147,7 +1147,12 @@ async function changePin (ctx) {
     throw unauthorized('That PIN is not right.', 'current') // the session stays
   }
   const h = await hashPin(body.new)
-  await ctx.db.prepare('UPDATE agency SET pin_hash = ?1, pin_salt = ?2, pin_iterations = ?3 WHERE id = 1').bind(h.hash, h.salt, h.iterations).run()
+  const db = ctx.db
+  // Clarification 17: a new PIN locks out every other signed-in browser at once (same batch as the new hash).
+  await db.batch([
+    db.prepare('UPDATE agency SET pin_hash = ?1, pin_salt = ?2, pin_iterations = ?3 WHERE id = 1').bind(h.hash, h.salt, h.iterations),
+    db.prepare('DELETE FROM sessions WHERE token_hash <> ?1').bind(ctx.tokenHash)
+  ])
   return json(200, { ok: true })
 }
 

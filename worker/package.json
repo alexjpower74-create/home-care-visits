@@ -21,6 +21,7 @@
     "negative:rebuilddelete": "node tests/negative-rebuilddelete.mjs",
     "negative:noteblocks": "node tests/negative-noteblocks.mjs",
     "negative:duplicaterefusal": "node tests/negative-duplicaterefusal.mjs",
-    "negative": "node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-familynote.mjs && node tests/negative-alert.mjs && node tests/negative-travelgap.mjs && node tests/negative-payrollround.mjs && node tests/negative-mileageorder.mjs && node tests/negative-csvguard.mjs && node tests/negative-missedcancel.mjs && node tests/negative-ndtdate.mjs && node tests/negative-inactivekey.mjs && node tests/negative-rebuilddelete.mjs && node tests/negative-noteblocks.mjs && node tests/negative-duplicaterefusal.mjs"
+    "negative:pinsessions": "node tests/negative-pinsessions.mjs",
+    "negative": "node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-familynote.mjs && node tests/negative-alert.mjs && node tests/negative-travelgap.mjs && node tests/negative-payrollround.mjs && node tests/negative-mileageorder.mjs && node tests/negative-csvguard.mjs && node tests/negative-missedcancel.mjs && node tests/negative-ndtdate.mjs && node tests/negative-inactivekey.mjs && node tests/negative-rebuilddelete.mjs && node tests/negative-noteblocks.mjs && node tests/negative-duplicaterefusal.mjs && node tests/negative-pinsessions.mjs"
   }
 }
