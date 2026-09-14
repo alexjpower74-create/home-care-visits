@@ -597,3 +597,82 @@ Run: `node app/tests/negative-<queue|time|board|familynote|overlay|portal|payrol
   disabled "Yes, check out", "Check out without the note" and "Not yet".
 
 Made with `npx playwright test -c playwright.shots.config.mjs` (8 passed, office and phone).
+
+## M3c: the page side of clarification 17 (2026-09-14)
+
+Rebased on main at 5883591 (hc1 M5: a PIN change ends every other session; `scheduled_hours` in billing). Each item was
+committed as soon as its specs went green: b9d2021 (items 1 and 3), 0eca1fa (2, 4, 6), 62e0992 (5).
+
+### Built, with the spec that fails without it
+1. **No silent next day** (`office/sheet.js`).
+   - Change: Fix times sends each time on the visit's date. When the typed check-out is at or before the check-in, a checkbox
+     "The check-out was after midnight" appears; only when it is ticked is the check-out sent on the next day.
+   - Spec (`sheet.spec`): a 6:00–8:00 PM visit is checked in at 6:02 and the office types 8:00 AM. The PUT carries 8:00 AM on
+     the visit's date, the Worker answers "Check-out has to be after check-in." by the field, and nothing is stored. Ticked,
+     the check-out is stored at 8:00 AM the next day with 50 280 s worked.
+   - Negative control (i), `negative-silentnextday.mjs`: the copy moves the check-out to the next day without the box.
+2. **Presets and downloads at the moment of use** (`office/reports.js`).
+   - Change: `presetRange()` reads `Date.now()` when a button is pressed. Download CSV reads From and To at the click and,
+     when they differ from the shown period, loads that period first.
+   - Specs (`reports.spec`):
+     - the Reports tab opened on Sat Sep 12; three days on, without a reload, "Last week" is Sep 7–13 (not Aug 31–Sep 6),
+       "Last 14 days" is Sep 2–15, and "This week" is Sep 14–20;
+     - dates typed without pressing Show download `home-care-payroll-2026-09-01-to-2026-09-10.csv`, the Worker's bytes, and
+       the page then shows "Tue Sep 1 to Thu Sep 10".
+   - Negative control (j), `negative-presetsmount.mjs`: presets computed at mount.
+3. **The spring-forward gap.**
+   - Change: a typed time is turned into an instant and back; when the NL date or time differs, the time doesn't exist that
+     day. The sheet shows "That time doesn't exist on the day the clocks change." by the field and sends nothing.
+   - Spec (`sheet.spec`): check-in 2:30 AM on 2026-03-08 shows the words, no PUT is sent, and the visit has no check-in.
+4. **Billing prints the Worker's `scheduled_hours`** on clients, funders and the total; the page's own rounding helper is gone.
+   Spec: every billing row's and the total's scheduled-hours cell equals the API's `scheduled_hours`.
+5. **Retries measured in page time.**
+   - Change: `waitEvent` records `pageWaitMs` and steps an installed clock 1 s at a time. `offline.spec` stamps each try's page
+     time in its route and checks the gaps against the contract's 5/15/30/60 s backoff: never earlier, and within the backoff
+     plus one 20 s tick (plus 2 s step slack after a 500).
+   - The login page: the next try comes within 5 s plus one tick after one failure.
+   - The 500-once test: success comes within the named backoff for that many failures in a row, 30 s after the third failure.
+   - Both refused tests (now on a paused clock): the next try comes 5 s after the first failure and 15 s after the dropped send.
+   - The no-signal test: both sends come within one 5 s clock step of `online`.
+   - Proof `proof-retry-timing`: a copy that waits 30 s after the first failure.
+   - Not measured: the worker.spec cross-midnight and Saturday tests. They run on a fixed clock whose timers run in real time,
+     so how many tries fail before signal returns isn't deterministic. They assert that the sends arrive, with the tapped
+     times kept.
+6. **Spec gaps.**
+   - `settings.spec`: renaming the agency to "Exploits Home Support (demo)" hides the badge (`sample: false` in the answer and
+     the public agency). Renaming it back to "SAMPLE Exploits Home Support (demo)" shows it again.
+   - `reports.spec`: on Sunday 2026-11-01 at 11:30 PM NL, the day the clocks go back, "This week" is Oct 26–Nov 1, "Last 14
+     days" is Oct 19–Nov 1, and "Last week" is Oct 19–25.
+
+### Results (full suite run alone, 2026-09-14 15:31Z)
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 49 | 0 | 0 |
+| chromium-1280 | 48 | 0 | 0 |
+| webkit-390 | 47 | 0 | 2 |
+| webkit-1280 | 46 | 0 | 2 |
+| **total** | **190** | **0** | **4** |
+
+The 4 skipped are unchanged from M3b: the two Chromium-only tests (offline reload after midnight, and the login page poisoning
+the cache) on the two WebKit projects, each with its written WebKit reason.
+
+### Negative controls (a)–(j) and proofs, run alone after the suite (15:38–15:48Z, `app/tests/negative-control.log`)
+Each passed on its unbroken copy first, then went red at the named assertion. The log holds no machine paths.
+
+| check | break (copy only) | red with |
+|---|---|---|
+| (a) queue | deletes before posting | `/ · saved on this phone$/`: element(s) not found |
+| (b) time | `at` = send time | "check-in keeps the time tapped": expected `…13:00:00.000Z`, received `…15:12:10.000Z` |
+| (c) board | late at 16 min | at 09:15:00 `data-alert` expected `"late"`, received `"none"` |
+| (d) familynote | the copied Worker returns every note | "the note is not on the page": expected 0, received 1 |
+| (e) overlay | transparent `div` over Check in | `tap(Check in) hit-test at 195,476: something else is on top` |
+| (f) portal | any 200 counts as sent | "the check-in is still saved on the phone": received `"All sent"` |
+| (g) payrollround | Payroll total = rounded rows added up | expected `"2.01"`, received `"2.02"` |
+| (h) swpoison | the service worker caches any 200 | "the worker page, not the login page": not found |
+| **(i) silentnextday** (new) | the check-out moves to the next day without the box | the first Fix times answer: expected 400, received 200 (stored instead of refused) |
+| **(j) presetsmount** (new) | presets computed at mount | "the week before Tue Sep 15, not before Sat Sep 12": the inputs differ |
+| **proof-retry-timing** (new) | the queue waits 30 s after its first failure | "the try after the login page: 31000 ms of page time, within the 5 s backoff plus 20 s": expected ≤ 25000 |
+| the 17 earlier proofs | as listed under M3b | each red at the same assertion as in M3b |
+
+Run: `node app/tests/negative-<queue|time|board|familynote|overlay|portal|payrollround|swpoison|silentnextday|presetsmount>.mjs`, and
+`node app/tests/negative-m2c-proofs.mjs` (18 proofs; `PROOF=<name>` runs one).
