@@ -95,3 +95,163 @@ here has run against the real Worker yet**; that is the first job of M2 (the Pla
 
 ### Needs from other slices
 - Nothing blocking. M2 starts with `git rebase main` once hc1 M1 is merged.
+
+## M2 part A: office pages, Playwright harness, specs (2026-09-14)
+
+Status: **written, committed, NOT RUN.** hc1's M1 is not merged, so there is no Worker. Nothing in part A has run against
+anything; per the lead's instruction nothing ran against the mock either. The only checks so far: `node --check` passes on
+every page module, helper and spec, and `npx playwright test --list` lists 62 tests in 7 files. The `@phone` and `@desktop`
+tests are filtered out by project, not skipped. Part B runs the suite, fixes what fails, and runs negative controls (a)–(e).
+
+### Built
+- **Design fixes (DECISIONS 22):**
+  - On `/w/`, only the sync strip is sticky; the header scrolls away.
+  - The mileage line shows only once the server's answer has two check-ins today, which is at least one leg. The answer
+    has no `legs` list.
+- **Worker page:** besides the 8 s timeout, a 10 s fallback resolves the location to `null`. The API timeout starts only once
+  permission is given, so a prompt nobody answers would otherwise hold the check-in.
+- `public/rules.js`: `alertFor` (the API.md rule) and `nextAlertChange`.
+- **Office `/office/`:**
+  - `core.js`: token in `hcv:office-token`; a 401 without `field` ends the session ("Your session ended. Sign in again.");
+    field errors go by `data-error-for`; Copy link shows "Copied"; the edit sheet host.
+  - `app.js`: PIN sign-in, tabs by hash, Sign out. Reports and Settings are placeholders for M3.
+  - `board.js`: counts and rows. The rule runs on `Date.now()` every 15 s with a reload of the day, after every load, and
+    on a timer set for the next exact 15:00 or 30:00 mark. That timer is what lets `page.clock.runFor(1000)` go from 09:14:59
+    to 09:15:00 with no reload.
+  - `week.js`: grid at ≥ 900 px, where a chip is dragged with pointer events (a real `page.mouse` drag works in both engines)
+    to another worker on the same day. Day tabs + "Assign to" + Save below 900 px. The conflict list sits above; choosing a
+    conflict highlights its chips.
+  - `sheet.js`: worker, date, start, end; Cancel visit (reason) / Restore; "Family can see this note".
+  - `clients.js`: list + Leaflet map (OSM tiles, "© OpenStreetMap contributors"). The form places the pin by clicking the map,
+    and has tasks, visit times with the rebuild warning (existing clients), family contacts, Copy family link.
+  - `workers.js`: zones, availability per weekday, weekly hours, Copy worker link.
+- **Harness:**
+  - `playwright.config.mjs`: 4 projects, one test worker, webServer `tests/start-worker.mjs`, Worker on 7903, inspector 7913,
+    `E2E_WORKER_DIR`.
+  - `helpers.mjs`:
+    - the reset fixture, and the tile route plus the outside-host guard;
+    - `tap`/`tapAt`/`drag`, each hit-testing with `elementFromPoint`;
+    - `typeInto`, which uses `insertText` on touch projects and asserts the value;
+    - `mapPoint`, a point ≥ 16 px from any Leaflet control and not on a marker.
+- **Time in the specs:** every spec runs on **Mon Sep 14, 10:30 AM NDT**. `X-Test-Now` goes on the page's requests and API
+  calls, and `page.clock` gets the same instant, so the server's and the page's "today" agree whatever day the suite runs.
+  The pattern comes from Snow Route's offline spec.
+- **Specs:** worker, offline (including the 500-once and refused tests with the service worker blocked), family, board,
+  planner, office, targets.
+
+### Known risks for part B (unverified guesses, listed so they are checked, not assumed)
+- Office DOM against real answers: labels such as `hours_label`, `zone_names`, `conflict.date` and field names come from
+  API.md only.
+- WebKit: whether `context.setOffline` fires `online`, whether the service worker takes control under Playwright (the
+  offline spec skips only the reload step, with a written reason, when it does not), and whether `clearPermissions` denies
+  geolocation or leaves the prompt hanging (the 10 s fallback covers that).
+- The planner drag needs Terry O.'s and Jo W.'s rows on screen together at 800 px high. `drag()` fails with a message if
+  the drop cell is off screen.
+- `targets.spec` checks every visible button on the worker page at 390, including the visit-card headers and the footer
+  `tel:` link.
+
+## M2 part B: the suite against hc1's Worker, review, negative controls (2026-09-14)
+
+Rebased on main at 4c91521 (hc1 M1 merged at f26d2f2; API.md clarifications 3–5 read).
+
+### Review of hc1 M1
+I read every handler the pages call in `worker/src/index.js` (worker visits and events, family, and the office routes for
+sign-in, day, week, visits, clients and workers) against docs/API.md, including clarifications 1–5, and against what the pages
+send and read.
+
+1. **Worker off the contract: a deactivated worker's link stops working.** `worker/src/index.js:832` `requireWorker` selects
+   `WHERE worker_key = ?1 AND active = 1`, so an inactive worker's key answers 401 on both `GET /api/worker/visits` and
+   `POST /api/worker/events`. Clarification 5 says it must answer 200 and accept events under the usual who-may-send rule.
+   Clarification 5 postdates hc1's M1 (it overrules hc1 call 6), so this is for hc1 to change. The page is unchanged: a 401
+   on the page's own key already keeps queued events in `queue` with "This link doesn't work any more…", and they send once
+   the key answers again. No spec covers deactivation yet.
+2. **My page off the milestone (fixed): the office called an M2 route.** The Worker's router (`worker/src/index.js:1072–1095`)
+   has no `GET /api/office/agency`. That route is on hc1's M2 list in PLAN.md, and my office shell needed it for zones,
+   funders and the map centre. On a 404, `app/public/office/app.js` now builds the same shape from M1 routes: `GET
+   /api/agency`, zones and funders named on `GET /api/office/clients?all=1` and `/workers?all=1`, and the map centred on the
+   mean of the client pins. The real route is used as soon as it answers. Until then a funder with no clients is missing from
+   the form's list.
+3. **My page off the contract (fixed): the session-ended message.** `worker/src/index.js:115` answers "Your session has
+   ended. Sign in again." (401, no `field`). The page showed its own wording, but the contract says errors show the API's
+   `error` text as is. `office/core.js` now passes the API's words to the sign-in screen.
+4. **Matches, checked:**
+   - events: stored id → validation → 404 → 409s (`:913–989`), the worker-view event shape (clarification 3), UUID v4 ids,
+     `location` null → `not_shared`, and `tasks` required on a check-out;
+   - `PUT visits/:id`: `stale` checked before `bad_state` (`:782`);
+   - `PUT visits/:id/note` needs a boolean (`:822`);
+   - family: note only when shareable (`:1024`), first name of the check-in's worker (`:1018`);
+   - week: `conflict.date` null for `over_hours`, worker `hours_label` (`:707`);
+   - day: `server_now` (`:726`);
+   - client validation fields and messages, including the medication guard on `tasks` (`:249`), which office.spec checks.
+
+### Fixes found by running against the Worker
+- **Office:** `paintAgency` was still passed the 404 answer after the fallback edit and threw. This was the only cause of 9
+  sign-in failures, found in the trace's page error. Every test now also fails on any uncaught page error.
+- **Worker page:**
+  - the visit just checked in stays open, where before the page re-opened an earlier checked-in card;
+  - `render()` now writes only markup that changed. A full redraw on every queue tick detached buttons mid-tap.
+- **Office CSS:** at 390 the availability and start/end time inputs ran past the right edge, and Save worker hit-tested to the
+  "Active worker" label. The no-sideways-scroll test now also opens the worker form.
+- **Specs:**
+  - denied and granted geolocation are separate tests with the permission set before the page loads. WebKit keeps a page's
+    first answer, and Chromium's `clearPermissions` mid-page is not a denial;
+  - the 500-once step runs the page clock 1 s at a time;
+  - the refused test moves the fixed clock past the backoff;
+  - the check-out sheet state checks only the sheet's buttons;
+  - specs wait for loaded lists.
+- **The only skip:** the reload-with-no-signal step of the no-signal offline test, on webkit-390 and webkit-1280.
+  `page.reload()` with the context offline throws "WebKit encountered an internal error". The reason is in the test's
+  annotation, and every other step of that test, including the send with the original times, runs in WebKit.
+
+### Office screenshots (viewport, looked at)
+- `app/tests/shots/office-today-<project>.png`: the board at 9:20 AM on Mon Sep 14 (NDT): counts, Margaret P. "Missed: not
+  checked in 30 minutes after the start" with "Call Jo W. (SAMPLE): 709-555-0131", and Bill S. and Walter G. late.
+- `office-week-conflict-<project>.png`: the conflict list (the two Terry O. travel gaps) with the grid at 1280, and Saturday's
+  cards at 390.
+- `office-client-form-<project>.png`: Walter G.'s form with the map, the draft pin and "© OpenStreetMap contributors".
+
+Made by `npx playwright test -c playwright.shots.config.mjs` (`tests/shots-office.mjs`), outside the suite's counts, on all
+four projects. Looking at them turned up the client's own marker sitting under the draft pin (now hidden while editing) and
+the 390 week picture missing the cards (now scrolled to the day tabs).
+
+### Results (full suite run alone, `npx playwright test`, Worker on 7903/7913, 2026-09-14)
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 17 | 0 | 0 |
+| chromium-1280 | 16 | 0 | 0 |
+| webkit-390 | 17 | 0 | 0 |
+| webkit-1280 | 16 | 0 | 0 |
+| **total** | **66** | **0** | **0** |
+
+`@phone` and `@desktop` tests are filtered out by project, not skipped. No test is skipped. One step inside one test is skipped
+on WebKit only, with its reason in the test's annotation: the reload with no signal in `offline.spec.mjs`, where
+`page.reload()` with the context offline throws "WebKit encountered an internal error". No route is missing behind it; the
+rest of that test runs in both engines.
+
+### Negative controls (a)–(e), `app/tests/negative-*.mjs` on 7906/7916, recorded in `app/tests/negative-control.log`
+For each control, the unbroken copy passed first, then the broken copy went red. Artifacts stay inside each copy.
+- **(a) queue** (`offline.spec` 500-once, chromium-390). Break: `w/queue.js` deletes the item before posting it. Red:
+  `expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/)` → element(s) not found. The check-in was erased
+  on its first failed send and never reached the server.
+- **(b) time** (`offline.spec` no signal, chromium-390). Break: each event is posted with `at` = the send time. Red:
+  "check-in keeps the time tapped", expected `"2026-09-14T13:00:00.000Z"`, received `"2026-09-14T15:12:10.000Z"`.
+- **(c) board** (`board.spec`, chromium-1280). Break: `public/rules.js` goes late at 16 minutes. Red: at 09:15:00
+  `toHaveAttribute('data-alert', 'late')`, received `"none"`.
+- **(d) familynote** (`family.spec`, chromium-1280). Break: the copied **Worker** returns the note text whatever `shareable`
+  says. Red: "the note is not on the page", expected 0, received 1.
+- **(e) overlay** (`worker.spec` near journey, chromium-390). Break: a transparent `div` laid over Check in. Red:
+  `tap(Check in) hit-test at 195,476: something else is on top`, received `<div style="position:absolute;inset:0;background:transparent"></div>`.
+
+The log also keeps two voided rounds, with notes saying why:
+- I first ran the controls while the suite was running, and both used `app/tests/results`, so each emptied the other's
+  artifacts;
+- then (b)'s break commented out a `catch` (a syntax error, not the break), and (a) went red only as a 120 s timeout.
+
+The reruns above replace them.
+
+### Known gaps
+- A deactivated worker's link answers 401 on the Worker today (review item 1). Nothing tests clarification 5 until hc1
+  changes it.
+- The office agency comes from M1 routes until `GET /api/office/agency` exists, so a funder with no clients is not offered.
+- The `@desktop` drag uses pointer events; touch drag on a tablet-sized planner is not built ("Assign to" is the touch path).
+- Reports, Settings, Fix times and New link are M3.

@@ -6,3 +6,439 @@ RED   chromium-390
       step failed: locator.waitFor: Timeout 10000ms exceeded.
 RESULT: went red as required
 
+== 2026-09-14T13:30:31.322Z queue: w/queue.js deletes the item from IndexedDB before posting it, whatever the server answers
+   spec: playwright test offline.spec.mjs --project chromium-390 -g a 500 when signal comes back on 7906 (inspector 7916), copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:94:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try (855ms) |   1 passed (5.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:94:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, copyfile '<repo>/app/tests/results/.playwright-artifacts-0/traces/110e1c665b1dac93ae82-a0b3ff8ae4a5dfe1ce8a-recording2.network' -> '<repo>/app/tests/results/.playwright-artifacts-0/traces/110e1c665b1dac93ae82-a0b3ff8ae4a5dfe1ce8a-recording2-pwnetcopy-1.network'
+
+    Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, copyfile '<repo>/app/tests/results/.playwright-artifacts-0/traces/110e1c665b1dac93ae82-a0b3ff8ae4a5dfe1ce8a-recording1.network' -> '<repo>/app/tests/results/.playwright-artifacts-0/traces/110e1c665b1dac93ae82-a0b3ff8ae4a5dfe1ce8a-recording1-pwnetcopy-1.network'
+
+    Error: browserContext._wrapApiCall: ENOENT: no such file or directory, open '<repo>/app/tests/results/.playwright-artifacts-0/traces/110e1c665b1dac93ae82-a0b3ff8ae4a5dfe1ce8a.trace'
+
+    Error: locator.scrollIntoViewIfNeeded: Test ended.
+    Call log:
+      - waiting for locator('.visit[data-visit="18"]').locator('.task').first()
+
+
+       at helpers.mjs:100
+
+       98 |
+       99 | export async function intoView(page, locator, block = 'center') {
+    > 100 |   await locator.scrollIntoViewIfNeeded();
+          |                 ^
+      101 |   const box = await locator.boundingBox();
+      102 |   // "In view" to Playwright includes under the sticky sync strip, where a person could not tap it.
+      103 |   const stuck = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll('.sticky')].map(e => e.getBoundingClientRect().bottom)));
+        at intoView (<repo>/app/tests/helpers.mjs:100:17)
+        at tap (<repo>/app/tests/helpers.mjs:112:9)
+        at checkOut (<repo>/app/tests/offline.spec.mjs:31:39)
+        at <repo>/app/tests/offline.spec.mjs:111:5
+
+    Error: ENOENT: no such file or directory, open '<repo>/app/tests/results/.playwright-artifacts-0/a4a6ae6f52dae4df32c9788399f5cb20.zip'
+
+== 2026-09-14T13:32:42.091Z time: w/queue.js posts each event with at = the send time instead of the time tapped
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: check-in and check-out are saved on 7906 (inspector 7916), copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:37:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped (1.0s) |   1 passed (4.6s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:37:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-name')
+    Expected: "Bill S. (SAMPLE)"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('.visit[data-visit="18"]').locator('.visit-name') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-name')
+
+
+      22 |   await page.goto(pathOf(sam.worker_url));
+      23 |   const card = page.locator(`.visit[data-visit="${visit.id}"]`);
+    > 24 |   await expect(card.locator('.visit-name')).toHaveText(visit.client_name);
+         |                                             ^
+      25 |   await expect(page.locator('#strip-text')).toHaveText('All sent');
+      26 |   return { sam, visit, card };
+      27 | }
+        at phoneOnline (<repo>/app/tests/offline.spec.mjs:24:45)
+        at <repo>/app/tests/offline.spec.mjs:39:27
+
+    Error: no uncaught errors in the pages
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+== 2026-09-14T13:33:01.323Z board: public/rules.js turns a visit late 16 minutes after its start instead of 15
+   spec: playwright test board.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/board
+   unbroken copy:   ✓  1 [chromium-1280] › tests/board.spec.mjs:4:1 › the Today board turns late at 15:00 and missed at 30:00 on the page clock, and done after a check-in (1.1s) |   1 passed (4.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/board.spec.mjs:4:1 › the Today board turns late at 15:00 and missed at 30:00 on the page clock, and done after a check-in 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('.board-row[data-visit-id="1"]')
+    Expected: "late"
+    Received: "none"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveAttribute" locator('.board-row[data-visit-id="1"]') with timeout 10000ms
+      - waiting for locator('.board-row[data-visit-id="1"]')
+        24 × locator resolved to <li class="board-row" data-visit-id="1" data-alert="none" data-status="scheduled">…</li>
+           - unexpected value "none"
+
+
+      22 |
+      23 |   await page.clock.runFor(1000); // 09:15:00
+    > 24 |   await expect(row).toHaveAttribute('data-alert', 'late');
+         |                     ^
+      25 |   await expect(row).toContainText('Late: not checked in 15 minutes after the start');
+      26 |   const lateToken = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--late-bg').trim());
+      27 |   expect(lateToken).toBe('#fdecc8');
+        at <repo>/app/tests/board.spec.mjs:24:21
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/board-the-Today-board-turn-7251b-k-and-done-after-a-check-in-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/board-the-Today-board-turn-7251b-k-and-done-after-a-check-in-chromium-1280/error-context.md
+
+== 2026-09-14T13:33:20.833Z familynote: worker/src/index.js family answer returns the note text even when it is not shareable
+   spec: playwright test family.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/familynote
+   unbroken copy:   ✓  1 [chromium-1280] › tests/family.spec.mjs:7:1 › family link: arrived and left with ticked tasks; the note appears only once the office shares it (1.4s) |   1 passed (4.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/family.spec.mjs:7:1 › family link: arrived and left with ticked tasks; the note appears only once the office shares it 
+
+    Error: the note is not on the page
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByText('Bill had a good morning and asked about the garden. (SAMPLE)')
+    Expected: 0
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - the note is not on the page getByText('Bill had a good morning and asked about the garden. (SAMPLE)') with timeout 10000ms
+      - waiting for getByText('Bill had a good morning and asked about the garden. (SAMPLE)')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      37 |   await expect(today.locator('.fam-status')).toHaveText('Arrived 10:30 AM, left 10:30 AM');
+      38 |   await expect(today.locator('.ticks li')).toHaveText(labels);
+    > 39 |   await expect(page.getByText(NOTE), 'the note is not on the page').toHaveCount(0);
+         |                                                                     ^
+      40 |   expect(await page.content(), 'the note is nowhere in the page').not.toContain(NOTE);
+      41 |
+      42 |   // The office marks it shareable with real taps in the edit sheet.
+        at <repo>/app/tests/family.spec.mjs:39:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/family-family-link-arrived-6a9e7-y-once-the-office-shares-it-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T13:33:40.965Z overlay: w/app.js wraps Check in with a transparent element laid over it
+   spec: playwright test worker.spec.mjs --project chromium-390 -g check in near the client on 7906 (inspector 7916), copy in app/.negative/overlay
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:18:1 › Sam R.: visits in order, Navigate, check in near the client, tasks and note, check out (897ms) |   1 passed (4.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:18:1 › Sam R.: visits in order, Navigate, check in near the client, tasks and note, check out 
+
+    Error: tap(Check in) hit-test at 195,476: something else is on top
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: ""
+    Received: "<div style=\"position:absolute;inset:0;background:transparent\"></div>"
+
+       at helpers.mjs:114
+
+      112 |   await intoView(page, locator);
+      113 |   const { x, y, hit } = await hitTest(locator);
+    > 114 |   expect(hit, `tap(${label}) hit-test at ${Math.round(x)},${Math.round(y)}: something else is on top`).toBe('');
+          |                                                                                                        ^
+      115 |   if (await coarse(page)) await page.touchscreen.tap(x, y);
+      116 |   else await page.mouse.click(x, y);
+      117 | }
+        at tap (<repo>/app/tests/helpers.mjs:114:104)
+        at <repo>/app/tests/worker.spec.mjs:38:3
+
+    Error: page.waitForResponse: Test ended.
+
+       at helpers.mjs:228
+
+      226 |
+      227 | /** The POST /api/worker/events answer for an event of this kind. */
+    > 228 | export const waitEvent = (page, kind, opts) => page.waitForResponse(r => r.url().endsWith('/api/worker/events')
+          |                                                     ^
+      229 |   && r.request().method() === 'POST' && r.request().postDataJSON()?.kind === kind, opts);
+
+== 2026-09-14 note (hc2): the five entries above from 13:30:31Z to 13:33:40Z ran while the full suite was also running from
+   app/, and both runs used app/tests/results as Playwright's output folder, which every run empties at start (the ENOENT
+   artifact errors above). VOID: "queue" (red on a timeout amid artifact errors, not on the lost event) and "time" (red before
+   any send, not on the original-time assertion). "board", "familynote" and "overlay" went red at exactly their targeted
+   assertions but ran in the same window, so all five are re-run below one at a time, with each control's artifacts in its own
+   copy (negative-lib.mjs --output) and nothing else running.
+
+== 2026-09-14T13:36:36.035Z queue: w/queue.js deletes the item from IndexedDB before posting it, whatever the server answers
+   spec: playwright test offline.spec.mjs --project chromium-390 -g a 500 when signal comes back on 7906 (inspector 7916), copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:94:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:94:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: locator.scrollIntoViewIfNeeded: Test timeout of 120000ms exceeded.
+    Call log:
+      - waiting for locator('.visit[data-visit="18"]').locator('.task').first()
+
+
+       at helpers.mjs:100
+
+       98 |
+       99 | export async function intoView(page, locator, block = 'center') {
+    > 100 |   await locator.scrollIntoViewIfNeeded();
+          |                 ^
+      101 |   const box = await locator.boundingBox();
+      102 |   // "In view" to Playwright includes under the sticky sync strip, where a person could not tap it.
+      103 |   const stuck = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll('.sticky')].map(e => e.getBoundingClientRect().bottom)));
+        at intoView (<repo>/app/tests/helpers.mjs:100:17)
+        at tap (<repo>/app/tests/helpers.mjs:112:9)
+        at checkOut (<repo>/app/tests/offline.spec.mjs:31:39)
+        at <repo>/app/tests/offline.spec.mjs:111:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/queue/results/offline-with-the-service-w-1a6f9-d-they-send-on-the-next-try-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/queue/results/offline-with-the-service-w-1a6f9-d-they-send-on-the-next-try-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T13:38:46.291Z time: w/queue.js posts each event with at = the send time instead of the time tapped
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: check-in and check-out are saved on 7906 (inspector 7916), copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:37:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped (994ms) |   1 passed (4.4s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:37:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-name')
+    Expected: "Bill S. (SAMPLE)"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('.visit[data-visit="18"]').locator('.visit-name') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-name')
+
+
+      22 |   await page.goto(pathOf(sam.worker_url));
+      23 |   const card = page.locator(`.visit[data-visit="${visit.id}"]`);
+    > 24 |   await expect(card.locator('.visit-name')).toHaveText(visit.client_name);
+         |                                             ^
+      25 |   await expect(page.locator('#strip-text')).toHaveText('All sent');
+      26 |   return { sam, visit, card };
+      27 | }
+        at phoneOnline (<repo>/app/tests/offline.spec.mjs:24:45)
+        at <repo>/app/tests/offline.spec.mjs:39:27
+
+    Error: no uncaught errors in the pages
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+== 2026-09-14T13:39:05.174Z board: public/rules.js turns a visit late 16 minutes after its start instead of 15
+   spec: playwright test board.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/board
+   unbroken copy:   ✓  1 [chromium-1280] › tests/board.spec.mjs:4:1 › the Today board turns late at 15:00 and missed at 30:00 on the page clock, and done after a check-in (1.0s) |   1 passed (4.4s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/board.spec.mjs:4:1 › the Today board turns late at 15:00 and missed at 30:00 on the page clock, and done after a check-in 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('.board-row[data-visit-id="1"]')
+    Expected: "late"
+    Received: "none"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveAttribute" locator('.board-row[data-visit-id="1"]') with timeout 10000ms
+      - waiting for locator('.board-row[data-visit-id="1"]')
+        24 × locator resolved to <li class="board-row" data-visit-id="1" data-alert="none" data-status="scheduled">…</li>
+           - unexpected value "none"
+
+
+      22 |
+      23 |   await page.clock.runFor(1000); // 09:15:00
+    > 24 |   await expect(row).toHaveAttribute('data-alert', 'late');
+         |                     ^
+      25 |   await expect(row).toContainText('Late: not checked in 15 minutes after the start');
+      26 |   const lateToken = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--late-bg').trim());
+      27 |   expect(lateToken).toBe('#fdecc8');
+        at <repo>/app/tests/board.spec.mjs:24:21
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/board/results/board-the-Today-board-turn-7251b-k-and-done-after-a-check-in-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/board/results/board-the-Today-board-turn-7251b-k-and-done-after-a-check-in-chromium-1280/error-context.md
+
+== 2026-09-14T13:39:24.537Z familynote: worker/src/index.js family answer returns the note text even when it is not shareable
+   spec: playwright test family.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/familynote
+   unbroken copy:   ✓  1 [chromium-1280] › tests/family.spec.mjs:7:1 › family link: arrived and left with ticked tasks; the note appears only once the office shares it (1.5s) |   1 passed (5.0s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/family.spec.mjs:7:1 › family link: arrived and left with ticked tasks; the note appears only once the office shares it 
+
+    Error: the note is not on the page
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByText('Bill had a good morning and asked about the garden. (SAMPLE)')
+    Expected: 0
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - the note is not on the page getByText('Bill had a good morning and asked about the garden. (SAMPLE)') with timeout 10000ms
+      - waiting for getByText('Bill had a good morning and asked about the garden. (SAMPLE)')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      37 |   await expect(today.locator('.fam-status')).toHaveText('Arrived 10:30 AM, left 10:30 AM');
+      38 |   await expect(today.locator('.ticks li')).toHaveText(labels);
+    > 39 |   await expect(page.getByText(NOTE), 'the note is not on the page').toHaveCount(0);
+         |                                                                     ^
+      40 |   expect(await page.content(), 'the note is nowhere in the page').not.toContain(NOTE);
+      41 |
+      42 |   // The office marks it shareable with real taps in the edit sheet.
+        at <repo>/app/tests/family.spec.mjs:39:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/familynote/results/family-family-link-arrived-6a9e7-y-once-the-office-shares-it-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T13:39:44.783Z overlay: w/app.js wraps Check in with a transparent element laid over it
+   spec: playwright test worker.spec.mjs --project chromium-390 -g check in near the client on 7906 (inspector 7916), copy in app/.negative/overlay
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:18:1 › Sam R.: visits in order, Navigate, check in near the client, tasks and note, check out (876ms) |   1 passed (4.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:18:1 › Sam R.: visits in order, Navigate, check in near the client, tasks and note, check out 
+
+    Error: tap(Check in) hit-test at 195,476: something else is on top
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: ""
+    Received: "<div style=\"position:absolute;inset:0;background:transparent\"></div>"
+
+       at helpers.mjs:114
+
+      112 |   await intoView(page, locator);
+      113 |   const { x, y, hit } = await hitTest(locator);
+    > 114 |   expect(hit, `tap(${label}) hit-test at ${Math.round(x)},${Math.round(y)}: something else is on top`).toBe('');
+          |                                                                                                        ^
+      115 |   if (await coarse(page)) await page.touchscreen.tap(x, y);
+      116 |   else await page.mouse.click(x, y);
+      117 | }
+        at tap (<repo>/app/tests/helpers.mjs:114:104)
+        at <repo>/app/tests/worker.spec.mjs:38:3
+
+    Error: page.waitForResponse: Test ended.
+
+       at helpers.mjs:228
+
+      226 |
+      227 | /** The POST /api/worker/events answer for an event of this kind. */
+    > 228 | export const waitEvent = (page, kind, opts) => page.waitForResponse(r => r.url().endsWith('/api/worker/events')
+          |                                                     ^
+      229 |   && r.request().method() === 'POST' && r.request().postDataJSON()?.kind === kind, opts);
+
+== 2026-09-14 note (hc2): two of the five re-runs above are VOID and are run again below.
+   "time" (13:38:46Z): the break itself was broken. The replaced text ended before " catch { return null; }", so the added
+   "// NEGATIVE CONTROL (b)" comment commented out the catch; the copy's queue.js did not parse and the page never loaded
+   (red at "visit-name not found" plus page errors, not at the original-time assertion). The comment is now /* */.
+   "queue" (13:36:36Z): red was caused by the break (the check-in was erased on its first failed send, so its tasks never
+   showed) but only as a 120 s timeout. offline.spec's 500-once test now asserts "1 saved on this phone" right after the first
+   failed send, and tap() scrolls with a 10 s limit, so the red names the lost event.
+   "board", "familynote" and "overlay" (13:39Z) stand: unbroken copy passed, broken copy red at the targeted assertion.
+
+== 2026-09-14T13:43:10.431Z queue: w/queue.js deletes the item from IndexedDB before posting it, whatever the server answers
+   spec: playwright test offline.spec.mjs --project chromium-390 -g a 500 when signal comes back on 7906 (inspector 7916), copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:94:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try (878ms) |   1 passed (5.4s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:94:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-status')
+    Expected pattern: / · saved on this phone$/
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('.visit[data-visit="18"]').locator('.visit-status') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-status')
+
+
+      109 |
+      110 |     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
+    > 111 |     await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/);
+          |                                                 ^
+      112 |     // A failed send must leave the event on the phone.
+      113 |     await expect.poll(() => aborted, { message: 'the phone tried to send the check-in' }).toBeGreaterThan(0);
+      114 |     await expect(page.locator('#strip-text'), 'the check-in is still saved on the phone after a failed send').toHaveText(/^1 saved on this phone\./);
+        at <repo>/app/tests/offline.spec.mjs:111:49
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/queue/results/offline-with-the-service-w-1a6f9-d-they-send-on-the-next-try-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/queue/results/offline-with-the-service-w-1a6f9-d-they-send-on-the-next-try-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T13:43:31.798Z time: w/queue.js posts each event with at = the send time instead of the time tapped
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: check-in and check-out are saved on 7906 (inspector 7916), copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:37:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped (1.1s) |   1 passed (5.6s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:37:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped 
+
+    Error: check-in keeps the time tapped
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-09-14T13:00:00.000Z"
+    Received: "2026-09-14T15:12:10.000Z"
+
+      78 |   const token = await officeToken(request);
+      79 |   const v = await officeVisit(request, token, visit.id, undefined, BACK);
+    > 80 |   expect(v.check_in.at, 'check-in keeps the time tapped').toBe(iso(T));
+         |                                                           ^
+      81 |   expect(v.check_out.at, 'check-out keeps the time tapped').toBe(iso(OUT));
+      82 |   expect(v.worked_seconds).toBe(5530);
+      83 |   expect(v.check_in.at_adjusted).toBe(false);
+        at <repo>/app/tests/offline.spec.mjs:80:59
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/trace.zip
+
+
