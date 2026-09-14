@@ -488,3 +488,15 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
 14. **(hc1 M3) A visited soft-removed visit cannot be restored**: `POST /api/office/visits/:id/restore` answers 409 `bad_state`
     "This visit was removed from the schedule, so it can't be restored." (it stays cancelled with its removal reason; Fix times
     and the note toggle still work on it).
+15. **(hc1 early review of the office pages, findings 1-5) Inactive people stay reachable; no invented answers.**
+    - The office Workers and Clients screens load with `?all=1` and list inactive entries under an "Inactive" heading. They stay
+      openable, with the Active toggle and "New link": that is the only screen where a former worker's link can be stopped
+      (clarification 5).
+    - The visit edit sheet's worker select always includes the visit's current worker, labelled "<name> (inactive)" when they are
+      not in the active list, so saving an unrelated change never unassigns the visit (clarification 4 lets it stay).
+    - The week grid and day view add a row for every worker named in `visits` who is not in `workers`, labelled
+      "<name> (inactive)", so every visit is on a row and can be opened.
+    - Sign out: when `POST /api/office/signout` does not answer 200, the page still clears its token and says "Signed out on this
+      computer. The session couldn't be closed at the office. Sign in and out again when the connection is back."
+    - No fallback answers: an office route that answers 404 or 5xx shows the API's error text; the page never rebuilds an answer
+      from other routes.

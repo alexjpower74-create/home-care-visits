@@ -107,3 +107,13 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 33. **hc1 reviews hc2's office pages early, from the committed branch**, while hc2 is still running Part B. Snow Route's
     early review on a commit still being written found six real findings (their DECISIONS 32); reading `rig/hc2` with
     `git show` keeps the review stable while hc2's worktree changes.
+
+## 2026-09-14, lead (after hc1's early review of the office pages, 11:12)
+
+34. **All of hc1's office findings are adopted** (API.md 15) and go to hc2 as M2c together with the phone-page clarifications
+    6 and 8-12 and the five spec gaps. The spec gaps matter most: four specs would have passed a broken product (a check-out
+    stamped with the check-in's time, a client form dropping the pattern's worker, a conflict losing its red edge and word, a
+    queue deleting on a captive portal's 200). Each gets an assertion that fails without the fix.
+35. **The remaining page work stays in hc2's slice; hc1 waits for the next review round.** Moving office files to hc1 mid-build
+    would split `app/**` ownership that `rig guard` checks by glob, and the weekly usage budget is at 70%, so an idle reviewer is
+    the cheaper choice.
