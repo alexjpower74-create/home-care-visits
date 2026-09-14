@@ -1168,3 +1168,49 @@ clarifications 18-19.
 - Control (k) proves "saved list first" but not the 8 s limit; a page that never times out would still pass.
 - `negative-control.log`: the first M3d run's two VOID entries ("proof-earlier-days", "proof-earlier-without-today") are replaced by a
   note, so their raw output is no longer in the record. The later runs are red.
+
+## Lead review of the M3d review (merged b377d85)
+
+- The payroll finding is adopted as API.md clarification 21 (DECISIONS 51-52), built in M7. The smaller notes go into the README's
+  known gaps. **DONE**
+
+## M7 (2026-09-14, rebased on main)
+
+### What was built: DONE
+
+- **The worker's list keeps visits they checked in to** (clarification 21). `GET /api/worker/visits?date=` now loads the visits
+  on that date where `v.worker_id` is this worker **or** this worker holds the effective (non-voided) check-in. The two kinds are
+  sorted together by `starts_at`, then `id`; each visit has its check-in and check-out as before, plus `"reassigned"`: `true` when
+  the current worker is someone else or no one, `false` otherwise.
+- **Unchanged:** soft-removed visits follow the same visibility rule as before (they show once they have an event); `open_dates`
+  and mileage are untouched.
+
+### Verified: DONE
+
+`npm test` at `f6d5fae`: **23/23 unit, 71/71 API** (69 + 2), nothing skipped. New or changed tests:
+- **Reassigned after an offline check-in:** the office gives Bill S. to Jo at 8:50, and Sam's check-in tapped at 9:02 lands. Sam's
+  Monday list is `[Bill S. reassigned true, Ruby T. false]`, in start order, with Sam's check-in. Jo's list has Bill S. with `false`.
+  Sam's check-out answers 201, and the card keeps its check-out.
+- **Given to no one:** Ruby T. moved to no worker, then Sam's check-in lands, so Sam sees it with `reassigned: true`.
+- **Reassigned before any check-in:** Tuesday's Frank H. moved to Jo, and Sam's Tuesday list is empty.
+- **A voided check-in:** on Wednesday Sam's check-in keeps the visit on Sam's list. After Fix times replaces it with the office's
+  check-in for Jo, the visit is gone from Sam's list.
+- **The `open_dates` day:** a Friday visit reassigned to Jo with Sam's open check-in. Monday's `open_dates` is `["2026-09-11"]`, and
+  Friday's list has the card (`reassigned: true`, check-in 9:02, no check-out).
+- **M1's "a reassigned visit still accepts the first worker's check-in"** now expects the card on Sam's list with `reassigned: true`,
+  where it used to expect the card gone, as clarification 21 changes the contract.
+
+### Negative controls: DONE
+
+`npm run negative` runs all seventeen, (a)-(q), each red after its unbroken copy passed. The log was re-recorded against
+`f6d5fae` and holds no machine paths.
+
+| control | break (copy only) | red with |
+|---|---|---|
+| (q) `negative:reassignedlist` | `index.js`: the ` OR EXISTS (… check-in by this worker …)` clause removed from the worker list | `AssertionError [ERR_ASSERTION]: sorted by start, each marked` / `actual: [ [ 'Ruby T. (SAMPLE)', false ] ],` / `expected: [ [ 'Bill S. (SAMPLE)', true ], [ 'Ruby T. (SAMPLE)', false ] ],` |
+
+(a)-(p) are unchanged and still red at `f6d5fae`.
+
+### Left undone / next
+
+Nothing for M7. On the page side, the optional "Moved to another worker by the office" line belongs to hc2.
