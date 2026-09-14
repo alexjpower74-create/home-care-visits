@@ -167,3 +167,11 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     until the office uses Fix times.
 47. **Work split, final rounds.** hc1 M6: `open_dates` with tests and a negative control. hc2 M3d, after M3c: saved list first with
     the 8 s limit, Dismiss that hides, and loading `open_dates`, each with a spec. Then the lead's final QA.
+
+## 2026-09-14, lead (after hc1's early review of hc2 M3c, 13:05)
+
+48. **A fixed time is dated from the event it replaces, not the visit** (API.md 19). Night visits that run past midnight are normal
+    in home support (bedtime routines), and dating every typed time from the visit's date made a post-midnight check-in impossible to
+    complete, leaving the visit in payroll's incomplete list. It joins M3d with clarification 18's page side, hc1's smaller notes and an
+    `npm run negative` script in `app/package.json` (the README names it). M3d is the last app round; anything found after it goes to
+    the known gaps unless it can lose a check-in or pay someone wrongly.

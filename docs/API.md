@@ -552,3 +552,12 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
       `"open_dates": ["2026-09-12"]`: the NL dates, up to 7 days before today, of visits whose effective check-in was made by this
       worker and that have no effective check-out, ascending, not counting the requested date and today. The page also loads each of
       those dates, so a visit checked in from a lost phone can be checked out from a new phone or a new link.
+19. **(hc1 early review of hc2 M3c) Fix times dates each time from the event it replaces** (PAYROLL; sharpens 17).
+    - A typed check-in time is dated from the stored check-in's NL date, or the visit's date when there is none. A typed check-out
+      time is dated from the check-in's NL date (the stored one, or the one typed in the same save).
+    - "The check-out was after midnight" is offered whenever the resulting check-out instant is at or before the check-in instant,
+      and starts **ticked** when the stored check-out is already on a later date than its check-in. The same choice, "The check-in was
+      after midnight", is offered when a typed check-in time is earlier than the visit's start time.
+    - So an 11:00-11:55 PM visit checked in at 12:10 AM the next day gets its 12:50 AM check-out fixed on the right day.
+    - Smaller: switching report tabs uses the dates typed in From and To (never silently puts back the old ones); the billing spec
+      includes three 20-minute clients so printing `scheduled_hours` (0.33, 0.33, 0.33, total 1.00) is told apart from computing it.
