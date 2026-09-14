@@ -1,6 +1,6 @@
 // The family link after a real worker journey: arrived/left and the ticked tasks; the note stays off the page until the office
 // marks it shareable in the edit sheet; a bad link shows the plain message.
-import { test, expect, tap, typeInto, byName, pathOf, setNow, signIn, waitEvent, NOW, MIN } from './helpers.mjs';
+import { test, expect, settledOnPhone, tap, typeInto, byName, pathOf, setNow, signIn, waitEvent, NOW, MIN } from './helpers.mjs';
 
 const NOTE = 'Bill had a good morning and asked about the garden. (SAMPLE)';
 
@@ -30,6 +30,7 @@ test('family link: arrived and left with ticked tasks; the note appears only onc
   const outR = waitEvent(page, 'check_out');
   await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
   expect((await outR).status()).toBe(201);
+  await settledOnPhone(page, card, 'Done 10:30 AM – 11:17 AM');
 
   // The family page.
   await page.goto(pathOf(bill.family_url));

@@ -1,5 +1,5 @@
 // Tap targets, the SAMPLE badge, no sideways scroll, and contrast of the action buttons and the late/missed rows.
-import { test, expect, tap, hitTest, intoView, tab, signIn, byName, pathOf, setNow, contrast, rgb, localToUtcMs, NOW, DAY } from './helpers.mjs';
+import { test, expect, settledOnPhone, tap, hitTest, intoView, tab, signIn, byName, pathOf, setNow, contrast, rgb, localToUtcMs, NOW, DAY } from './helpers.mjs';
 
 async function bigAndOnTop(page, locator, label, min) {
   await intoView(page, locator);
@@ -101,9 +101,13 @@ test('Check in, Check out and the late and missed rows meet 4.5 : 1', async ({ p
   };
   await setNow(page, context, NOW);
   await context.grantPermissions(['geolocation']);
+  // At Bill S.'s map point: with no position set, WebKit's check-in carries one the office refuses (the card then loses Check out).
+  await context.setGeolocation({ latitude: 49.0187, longitude: -55.48578, accuracy: 10 });
   await page.goto(pathOf(byName(seed.workers, 'Sam R. (SAMPLE)').worker_url));
   await ratio(page.getByRole('button', { name: 'Check in' }), 'Check in');
   await tap(page, page.getByRole('button', { name: 'Check in' }), 'Check in');
+  // Measure, then leave /w/, only once the refresh after the check-in has answered and redrawn the card (DECISIONS 49).
+  await settledOnPhone(page, page.locator('.visit', { has: page.getByRole('button', { name: 'Check out' }) }), 'Checked in 10:30 AM · Within 250 m of the client');
   await ratio(page.getByRole('button', { name: 'Check out' }), 'Check out');
 
   // 9:20 on the board: Bill S. (9:00) is late, Margaret P. (8:30) is missed.

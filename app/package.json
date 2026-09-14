@@ -7,7 +7,9 @@
     "negative": "node tests/run-negatives.mjs"
   },
   "dependencies": {
-    "leaflet": "1.9.4"
+    "@maplibre/maplibre-gl-leaflet": "0.1.4",
+    "leaflet": "1.9.4",
+    "maplibre-gl": "5.24.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

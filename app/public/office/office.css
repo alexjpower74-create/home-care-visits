@@ -162,6 +162,8 @@ table.report tfoot th, table.report tfoot td { font-weight: 700; border-top: 2px
   color: #ffffff; font-size: 12px; font-weight: 700; box-shadow: 0 1px 4px rgba(29, 39, 51, .4); }
 .pin-new { background: var(--check-in); font-size: 10px; }
 .leaflet-container .leaflet-control-attribution { font-size: 12px; }
+/* Under the MapLibre canvas, and all there is without WebGL (clarification 20). */
+.map.leaflet-container { background: #e4ebe1; }
 
 /* Sheet */
 .sheet-office { max-width: 560px; max-height: 92vh; overflow-y: auto; }

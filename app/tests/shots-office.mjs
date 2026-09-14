@@ -12,6 +12,21 @@ test('office: every screen', async ({ page, context, request }, testInfo) => {
   const wide = testInfo.project.name.endsWith('1280');
   const shot = name => page.screenshot({ path: `${OUT}office-${name}-${testInfo.project.name}.png` });
   const top = locator => locator.evaluate(el => el.scrollIntoView({ block: 'start' }));
+  // The map has finished moving to the client's pin (Leaflet animates the zoom): the pin stands still inside the map.
+  const mapSettled = async () => {
+    const where = () => page.evaluate(() => {
+      const m = document.querySelector('#cl-map').getBoundingClientRect();
+      const p = document.querySelector('#cl-map .pin-new')?.getBoundingClientRect();
+      return p && !document.querySelector('#cl-map.leaflet-zoom-anim') ? [Math.round(p.x - m.x), Math.round(p.y - m.y), m.width, m.height] : null;
+    });
+    let last = null;
+    await expect.poll(async () => {
+      const now = await where();
+      const still = !!now && !!last && now.join() === last.join();
+      last = now;
+      return still && now[0] > 0 && now[1] > 0 && now[0] < now[2] && now[1] < now[3];
+    }, { message: "the map has settled on the client's pin", intervals: [300] }).toBe(true);
+  };
   expect((await api(request, 'POST', '/api/test/seed', { data: { scenario: 'demo' } })).status, 'demo seeded').toBe(200);
   await setNow(page, context, NOW);
   await signIn(page);
@@ -49,8 +64,14 @@ test('office: every screen', async ({ page, context, request }, testInfo) => {
   await tab(page, 'Clients');
   await expect(page.locator('#client-list .entity').first()).toBeVisible();
   await shot('clients');
+  if (!wide) { // at phone width the map sits under the list
+    await page.locator('#cl-map').evaluate(el => el.scrollIntoView({ block: 'end' }));
+    await expect(page.locator('#cl-map .leaflet-control-attribution')).toHaveText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap');
+    await shot('clients-map');
+  }
   await tap(page, page.locator('#client-list .entity', { hasText: 'Walter G. (SAMPLE)' }), 'Walter G.');
   await expect(page.locator('#cf-name')).toHaveValue('Walter G. (SAMPLE)');
+  await mapSettled();
   await top(page.locator('.view-head h1'));
   await shot('client-form');
 

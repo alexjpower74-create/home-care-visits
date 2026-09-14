@@ -2,7 +2,7 @@
 // up to "1.01" on its own, while the exact total of 7 236 s is "2.01". A screen that added the rounded rows would show "2.02".
 // Jo's missing check-out is fixed through the edit sheet. The CSV download must be the Worker's bytes.
 import fs from 'node:fs/promises';
-import { test, expect, tap, typeInto, tab, signIn, api, officeToken, oneOffVisit, byName, pathOf, setNow, waitEvent, randomUUID, iso, localToUtcMs, addDays, DAY } from './helpers.mjs';
+import { test, expect, settledOnPhone, tap, typeInto, tab, signIn, api, officeToken, oneOffVisit, byName, pathOf, setNow, waitEvent, randomUUID, iso, localToUtcMs, addDays, DAY } from './helpers.mjs';
 
 const SAM_IN = localToUtcMs(DAY, '09:00');          // Bill S. 9:00
 const SAM_OUT = SAM_IN + 3618 * 1000;               // 10:00:18 AM
@@ -117,6 +117,7 @@ async function checkInOnPhone(page, context, worker, visit, at) {
   const sent = waitEvent(page, 'check_in');
   await tap(page, card.getByRole('button', { name: 'Check in' }), `Check in (${visit.client_name})`);
   expect((await sent).status()).toBe(201);
+  await settledOnPhone(page, card, /^Checked in \d{1,2}:\d\d [AP]M · (?!saved on this phone$)/);
   return card;
 }
 
@@ -138,6 +139,7 @@ test('Payroll shows the Worker\'s exact hours after two phone journeys and a Fix
   const out = waitEvent(page, 'check_out');
   await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
   expect((await out).status()).toBe(201);
+  await settledOnPhone(page, billCard, 'Done 9:00 AM – 10:00 AM');
   await checkInOnPhone(page, context, sam, ruby, RUBY_IN);
   // Jo: Margaret P. in at 8:30:42; the phone never checks out.
   await checkInOnPhone(page, context, jo, margaret, JO_IN);

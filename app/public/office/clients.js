@@ -1,6 +1,7 @@
 // Clients: list + Leaflet map; the form places the pin by clicking the map; tasks, visit times (patterns) with the rebuild
 // warning, family contacts, Copy family link.
 import { office, showErrors, copyText, esc, errorText, linkBlock } from './core.js';
+import { MAP_STYLE_URL, MAP_ATTRIBUTION } from '../map-config.js';
 
 const KINDS = [['personal_care', 'Personal care'], ['meal_prep', 'Meal preparation'], ['medication_reminder', 'Medication reminder'],
   ['housekeeping', 'Light housekeeping'], ['laundry', 'Laundry'], ['companionship', 'Companionship'],
@@ -9,6 +10,34 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const REBUILD = "Changing visit times rebuilds this client's upcoming visits. One-off changes to those visits will be replaced.";
 const num = v => (v === '' || v == null ? null : Number(v));
 const round5 = n => Math.round(n * 1e5) / 1e5;
+
+/** OpenFreeMap through MapLibre as the base layer, or the plain background when this browser has no WebGL (clarification 20).
+ *  Pins, clicks and the attribution are Leaflet's either way. → 'maplibre' | 'plain' */
+function baseLayer(map) {
+  if (!window.maplibregl || !L.maplibreGL || !webgl()) return 'plain';
+  // customAttribution '' keeps the binding from adding a second attribution taken from the tiles' own TileJSON.
+  const layer = L.maplibreGL({ style: MAP_STYLE_URL, attributionControl: { customAttribution: '' } });
+  try {
+    layer.addTo(map);
+  } catch {
+    layer.getContainer()?.remove();
+    delete map._layers[L.stamp(layer)];
+    return 'plain';
+  }
+  // A style or tile that fails to load leaves the plain background under the pins; never an uncaught error.
+  layer.getMaplibreMap().on('error', e => console.warn('Map background:', e.error?.message ?? 'failed to load'));
+  return 'maplibre';
+}
+
+function webgl() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return !!gl;
+  } catch {
+    return false;
+  }
+}
 
 export function mount(el, ctx) {
   const a = ctx.agency;
@@ -27,11 +56,11 @@ export function mount(el, ctx) {
   const main = el.querySelector('#cl-main');
   const hint = el.querySelector('#cl-map-hint');
 
-  const map = L.map(el.querySelector('#cl-map'), { center: [a.office.lat, a.office.lng], zoom: 9 });
+  const mapEl = el.querySelector('#cl-map');
+  const map = L.map(mapEl, { center: [a.office.lat, a.office.lng], zoom: 9, maxZoom: 18 });
   map.attributionControl.setPrefix(false);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map);
+  map.attributionControl.addAttribution(MAP_ATTRIBUTION);
+  mapEl.dataset.base = baseLayer(map);
   const pins = L.layerGroup().addTo(map);
   let draftPin = null;
   const icon = (text, extra = '') => L.divIcon({ className: `pin ${extra}`, html: `<span>${esc(text)}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] });
