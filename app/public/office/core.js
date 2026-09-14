@@ -25,7 +25,7 @@ export async function office(method, path, body) {
   }
   if (r.status === 401 && !r.data?.field) {
     clearToken();
-    sessionEnded();
+    sessionEnded(errorText(r));
   }
   return r;
 }

@@ -116,7 +116,7 @@ $('signout').addEventListener('click', async () => {
   clearToken();
   showSignin('Signed out.');
 });
-onSessionEnded(() => showSignin('Your session ended. Sign in again.'));
+onSessionEnded(message => showSignin(message)); // the API's words ("Your session has ended. Sign in again.")
 
 publicHeader();
 if (getToken()) showApp();

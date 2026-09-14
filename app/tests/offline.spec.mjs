@@ -95,8 +95,9 @@ test.describe('with the service worker blocked', () => {
     const { visit, card } = await phoneOnline(page, context, request, seed, 'install');
     let mode = 'offline';
     let failed = 0;
+    let aborted = 0;
     await page.route('**/api/worker/events', route => {
-      if (mode === 'offline') return route.abort('internetdisconnected');
+      if (mode === 'offline') { aborted += 1; return route.abort('internetdisconnected'); }
       if (mode === 'fail-once') {
         mode = 'through';
         failed += 1;
@@ -108,6 +109,9 @@ test.describe('with the service worker blocked', () => {
 
     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
     await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/);
+    // A failed send must leave the event on the phone.
+    await expect.poll(() => aborted, { message: 'the phone tried to send the check-in' }).toBeGreaterThan(0);
+    await expect(page.locator('#strip-text'), 'the check-in is still saved on the phone after a failed send').toHaveText(/^1 saved on this phone\./);
     await checkOut(page, card, 1);
     await expect(page.locator('#strip-text')).toHaveText(/(^|\. )2 saved on this phone\./);
 

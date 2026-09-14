@@ -38,7 +38,8 @@ export function mount(el, ctx) {
 
   function drawPins() {
     pins.clearLayers();
-    for (const c of clients) {
+    // While a client is open its own marker gives way to the draggable-by-click draft pin.
+    for (const c of clients.filter(x => x.id !== draft?.id)) {
       L.marker([c.lat, c.lng], { title: c.name, alt: c.name, icon: icon(c.initials) })
         .on('click', () => { if (!draft) edit(c.id); })
         .addTo(pins);
@@ -73,6 +74,7 @@ export function mount(el, ctx) {
 
   function list() {
     draft = null;
+    drawPins();
     drawDraftPin();
     hint.textContent = "Each pin is a client's map point. Straight-line distances only.";
     main.innerHTML = `<div class="view-head"><h1>Clients</h1><button type="button" class="btn btn-accent btn-inline" data-act="new">Add client</button></div>
@@ -107,6 +109,7 @@ export function mount(el, ctx) {
         tasks: [blank.task()], patterns: [], family_contacts: [] };
     msg = '';
     form();
+    drawPins();
     drawDraftPin();
     hint.textContent = 'Click the map to put or move the pin for this client.';
     if (c) map.setView([c.lat, c.lng], 12);

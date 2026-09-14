@@ -97,7 +97,7 @@ export async function hitTest(locator) {
 }
 
 export async function intoView(page, locator, block = 'center') {
-  await locator.scrollIntoViewIfNeeded();
+  await locator.scrollIntoViewIfNeeded({ timeout: 10_000 });
   const box = await locator.boundingBox();
   // "In view" to Playwright includes under the sticky sync strip, where a person could not tap it.
   const stuck = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll('.sticky')].map(e => e.getBoundingClientRect().bottom)));
