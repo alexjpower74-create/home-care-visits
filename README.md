@@ -86,5 +86,7 @@ cd app && npm run negative     # app negative controls and proofs
     browser that leaves `resultingClientId` unset can mix a new set with an old page; install fails behind a Wi-Fi login page until a
     later good load; with no cached copy a stalled connection waits for the browser's own timeout.
   - Drafts saved by builds before this one carry no link key and are never cleared by a refused link; `hcv:dismissed` only grows.
+  - After the phone's browser restores the worker page from its back/forward cache, the first refresh can fail at once and the
+    page keeps showing its saved list until the next online event, visible tab or send.
   - WebKit under Playwright cannot reload a page while offline or read the clipboard; those steps are skipped there with written
     reasons (Chromium runs them).

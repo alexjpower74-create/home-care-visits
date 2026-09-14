@@ -206,3 +206,13 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 52. **hc1's smaller M3d notes are known gaps, not fixes tonight.** None loses a tap or pays wrongly: a card offering Check out again
     for a few seconds after a send is refused 409 on a second tap; an "after midnight" box left ticked sends a time the Worker refuses;
     entry notes on a lost phone show until the 401 arrives (they were already on the phone offline). They are listed in the README.
+
+## 2026-09-14, lead (after hc1's review of hc2 M3e, 15:30)
+
+53. **The OpenFreeMap move passed review with nothing to fix**: vendored MapLibre 5.24.0 and the Leaflet binding 0.1.4 match the
+    packages byte for byte with their licences beside them, the attribution is exact, no OSM tile URL is left, and a scratch run
+    showed MapLibre's web-worker tile fetches cannot slip past the test routes.
+54. **Two test-honesty gaps go to hc2 as a tiny M3g; the bfcache refresh gap stays a known gap.** The map spec only checked MapLibre
+    when it happened to load, so a regression that drops every browser to the plain background would still pass; and the network
+    guard did not fail on an OpenFreeMap request no route answered. Both are checks that could not fail. The back/forward-cache case
+    only delays a refresh (the saved list shows), so it is written in the README instead.
