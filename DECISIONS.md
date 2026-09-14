@@ -60,3 +60,14 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 20. **Crew shape.** Two slices (the maximum tonight): hc1 owns `worker/**` (API, D1, rules, reports), hc2 owns `app/**`
     (pages, offline queue, Playwright). Milestones with a cross-review after each Worker milestone, as Snow Route did, but with
     the contract settled up front on the things that went wrong there (Undo, re-keying, two tabs).
+
+## 2026-09-14, lead (after hc2 M1, merged 10:25)
+
+21. **hc2's five M1 calls are adopted** (API.md clarifications 1-2): one shared backoff, drafts in `hcv:draft:<visit id>`,
+    reload after the office answers, a refused page key keeps items queued, mock files ship behind `?mock=1`.
+22. **On the worker phone only the sync strip sticks; the header scrolls away.** In the M1 screenshots at 390 the sticky
+    header and strip took about a third of the screen, on the page a worker uses one-handed at a door. The strip is the
+    part that must always be visible.
+23. **hc2 starts M2's Worker-independent parts while hc1 finishes M1** (Playwright config, start-worker, helpers, the office
+    pages written to the contract), and runs nothing against a mock. Two slices waiting on each other would waste the
+    parallel time; the contract is detailed enough that office pages written to it should need small fixes, not rework.

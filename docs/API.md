@@ -428,4 +428,12 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
   `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>` everywhere else.
 
 ## Clarifications
-(none yet)
+
+1. **(hc2 M1) Drafts on the phone.** Ticks and the note typed before check-out are kept in `localStorage`
+   `hcv:draft:<visit id>` (`{ done: { <task id>: true }, note }`), so a reload in a dead zone loses nothing; the key is removed
+   when the check-out is queued. The mock files (`api.mock.js`, `mock-data.js`) ship in `app/public` and load only with `?mock=1`.
+2. **(hc2 M1) The queue's backoff is one shared state.** A 429/5xx/network error/timeout stops that sending pass (the
+   network or the Worker is the problem, not the event); a new event, `online` or a visible tab tries again at once, the timers
+   respect the backoff. A 401 on the page's own key keeps items in `queue` (never `refused`) with the link message; they send if
+   the key works again. After the office accepts or refuses anything, the page reloads the visits so the server's labels replace
+   "saved on this phone".
