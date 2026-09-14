@@ -887,10 +887,17 @@ async function workerVisits (ctx) {
   }
   await ensureVisits(ctx, date, date)
   const db = ctx.db
-  const [records, agency, metres] = await Promise.all([
+  const [records, agency, metres, open] = await Promise.all([
     loadVisitRecords(db, 'v.date = ?1 AND v.worker_id = ?2', [date, worker.id]),
     loadAgency(db),
-    checkInMileage(db, worker.id, date)
+    checkInMileage(db, worker.id, date),
+    // Clarification 18: the days this worker left a visit checked in and not checked out, so a new phone or link can finish it.
+    // Visits of any status count (cancelled, soft-removed, reassigned): what matters is this worker's effective check-in.
+    db.prepare(`SELECT DISTINCT v.date FROM visits v
+      JOIN events ci ON ci.visit_id = v.id AND ci.kind = 'check_in' AND ci.voided_at IS NULL AND ci.worker_id = ?1
+      WHERE v.date >= ?2 AND v.date < ?3
+        AND NOT EXISTS (SELECT 1 FROM events co WHERE co.visit_id = v.id AND co.kind = 'check_out' AND co.voided_at IS NULL)
+      ORDER BY v.date`).bind(worker.id, addDays(today, -7), today).all()
   ])
   const tasks = await clientTasksFor(db, records.map(r => r.row.client_id))
   return json(200, {
@@ -900,7 +907,8 @@ async function workerVisits (ctx) {
     date_label: dayLabel(date),
     server_now: new Date(ctx.nowMs).toISOString(),
     visits: records.map(r => workerVisitView(r, tasks)),
-    mileage: { metres, km: kmText(metres), note: 'Straight-line distance between your check-ins today.' }
+    mileage: { metres, km: kmText(metres), note: 'Straight-line distance between your check-ins today.' },
+    open_dates: open.results.map(r => r.date).filter(d => d !== date)
   })
 }
 
