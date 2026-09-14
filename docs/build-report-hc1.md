@@ -365,3 +365,133 @@ Scope: `git log main -- app/` shows only hc2 M1 (`4379983`). Reviewed: `app/publ
 ### Left undone / next
 
 Waiting for the lead's prompt for the read-only review of hc2's office pages once they are on main.
+
+## Early review of hc2 office pages (rig/hc2 @ 7bbd204)
+
+Read-only, from `git show 7bbd204:<path>` and `git diff main...7bbd204 -- app/`; hc2's worktree was not opened and nothing in
+`app/**` was edited. `38ff6d5` (named in the prompt) is an earlier "part A" commit that is not on `rig/hc2`. Its branch head
+`7bbd204` ("M2 part B: suite green against the real Worker") replaces it, so this review is of `7bbd204`.
+Reviewed:
+- `app/public/office/{app,core,board,sheet,week,clients,workers}.js`, `office/index.html`, `app/public/rules.js`;
+- the `w/app.js` diff;
+- `app/tests/{helpers,start-worker}.mjs`, `app/playwright.config.mjs` and all seven specs.
+Checked against docs/API.md including clarifications 1-14.
+
+### Office pages: calls and answers in line with the contract
+
+- **Session:** `office()` in `core.js:18-31` sends the Bearer token and treats a 401 without `field` as a lost session (clears the
+  token, back to sign-in). Every view skips its own error text on 401. Sign-in goes through `request()`, so its 401 `field: "pin"`
+  and a 429 are shown by the PIN field and never end a session.
+- **Late/missed rule:** `app/public/rules.js:5-11` gives exactly the Worker's boundaries (none below start + 15:00.000, late
+  from 15:00.000, missed from 30:00.000). `board.js` recomputes it from `Date.now()` after every load, on a 15 s reload, and with a
+  timer at the next 15- or 30-minute mark. It reads only fields the day answer has (`id, time_label, client_name, worker_name,
+  worker_phone, status, status_label, late_label, visited_after_cancel, cancelled, starts_at, check_in`).
+- **Week:** it reads `week_start, week_label, days, workers[].hours_label, visits, conflicts[].kind/label/severity/date/message/
+  visit_ids, distance_note`. It derives chip severity from `visit_ids` instead of `conflict_kinds`, which is equivalent.
+  Drags and "Assign to" send `worker_id, date, start, end, version`; a `stale` or `bad_state` answer shows the API's words.
+- **Edit sheet:** `stale` lands in the `_` slot with "This visit was changed on another screen. Reload and try again.". Cancel,
+  restore (including clarification 14's 409) and the note toggle show the API's words, and the toggle reverts on failure.
+- **Client and worker forms:** they send the contract's field names, and every validation `field` the Worker can return has a
+  `data-error-for` slot (client `name, address, lat, zone_id, entry_notes, funder_id, active, tasks, patterns, family_contacts`;
+  worker `name, phone, zone_ids, availability, max_week_minutes`; worker `active` falls back to `_`). Unchanged patterns keep
+  their `id` with days sorted, so a save that doesn't touch visit times rebuilds nothing. The rebuild warning shows on existing
+  clients.
+- **Escaping:** all server text goes through `esc()` or `textContent`; no unescaped HTML sink was found. Leaflet titles are
+  attributes.
+
+### Findings
+
+1. **SECURITY** · `app/public/office/workers.js:14` (and `clients.js:66`). Both lists call `GET /api/office/workers` and
+   `GET /api/office/clients` without `?all=1`, so an inactive worker or client disappears from the office for good.
+   - Clarification 5 makes "New link" the only way to stop a former worker's phone, and that button (M3) will live on the
+     worker form, which an inactive worker can no longer be opened from.
+   - Scenario: a worker is let go; the office unticks "Active worker" and saves. The worker vanishes from the list. Their link
+     still answers 200, and the office has no screen to make a new link or reactivate them.
+   - The same happens to a client made inactive by mistake: it can't be reopened and its family link can't be replaced.
+   - Suggested fix: list with `?all=1`, show inactive entries under an "Inactive" heading, and keep New link on them.
+2. **OTHER (worked-time bookkeeping)** · `app/public/office/sheet.js:5,11-12,57`. The sheet's worker list is active workers
+   only, so a visit whose worker is now inactive has no matching option. The select falls back to "No worker", and "Save
+   changes" sends `worker_id: null`.
+   - Scenario: Terry O. is deactivated on Wednesday. His Monday visit had no check-in, so it keeps him (only future visits are
+     unassigned). The office opens it to shorten the end time and saves.
+   - The visit is silently unassigned, even though clarification 4 lets `PUT` keep an inactive current worker. It also drops
+     out of the missed report's worker column.
+   - Suggested fix: add the current worker as an option ("Terry O. (SAMPLE), inactive") when missing.
+3. **OTHER** · `app/public/office/week.js:62,70,83`. The grid and the day view build their rows from `data.workers` (active
+   workers) plus "No worker", so a visit assigned to an inactive worker is in `data.visits` but on no row.
+   - Scenario: after Terry O. is deactivated mid-week, his earlier missed visits are invisible in the planner, yet an
+     over-hours or availability conflict can still name them in the list above the grid. The office can't open or reassign
+     them from the Week tab.
+   - Suggested fix: add a row for every worker who appears in `visits`, marked inactive.
+4. **SECURITY (low)** · `app/public/office/app.js:98-101` at `7bbd204`. Sign out clears the local token even when
+   `POST /api/office/signout` never reached the Worker (status 0), so the server session stays valid for 14 days.
+   - Scenario: at a shared office computer with no connection, the coordinator presses "Sign out" and walks away. The screen
+     says "Signed out.", but the token copied to another device (or still in a browser backup) keeps working until it expires.
+   - Suggested fix: when signout does not answer 200, say "Signed out on this computer. The session could not be closed on the
+     server; sign in and out again when the connection is back."
+5. **OTHER** · `app/public/office/app.js:71-86` at `7bbd204` (`agencyFromM1Routes`). When `GET /api/office/agency` answers 404,
+   the page builds an agency from `clients?all=1` and `workers?all=1`, with `office.label: ''` and zones and funders only as far
+   as clients and workers name them. The route exists since hc1 M2, so this is dead code that can mask a real 404.
+   - Scenario: a deploy whose router loses `/api/office/agency` still "works". The client form's zone and funder selects are
+     missing any zone or funder nobody uses yet, and the SAMPLE header comes from the public answer. Nothing tells the office
+     that the Worker is wrong.
+   - Suggested fix: remove the fallback now that the route is merged.
+6. **DATA LOSS** · `app/public/w/queue.js:98` with `app/public/api.js:17`, unchanged from main. **R1 is still present** in
+   hc2's newest commit: any 200/201 deletes the item, and the fetch follows redirects, so clarification 6 is not implemented
+   yet. No spec covers it, so the whole e2e suite passes with this defect. The captive-portal scenario is in the M2 review above.
+7. **PAYROLL** · `app/public/w/app.js:75`. **R4 is still present**: `load()` only asks for today, so clarification 9 ("Still open
+   from yesterday") is not implemented.
+8. **PRIVACY** · `app/public/w/app.js:80-83`. **R5 is still present**: a 401 on the page's own key keeps every `hcv:visits:*` entry
+   (entry notes and key-safe codes) and every draft, so clarification 10 is not implemented.
+9. **PAYROLL (low)** · `app/public/w/app.js:121-122,338`. **R6 is still present**: `view()` reads only `queue`, so a refused
+   check-in's card offers a fresh "Check in", and clarification 11 is not implemented. Clarification 8's "The note wasn't saved"
+   message is not shown either (nothing reads `note_refused` or `tasks_refused`), and the service worker is still cache-first
+   (clarification 12). All three are expected in hc2's M3; listed so they are not lost.
+
+### Specs: what each measures, and a break that would slip through
+
+- **`board.spec.mjs`:** measures what PLAN.md asks (page clock at 09:14:59 → 09:15:00 late with the late token → 09:29:59 late →
+  09:30:00 missed with the `tel:` link → done after a check-in; the cancelled visit stays none). A page rule of `<=` at either
+  boundary goes red, because `runFor` lands exactly on 15:00.000 and 30:00.000. **Slips through:** a board that stops recomputing
+  after the first paint but keeps its 15 s reload, since the Worker's `X-Test-Now` is pinned at 09:14:59 and the page's own rule
+  is what turns the row. That is fine and intended. No material gap found.
+- **`office.spec.mjs`:**
+  1. **OTHER, slips through:** a client form that ignores the pattern's worker select (sends `worker_id: null`). The spec counts
+     chips by client name in any row (`office.spec.mjs:56-64`), so unassigned chips in "No worker" still pass. Assert the chip
+     sits in Alex B.'s row.
+  2. The worker test asserts only 201 and the phone in the list. A form that sends the wrong `availability` (the default Mon–Fri
+     8–4 instead of what was ticked) passes; the spec never ticks a day, so it can't tell.
+- **`planner.spec.mjs`:**
+  1. Strong on the drag (server state after a reload) and on `stale` (the 409 response plus the words).
+  2. **OTHER, slips through:** "both chips edged" is asserted only as `data-conflict="problem"` (`planner.spec.mjs:70,97`). A CSS
+     change that drops the red edge, or the word "Conflict", passes. Assert the computed border colour or the `.chip-flag` text.
+  3. A page that re-sent the edit with the new version after a 409 would also pass, because only the first PUT is awaited.
+- **`family.spec.mjs`:**
+  1. Good on privacy: it checks `page.content()` for the note before sharing, which is what negative control (d) needs.
+  2. **OTHER, slips through:** the phone's clock is `setFixedTime(NOW)` for both taps, so check-in and check-out are both
+     10:30 AM and the status is "Arrived 10:30 AM, left 10:30 AM" (`family.spec.mjs:37`). A Worker or page that shows the
+     check-in time as "left" passes. Advance the page clock between the taps (as `offline.spec` does) and assert different
+     labels.
+- **`worker.spec.mjs`:**
+  1. **PAYROLL, slips through:** the same fixed clock gives "Done 10:30 AM – 10:30 AM" (`worker.spec.mjs:59`). The office check
+     (`:63-64`) asserts `check_in.at` but neither `check_out.at` nor `worked_seconds`, so a page that stamps the check-out with
+     the check-in's time passes this spec. `offline.spec` would catch it only for the queued path.
+  2. The location-denied test relies on the browser refusing an unanswered permission; the new 10 s fallback in `w/app.js`
+     covers WebKit.
+- **`offline.spec.mjs`:**
+  1. The main test is strong: T and T + 1:32:10 to the second, 5 530 s, `at_adjusted` false, `received_at` at signal-back, the
+     reload in Chromium with its WebKit reason. The 500-once test proves both stay queued and send on the next try, and the
+     refused test proves the 409 words and a single stored check-out.
+  2. **DATA LOSS, slips through:** a queue that deletes on any 200 (R1, still in `queue.js:98`). Add a step where `page.route`
+     fulfils the event POST once with `200 text/html` (a captive portal) and assert the item is still queued and later reaches
+     `/api/test/events`.
+- **`targets.spec.mjs`:** measures sizes and hit-tests on the worker page and sheet, the badge on all four pages, no sideways
+  scroll, and contrast. Contrast covers the late and missed row text but not the "Call … : 709-555-…" link on those rows.
+  Minor: a link colour on amber below 4.5 : 1 passes.
+- **`helpers.mjs`:**
+  - The network guard routes `tile.openstreetmap.org` to a local PNG and aborts and records any other non-127.0.0.1 host, so the
+    guard can fail.
+  - `tap()` hit-tests with `elementFromPoint` and accounts for the sticky strip.
+  - The only `evaluate` calls read or scroll.
+  - `start-worker.mjs` runs `--local` with `TEST_MODE:1` and an explicit inspector port.
+  - No problems found.
