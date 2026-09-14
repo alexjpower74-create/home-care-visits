@@ -1,0 +1,76 @@
+<!DOCTYPE html><!--[if lt IE 9]><html class="no-js lt-ie9" lang="en" dir="ltr"><![endif]--><!--[if gt IE 8]><!-->
+<html class="no-js" lang="en" dir="ltr">
+<!--<![endif]-->
+<head>
+<meta charset="utf-8">
+<!-- Web Experience Toolkit (WET) / Boîte à outils de l'expérience Web (BOEW)
+		wet-boew.github.io/wet-boew/License-en.html / wet-boew.github.io/wet-boew/Licence-fr.html -->
+<title>We couldn&#x27;t find that Web page (Error 404) - Government of Canada Web Usability theme / Nous ne pouvons trouver cette page Web (Erreur 404) - Thème de la facilité d’emploi Web du gouvernement du Canada.</title>
+<meta content="width=device-width,initial-scale=1" name="viewport">
+<!-- Meta data -->
+<meta name="robots" content="noindex, nofollow, noarchive">
+<!-- Meta data-->
+<!--[if gte IE 9 | !IE ]><!-->
+<link href="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/assets/favicon.ico" rel="icon" type="image/x-icon">
+<link rel="stylesheet" href="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/css/wet-boew.min.css">
+<!--<![endif]-->
+<link rel="stylesheet" href="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/css/theme-srv.min.css">
+<!--[if lt IE 9]>
+<link href="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/assets/favicon.ico" rel="shortcut icon" />
+<link rel="stylesheet" href="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/css/ie8-wet-boew.min.css" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<script src="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/js/ie8-wet-boew.min.js"></script>
+<![endif]-->
+<noscript><link rel="stylesheet" href="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/css/noscript.min.css" /></noscript>
+</head>
+<body vocab="https://schema.org/" typeof="WebPage">
+<header role="banner" class="container">
+<div id="wb-bnr" class="row">
+<div class="row">
+<div class="col-sm-6">
+<object id="gcwu-sig" type="image/svg+xml" tabindex="-1" role="img" data="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/assets/sig-alt-en.svg" aria-label="Government of Canada"></object>
+</div>
+<div class="col-sm-6">
+<object id="wmms" type="image/svg+xml" tabindex="-1" role="img" data="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/assets/wmms-alt.svg" aria-label="Symbol of the Government of Canada"></object>
+</div>
+</div>
+</div>
+</header>
+<main role="main" property="mainContentOfPage" class="container">
+<div class="row mrgn-tp-lg">
+<h1 class="wb-inv">We couldn't find that Web page (Error 404) / <span lang="fr">Nous ne pouvons trouver cette page Web (Erreur 404)</span></h1>
+<section class="col-md-6">
+<h2><!-- span class="glyphicon glyphicon-warning-sign mrgn-rght-md"></span --> We couldn't find that Web page (Error 404)</h2>
+	<div class="span-4"><section><h2>We apologize...</h2>
+	<p>The GeoGratis website has been redesigned to facilitate access to geospatial data and publications. The new home page is available at: <a href="//www.nrcan.gc.ca/science-and-data/science-and-research/earth-sciences/geography/topographic-information/10785">GeoGratis - Home</a>.</p>
+	<p>Please update your bookmarks accordingly.</p>
+	<p>If you have any questions, please contact us.</p>
+	<p><strong>By E-mail at</strong>: <a href="mailto:geoinfo@canada.ca">geoinfo@canada.ca</a></p>
+	<p><strong>Telephone</strong>: +01-819-564-4857 / 1-800-661-2638</p>
+	</section></div>
+<ul>
+</ul>
+</section>
+<section class="col-md-6" lang="fr">
+<h2><!-- span class="glyphicon glyphicon-warning-sign mrgn-rght-md"></span --> Nous ne pouvons trouver cette page Web (Erreur 404)</h2>
+	<div class="span-4" lang="fr"><section><h2>Nous regrettons cet inconvénient...</h2>
+	<p>Le site Web GéoGratis a été modifié afin de faciliter l’accès aux données géospatiales et publications. La nouvelle page d'accueil est disponible à l’adresse suivante : <a href="//www.rncan.gc.ca/science-et-donnees/science-et-recherche/sciences-de-la-terre/geographie/information-topographique/10803">Accueil - GéoGratis</a>.</p>
+	<p>Par conséquent, veuillez, mettre à jour vos signets.</p>
+	<p>Si vous avez des questions, nous vous invitons à communiquer avec nous.</p>
+	<p><strong>Par courriel</strong>&nbsp;: <a href="mailto:geoinfo@canada.ca">geoinfo@canada.ca</a></p>
+	<p><strong>Téléphone</strong>&nbsp;: +01-819-564-4857 / 1-800-661-2638</p>
+	</section></div>
+<ul>
+</ul>
+</section>
+</div>
+</main>
+<!--[if gte IE 9 | !IE ]><!-->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script src="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/js/wet-boew.min.js"></script>
+<!--<![endif]-->
+<!--[if lt IE 9]>
+<script src="https://geogratis.gc.ca/dist-4.0/theme-gcwu-fegc/js/ie8-wet-boew2.min.js"></script>
+<![endif]-->
+</body>
+</html>

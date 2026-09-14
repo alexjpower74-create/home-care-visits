@@ -1,0 +1,14 @@
+{
+  "name": "home-care-visits",
+  "private": true,
+  "type": "module",
+  "description": "Visit schedule, offline check-in/check-out, family link and payroll/billing hours for a small NL home support agency. Local build; see README.md.",
+  "scripts": {
+    "demo": "node demo.mjs",
+    "sample-data": "python3 tools/build-sample-agency.py",
+    "test:worker": "cd worker && npm test",
+    "test:negative": "cd worker && npm run negative",
+    "test:e2e": "cd app && npx playwright test",
+    "test:e2e-negative": "cd app && npm run negative"
+  }
+}
