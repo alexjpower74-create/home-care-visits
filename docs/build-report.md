@@ -16,6 +16,7 @@ port 7909 (`rig qa --ref <sha>`), never from a slice's tree. The slices' own rep
 | 11:45 | `0c33594` (main: + hc2 M2c) | Playwright, 4 projects | **98 passed / 0 failed / 0 skipped** (2.9 min; the two timing-sensitive specs still await hc2's fix, DECISIONS 36) |
 | 11:53 | `a9e0f96` (hc1 M4) | Worker `npm test` | unit 23/0/0 · API 66/0/0 |
 | 12:22 | `5bac755` (main: + hc1 M4 + hc2 M3) | Playwright, 4 projects | **130 passed / 0 failed / 0 skipped** (5.9 min; timing fixes in, DECISIONS 36 closed) |
+| 12:25 | `6e6fa1c` (hc1 M5) | Worker `npm test` | unit 23/0/0 · API 68/0/0 |
 
 ### The two failures at `866ee71`, and why they are spec defects, not flakes to re-run
 1. `board.spec.mjs` on webkit-390: at "09:29:59" the row was already `missed`. The spec calls `page.clock.install({ time })`,
