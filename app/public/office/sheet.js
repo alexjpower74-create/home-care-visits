@@ -48,6 +48,7 @@ export async function openVisitSheet(visit, onChanged) {
             <input type="time" id="vs-fix-out" value="${v.check_out ? localHm(v.check_out.at, TZ) : ''}">
             <p class="field-error" data-error-for="check_out_at" role="alert"></p></div>
         </div>
+        <label class="check" id="vs-in-overnight-row" hidden><input type="checkbox" id="vs-fix-in-overnight"> The check-in was after midnight</label>
         <label class="check" id="vs-overnight-row" hidden><input type="checkbox" id="vs-fix-overnight"> The check-out was after midnight</label>
         <div class="field"><label for="vs-fix-reason">Why the time is being fixed</label><input id="vs-fix-reason" maxlength="120" autocomplete="off">
           <p class="field-error" data-error-for="reason" role="alert"></p></div>
@@ -83,6 +84,17 @@ export async function openVisitSheet(visit, onChanged) {
       if (r.status !== 401) showErrors(sheet, r);
       return false;
     };
+    // Clarification 19: a typed check-in is dated from the visit's date (the next day when "The check-in was after midnight" is
+    // ticked); a typed check-out from the check-in's own NL date (the next day when "The check-out was after midnight" is ticked).
+    const timeDates = () => {
+      const inHm = q('#vs-fix-in').value;
+      const outHm = q('#vs-fix-out').value;
+      const inDate = q('#vs-fix-in-overnight').checked ? addDays(v.date, 1) : v.date;
+      const inMs = inHm ? localToUtcMs(inDate, inHm, TZ) : (v.check_in ? Date.parse(v.check_in.at) : null);
+      const baseDate = inMs != null ? localDate(inMs, TZ) : v.date;
+      const outDate = q('#vs-fix-overnight').checked ? addDays(baseDate, 1) : baseDate;
+      return { inHm, outHm, inDate, inMs, baseDate, outDate };
+    };
     q('#vs-form').addEventListener('submit', async e => {
       e.preventDefault();
       const worker = q('#vs-worker').value;
@@ -94,15 +106,13 @@ export async function openVisitSheet(visit, onChanged) {
     q('#vs-times').addEventListener('submit', async e => {
       e.preventDefault();
       // Only a changed time is sent, so a phone's time (with its seconds) is never replaced by the same minute.
-      const inHm = q('#vs-fix-in').value;
-      const outHm = q('#vs-fix-out').value;
-      // Clarification 17: each time is on the visit's date; the next day only when the office ticks "after midnight".
-      const outDate = q('#vs-fix-overnight').checked ? addDays(v.date, 1) : v.date;
-      const checkIn = inHm && inHm !== (v.check_in ? localHm(v.check_in.at, TZ) : '') ? localToUtcMs(v.date, inHm, TZ) : null;
-      const checkOut = outHm && outHm !== (v.check_out ? localHm(v.check_out.at, TZ) : '') ? localToUtcMs(outDate, outHm, TZ) : null;
+      const { inHm, outHm, inDate, outDate } = timeDates();
+      const unchanged = (e, date, hm) => !!e && localHm(e.at, TZ) === hm && localDate(e.at, TZ) === date;
+      const checkIn = inHm && !unchanged(v.check_in, inDate, inHm) ? localToUtcMs(inDate, inHm, TZ) : null;
+      const checkOut = outHm && !unchanged(v.check_out, outDate, outHm) ? localToUtcMs(outDate, outHm, TZ) : null;
       // Clarification 17: a time in the spring-forward gap does not exist on that day. It is refused here and not sent.
       showErrors(sheet, null);
-      for (const [ms, date, hm, field] of [[checkIn, v.date, inHm, 'check_in_at'], [checkOut, outDate, outHm, 'check_out_at']]) {
+      for (const [ms, date, hm, field] of [[checkIn, inDate, inHm, 'check_in_at'], [checkOut, outDate, outHm, 'check_out_at']]) {
         if (ms != null && (localDate(ms, TZ) !== date || localHm(ms, TZ) !== hm)) {
           showErrors(sheet, { ok: false, data: { field, error: GAP_WORDS } });
           return;
@@ -113,16 +123,23 @@ export async function openVisitSheet(visit, onChanged) {
       });
       if (await done(r)) { timesNote = 'Times saved.'; draw(); onChanged(v); }
     });
-    // "The check-out was after midnight" is offered only when the typed check-out is at or before the check-in.
+    // Clarification 19: "The check-in was after midnight" is offered when the typed check-in is earlier than the visit's start;
+    // "The check-out was after midnight" when the check-out instant would be at or before the check-in instant. Each starts ticked
+    // when the stored event is already on a later date.
+    const inBox = q('#vs-fix-in-overnight');
+    const outBox = q('#vs-fix-overnight');
+    inBox.checked = !!v.check_in && localDate(v.check_in.at, TZ) > v.date;
+    outBox.checked = !!(v.check_in && v.check_out) && localDate(v.check_out.at, TZ) > localDate(v.check_in.at, TZ);
     const syncOvernight = () => {
-      const inNow = q('#vs-fix-in').value || (v.check_in ? localHm(v.check_in.at, TZ) : '');
-      const out = q('#vs-fix-out').value;
-      const show = !!(inNow && out && out <= inNow);
-      q('#vs-overnight-row').hidden = !show;
-      if (!show) q('#vs-fix-overnight').checked = false;
+      const typedIn = q('#vs-fix-in').value;
+      const showIn = !!typedIn && typedIn < v.start;
+      q('#vs-in-overnight-row').hidden = !showIn;
+      if (!showIn) inBox.checked = false;
+      const { outHm, inMs, baseDate } = timeDates();
+      const atOrBefore = !!outHm && inMs != null && localToUtcMs(baseDate, outHm, TZ) <= inMs;
+      q('#vs-overnight-row').hidden = !(atOrBefore || outBox.checked);
     };
-    q('#vs-fix-in').addEventListener('input', syncOvernight);
-    q('#vs-fix-out').addEventListener('input', syncOvernight);
+    for (const el of [inBox, outBox, q('#vs-fix-in'), q('#vs-fix-out')]) el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', syncOvernight);
     syncOvernight();
     q('#vs-cancel')?.addEventListener('click', async () => {
       const r = await office('POST', `/api/office/visits/${v.id}/cancel`, { reason: q('#vs-reason').value, version: v.version });
