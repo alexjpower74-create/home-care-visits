@@ -500,3 +500,27 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
       computer. The session couldn't be closed at the office. Sign in and out again when the connection is back."
     - No fallback answers: an office route that answers 404 or 5xx shows the API's error text; the page never rebuilds an answer
       from other routes.
+16. **(hc1 review of hc2 M2c, findings 1-10) The phone survives bad networks, old links and long gaps.** Amends 9, 10 and 12.
+    - **Service worker caches only the real page** (finding 1, DATA LOSS). A response is cached (at install and on refresh) only
+      when it is 200, not redirected, and its `Content-Type` matches the file (`text/html` for `/w/`, JavaScript for `.js`,
+      `text/css` for `.css`, `image/svg+xml` for the icon); `/w/` must also contain `<meta name="hcv-page" content="worker">`. A
+      Wi-Fi login page can then never replace the worker page in the cache.
+    - **Page files update as one set** (finding 10). On a navigation to `/w/`, the service worker fetches the page and every file
+      it caches together; only when **all** of them arrive and pass the checks does it replace the cached set, and module requests
+      are served from the cached set. A page never runs with a newer `app.js` and an older `queue.js`.
+    - **No copy, no 3-second limit** (finding 3). The 3-second network race applies only when a cached copy exists; with no copy
+      the service worker waits for the network.
+    - **Open visits from earlier days** (findings 2 and 5, PAYROLL; amends 9). `GET /api/worker/visits?date=` accepts dates from
+      **7 days back** to 6 days ahead (400 field `date` "Pick a day from last week to next week."), matching the original-time window.
+      The page loads every date, up to 7 days back, for which the saved lists or the queue hold a visit checked in and not checked
+      out, **whether or not today's list loaded**, and shows those visits first under "Still open from yesterday" or "Still open
+      from Sat Sep 12". Offline, it builds the section from the saved lists and the queue.
+    - **Drafts belong to the link they were typed under** (finding 4, amends 10). `hcv:draft:<visit id>` stores `{ key, done, note }`;
+      a refused key deletes only the saved lists and drafts stored under that key.
+    - **Check out without the note** (finding 6). When the note breaks a rule, the sheet keeps the message and offers "Check out
+      without the note" next to the disabled "Yes, check out", so the check-out time is never delayed by the note.
+    - **A refused note is remembered** (finding 7). The Worker stores `note_refused` / `tasks_refused` on the check-out event and
+      repeats them in the `200 duplicate` answer, so a resend after a lost 201 still tells the worker.
+    - **An old refused check-in reads as history** (finding 8). When the card also has an accepted or queued check-in, the notice
+      reads "An earlier check-in at 9:04 AM wasn't accepted by the office." with a Dismiss button.
+    - **Sign out after the session expired** (finding 9): a 401 from `POST /api/office/signout` reads "Signed out." like a 200.

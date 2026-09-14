@@ -125,3 +125,19 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     run in real time between clock steps, the other freezes `Date.now()` so a single transient failure stalls the queue's retry
     forever. Neither is a product defect, but a check that can fail for the wrong reason can also pass for the wrong reason.
     hc2 fixes both (pause the clock; step it until the answer arrives) before M3, and the final QA must be one clean run.
+
+## 2026-09-14, lead (after hc1's review of hc2 M2c, 11:50)
+
+37. **All ten findings are adopted** (API.md 16). The third review round still found a DATA LOSS path (the service worker caching
+    a Wi-Fi login page as the worker page, so a dead zone gets a page that cannot check in), which is the same failure as R1 one
+    layer lower. The phone's offline promise is only as good as its weakest cache.
+38. **Drafts are tied to the key they were typed under, not the worker.** Keying by worker id would still delete the drafts in
+    hc1's scenario (the same worker holding an old and a new link), so the draft remembers its key and only that key's refusal
+    removes it.
+39. **The worker list reaches back 7 days, like the original-time rule.** A phone that died at a door on Saturday and comes back
+    on Monday must still offer Check out for Saturday's visit; the Worker already accepts its times for 7 days, so the list must
+    reach as far.
+40. **Work split.** hc1 M4: the Worker side of 16 (7-day date range, `note_refused`/`tasks_refused` stored and repeated on a
+    duplicate) with tests and a negative control. hc2 M3b, after M3: the page side of 16, plus the proof gaps hc1 named
+    (a check-in still queued across midnight, an offline reload after midnight, two keys on one phone, the "Check in again"
+    button, the inactive proofs at 390, and a login page poisoning the cache).
