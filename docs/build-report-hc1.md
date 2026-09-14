@@ -817,3 +817,55 @@ was not opened and nothing in `app/**` was edited. Reviewed:
   matters less.
 - The re-run lettered controls and M2c proofs in the same log are still red at their intended assertions; the log holds no
   machine paths.
+
+## Lead review of the M3 review (merged 603275b)
+
+- Findings 1-8: all adopted as API.md clarification 17 (DECISIONS 41-44). The two decisions I asked for: a PIN change ends every
+  other session, and billing gains Worker-computed `scheduled_hours`. Both built in M5. **DONE**
+
+## M5 (2026-09-14, rebased on main)
+
+### What was built: DONE
+
+- **A PIN change ends every other session** (clarification 17, finding 4). A successful `PUT /api/office/pin` runs one D1 batch:
+  the new PBKDF2 hash, then `DELETE FROM sessions WHERE token_hash <> <caller's token hash>`. The guard (429), `new` (400) and a
+  wrong `current` (401 field `current`) still come first and change nothing.
+- **Billing `scheduled_hours`** (clarification 17, finding 5).
+  - Each client, each funder and the total carry `scheduled_hours`: `decimalHours(minutes × 60)`, where the minutes are the sum
+    of `scheduled_minutes` over that group's counted visits. So a funder's and the total's strings come from summed minutes and
+    are rounded once, never by adding rounded strings.
+  - `billingCsv` now prints these same strings instead of computing its own. Its bytes are unchanged: the existing byte-for-byte
+    CSV test still passes.
+
+### Verified: DONE
+
+`npm test` at `287f971`: **23/23 unit, 68/68 API** (66 + 2), nothing skipped. New or changed tests:
+- **office PIN, sessions:** three tokens (A, B, C). A wrong current PIN with A answers 401 field `current`, and all three still
+  work. A good change with A → A still works, B and C answer 401 **without** `field`, and the new PIN signs in.
+- **billing `scheduled_hours`:**
+  - Three 20-minute one-off visits for three clients of the same funder, each worked exactly 20 min, give per-client
+    `scheduled_hours` "0.33".
+  - The funder and the total are "1.00", from 60 summed minutes; adding the rounded rows would give "0.99".
+  - The CSV rows print "0.33" three times, then "1.00" on the funder total and Total rows.
+- **billing, existing test:** the whole answer is compared again with the new fields (clients "1.00" and "1.50", funders "2.50"
+  and "1.00", total "3.50").
+
+### Negative controls: DONE
+
+`npm run negative` runs all fifteen, (a)-(o), each red after its unbroken copy passed. The log was re-recorded against
+`287f971` and holds no machine paths.
+
+| control | break (copy only) | red with |
+|---|---|---|
+| (o) `negative:pinsessions` | `index.js`: the `DELETE FROM sessions WHERE token_hash <> ?1` statement removed from the PIN batch | token B still gets `GET /api/office/clients` 200; `actual: 200, expected: 401` |
+
+(a)-(n) are unchanged and still red at `287f971`.
+
+Not covered by a control: the "summed minutes, not summed strings" rule for `scheduled_hours`. The test measures it with a case
+where the two differ ("1.00" against "0.99"), but no copy of the Worker has been broken to show that assertion going red; the
+lead did not ask for one.
+
+### Left undone / next
+
+Nothing for M5. The page side of clarification 17 (the midnight checkbox, presets and CSV at the moment of use, the gap refusal,
+printing `scheduled_hours`, measured retries) belongs to hc2.
