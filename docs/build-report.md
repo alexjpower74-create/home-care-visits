@@ -21,6 +21,7 @@ port 7909 (`rig qa --ref <sha>`), never from a slice's tree. The slices' own rep
 | 13:02 | `bbf034b` (hc1 M6) | Worker `npm test` | unit 23/0/0 · API 69/0/0 |
 | 13:30 | `6cb9e81` (main: + hc1 M6 + hc2 M3c) | Playwright, 4 projects | **189 passed / 1 failed / 4 skipped**: `targets.spec` on webkit-390 failed the fixture's no-uncaught-page-errors check, not contrast. The worker page's `GET /api/worker/visits` was still in flight when the test navigated to the office, and WebKit reported the aborted fetch as an uncaught rejection. A real defect: a dropped visits request must never surface uncaught. Sent to hc2 with M3d (API.md 18). |
 | 14:37 | `d9a7401` (hc1 M7) | Worker `npm test` | unit 23/0/0 · API 71/0/0 |
+| 16:32 | `b51d4b1` (main: every milestone; final QA, attempt 1) | Worker suite, 17 Worker controls, Playwright, every app control | unit 23/0/0 · API 71/0/0 · 17/17 Worker controls red · **Playwright 223 passed / 1 failed / 4 skipped** · 14/14 app control scripts red (all proofs included). The red: `worker.spec` across-midnight test on chromium-1280 tapped Check out while the card was redrawn from the saved list to the network answer ("Element is not attached to the DOM"). Sent to hc2 as M3h; not re-run. |
 
 ### The two failures at `866ee71`, and why they are spec defects, not flakes to re-run
 1. `board.spec.mjs` on webkit-390: at "09:29:59" the row was already `missed`. The spec calls `page.clock.install({ time })`,

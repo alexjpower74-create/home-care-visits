@@ -216,3 +216,11 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     when it happened to load, so a regression that drops every browser to the plain background would still pass; and the network
     guard did not fail on an OpenFreeMap request no route answered. Both are checks that could not fail. The back/forward-cache case
     only delays a refresh (the saved list shows), so it is written in the README instead.
+
+## 2026-09-14, lead (final QA attempt 1 at `b51d4b1`, 16:35)
+
+55. **The first final QA is not called green.** Everything else passed (Worker 23 + 71, 17 Worker controls, 14 app control scripts
+    with every proof), but one Playwright test failed on chromium-1280: the across-midnight spec tapped Check out while the "Still
+    open from yesterday" card was being redrawn from the saved list to yesterday's answer. It is the redraw race hc2 already fixed in
+    the Saturday spec, so the spec waits for the answer; and because a real worker's tap at that instant would also be swallowed, hc2
+    checks whether an unchanged card is being replaced and keeps the node if so (M3h). The final QA then runs again from a clean pin.
