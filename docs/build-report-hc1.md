@@ -693,3 +693,127 @@ worktree was not opened and nothing in `app/**` was edited. Checked against docs
 ### Left undone / next
 
 Nothing for M4. The page side of clarification 16 belongs to hc2.
+
+## Review of hc2 M3 (46519d0)
+
+Read-only, from `git show 46519d0:<path>` and `git diff 0c33594 46519d0 -- app/` (merged into main as `5bac755`); hc2's worktree
+was not opened and nothing in `app/**` was edited. Reviewed:
+- `office/reports.js`, `office/settings.js`, and the Fix times, New link, `core.js` and `time.js` changes;
+- `reports`, `settings`, `links` specs, and the `board`/`offline`/`planner`/`helpers` diffs;
+- control (g) and its log entries.
+
+### What is correct
+
+- **Reports show the Worker's numbers.** Payroll rows, per-client rows, the total's hours and `hm_label`, the incomplete list,
+  billing hours, missed rows and mileage km (per day, per leg, per worker total) all print API fields as they come. The Payroll
+  total is `d.total.hours`, not a sum. The one exception is scheduled hours (finding 5).
+- **CSV download.** It fetches `/api/office/reports/<kind>.csv` with the token and `cache: 'no-store'`, saves the Worker's blob
+  under the `Content-Disposition` filename, and ends the session only on a 401 without `field`. `reports.spec.mjs:97-104`
+  compares the download byte for byte with a direct GET.
+- **Presets are right in NL time.** `today = localDate(Date.now(), agency tz)`; "This week" is `mondayOf(today)` to +6, "Last
+  week" is the 7 days before, "Last 14 days" is today−13 to today. `addDays` and `mondayOf` work on calendar dates in UTC
+  arithmetic, so a DST change or a month or year end can't shift them. When the presets are computed is another matter (finding 2).
+- **Fix times.**
+  - Inputs show `localHm(at, NL)`, and only a time whose `HH:MM` changed is sent, so a phone's seconds are kept.
+    `reports.spec.mjs:76` proves it.
+  - `localToUtcMs(date, hm, NL)` gives the first occurrence on the fall-back day (01:30 on 2026-11-01 → 04:00Z, NDT), the same
+    rule as the Worker.
+  - `version` is sent and refreshed from the answer; `stale` and every refusal show the API's words; clarification 14's 409
+    shows in the sheet (`planner.spec.mjs`, new test).
+- **New link.**
+  - The inline confirm reads "The old link stops working at once. <who> will need the new one." with "Make a new link" / "Keep
+    the old link", and the result message says the old link no longer works.
+  - It works from an inactive worker opened under Inactive, and Copy uses the new URL straight after, without re-rendering the
+    form, so unsaved edits stay.
+  - `links.spec` proves the old worker link 401s, the old family link 404s, and the clipboard holds the exact worker link in
+    Chromium (the WebKit skip has a written reason).
+- **Settings.** A 401 with `field: "current"` shows by the field and keeps the session: `office()` ends a session only without
+  `field`, and `settings.spec` proves the board still loads. A saved name repaints the header with `paintAgency`, which uses the
+  API's `sample`, so the badge rule is the Worker's.
+
+### Findings
+
+1. **PAYROLL** · `app/public/office/sheet.js:99-100`. When the typed check-out is earlier than the check-in, the page silently
+   moves it to the next day. The Worker's "Check-out has to be after check-in." then never appears, and a slip between AM and PM
+   is stored as an overnight shift.
+   - **Scenario:** an evening visit 6:00–8:00 PM, the phone's check-in at 6:05 PM, no check-out. The coordinator picks 8:00 **AM**
+     in the time input instead of PM.
+   - The page sends the next day at 8:00 AM, which is inside the Worker's "ends_at + 12 h" window, so it is accepted: 13 h 55 min
+     worked, straight into payroll.
+   - **Suggested fix:** send the time on the visit's date and let the Worker refuse it. Offer "next day" only as an explicit
+     choice, a checkbox "The check-out was after midnight", shown when the time is earlier than the check-in.
+2. **PAYROLL** · `app/public/office/reports.js:66-73`. `today`, `monday` and `PRESETS` are computed once, when the Reports tab
+   mounts, and the tab can stay open for days.
+   - **Scenario:** a coordinator leaves Reports open on Friday afternoon. On Monday at 8 AM, still in that tab, they press "Last
+     week" to run payroll and get the week **before** last. The table and the CSV are for the wrong pay period, and only the small
+     period label says so.
+   - **Suggested fix:** compute the presets inside the click handler from `Date.now()`.
+3. **PAYROLL** (low) · `app/public/office/reports.js:128-133,142`. "Download CSV" uses the period last shown, not the dates in
+   the From/To inputs.
+   - **Scenario:** the coordinator types the pay period into From and To and presses "Download CSV" without "Show". The file is
+     this week's, and only its filename says so.
+   - **Suggested fix:** read the inputs at download time (and show that period), or disable "Download CSV" while the inputs
+     differ from the shown period.
+4. **SECURITY** (Worker and contract; hc1's `PUT /api/office/pin` in `worker/src/index.js`, used by `settings.js:44-54`).
+   Changing the PIN leaves every existing office session valid for up to 14 days.
+   - **Scenario:** a coordinator who has left still has a signed-in browser on their own laptop. The office changes the PIN in
+     Settings to lock them out; the old token keeps opening clients' entry notes, key-safe codes and payroll until it expires.
+   - **Suggested fix** (needs a lead decision; hc1 would do it): a successful PIN change deletes every session except the caller's.
+5. **OTHER** · `app/public/office/reports.js:8,32,38`. Scheduled hours are the only report numbers the page computes: it rounds
+   `scheduled_minutes` itself and adds up a funder's minutes. The formula matches the Worker's CSV today, but no test asserts
+   it, and control (g) does not cover it.
+   - The Billing total's scheduled-hours cell is blank, although the CSV's `Total` row has it.
+   - **Scenario:** the Worker's rounding changes and the screen's scheduled hours quietly stop matching the CSV.
+   - **Suggested fix** (needs a lead decision; hc1 would add it): the billing answer gains `scheduled_hours` strings on clients,
+     funders and the total, and the page prints them.
+6. **OTHER** (low) · `app/public/office/sheet.js:96-98` with `time.js:54-65`. A fix time in the spring-forward gap is silently
+   moved: 02:30 on 2026-03-08 becomes 06:00Z (3:30 AM NDT) after the three iterations oscillate. The Worker refuses such a time
+   for visits ("That time doesn't exist on the day the clocks change."), but the sheet never lets it see one.
+   - **Scenario:** a night visit on DST day with a fix typed at 2:30 AM is stored an hour later than typed.
+   - **Suggested fix:** detect the gap (the local time of the result differs from the typed one) and show the Worker's words.
+7. **OTHER** (spec gap) · `app/tests/settings.spec.mjs:35-43`. The rename keeps "SAMPLE" in the name, so only "badge stays
+   visible" is proven.
+   - **Slips through:** a page that never hides the badge (`$('badge').hidden = false`). Add a rename without SAMPLE → badge
+     hidden, and back → visible.
+8. **OTHER** (spec gap) · `app/tests/reports.spec.mjs:131-137`. The presets are asserted only on Monday Sep 14, mid-month with no
+   DST change.
+   - **Slips through:** a `mondayOf` that treats Sunday as the start of the week, or a preset built from the phone's UTC date.
+   - Add a run with the page clock on Sunday 2026-11-01 at 11:30 PM NL (a fall-back day, the first of a month, already Monday in
+     UTC): "This week" must be Oct 26 – Nov 1, and "Last 14 days" Oct 19 – Nov 1.
+
+### hc2's timing fixes (board.spec, offline.spec, helpers)
+
+- **board.spec: can fail only at the boundaries.** `page.clock.install(09:14:58)` then `pauseAt(09:14:59)` freezes the page
+  clock, so only `runFor` moves it. `runFor(1000)` lands exactly on 15:00.000, and `runFor(14:59)` + `runFor(1000)` exactly on
+  30:00.000. The board's boundary timer (`nextAlertChange`) fires inside those `runFor` calls, and nothing else can move the
+  clock between steps. Control (c) (late at 16 min) is still red at the 09:15:00 assertion in the new log.
+- **helpers `setNow(…, 'install')`** installs one second early and pauses at the time, the same deterministic pattern.
+- **`waitEvent` / `untilAnswer`** (`helpers.mjs:89-111,255-264`) can hide a slow or broken retry schedule. While a response is
+  awaited it moves the page clock 5 s every 400 ms of real time, for up to 110 s: about 23 minutes of phone time.
+  1. Every test that awaits a queued send passes as long as the send happens *eventually* within those 23 minutes.
+     **Slips through:** a queue whose backoff after a dropped send is 20 minutes instead of 5/15/30/60 s, or one that retries only
+     on the 20 s tick and never on `online`. Suggested: record the page's `Date.now()` before and after, and assert the answer
+     came within the backoff the contract names (≤ 5 s of page time after the first failure, ≤ 20 s after the second).
+  2. `Promise.all([waitEvent(…), waitEvent(…)])` subscribes both thenables at once, so two loops step the clock together (10 s
+     per 400 ms). That is harmless today, but it doubles the drift that hides finding 1 above.
+- **The one-dropped-POST proof is real.** After `offline = false`, the route aborts the first event POST with `connectionreset`
+  and counts it. The test then needs the queued check-out (or check-in) to reach the Worker and come back 409, and asserts
+  `dropped === 1` (`offline.spec.mjs` "office already has" and "Fix times stays on its card").
+  - Only the item under test is queued, so the dropped POST is that item.
+  - A queue that dropped or refused the item on a network error would never produce the 409, and the wait would time out red.
+  - It proves the retry happens, not how soon (point 1 above), and does not assert that the item was still shown as saved
+    between the drop and the retry.
+
+### Control (g) `negative-payrollround.mjs`: honest
+
+- The break replaces exactly the line that makes the footer the Worker's (`const totalHours = d.total.hours;`) with the rows'
+  rounded hours added up.
+- The data is built for this break: two visits of 3 618 s each give rows of "1.01" and an exact total of 7 236 s = "2.01", so
+  the break shows "2.02".
+- The unbroken copy passed; the broken run went red at the intended assertion, "the Worker's total, not the rounded rows added
+  up (2.02)" (`reports.spec.mjs:92`, expected "2.01", received "2.02"), not at a harness error.
+- **Not covered by any control:** Billing's scheduled hours (finding 5) and the Billing total (the spec asserts it, but nothing
+  breaks it); the CSV bytes check has no control either. That check is a strong byte comparison, so a missing control there
+  matters less.
+- The re-run lettered controls and M2c proofs in the same log are still red at their intended assertions; the log holds no
+  machine paths.
