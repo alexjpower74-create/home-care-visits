@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Care Visits</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="landing">
+  <p><span class="badge" id="badge" hidden>SAMPLE</span></p>
+  <h1 id="agency">Home Care Visits</h1>
+  <p>Visit schedule, check-in and check-out, family links and hours.</p>
+  <a class="btn btn-accent" href="/office/">Office sign-in</a>
+  <p class="muted">Workers and families use the links the office gives them.</p>
+</main>
+<script type="module">
+  import { getAgency } from '/api.js';
+  getAgency().then(r => {
+    if (!r.ok) return;
+    document.getElementById('agency').textContent = r.data.name;
+    document.title = r.data.name;
+    document.getElementById('badge').hidden = !r.data.sample;
+  }).catch(() => {});
+</script>
+</body>
+</html>

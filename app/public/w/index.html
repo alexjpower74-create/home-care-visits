@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#ffffff">
+<title>Today's visits</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="sticky">
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">
+        <span class="agency" id="agency">Home Care Visits</span>
+        <span class="badge" id="badge" hidden>SAMPLE</span>
+        <p class="today" id="today"></p>
+      </div>
+      <span class="avatar" id="me" hidden></span>
+    </div>
+  </header>
+  <div class="strip" id="strip" role="status" aria-live="polite" data-state="sent">
+    <div class="strip-inner"><span class="strip-dot" aria-hidden="true"></span><span id="strip-text">Checking what is saved on this phone…</span></div>
+  </div>
+</div>
+<main id="main" class="wrap"><p class="empty">Loading today's visits…</p></main>
+<footer id="foot" class="foot wrap"></footer>
+<div id="sheet-root"></div>
+<script type="module" src="/w/app.js"></script>
+</body>
+</html>
