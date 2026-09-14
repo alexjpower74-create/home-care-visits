@@ -994,3 +994,53 @@ edited. Only what is worth fixing tonight is written out below; everything small
 
 Nothing for M6. The page side of clarification 18 (saved list first with an 8 s limit, Dismiss hides, loading each of
 `open_dates`) belongs to hc2.
+
+## Early review of hc2 M3c (b9d2021, 0eca1fa)
+
+Read-only, from `git show b9d2021` and `git show 0eca1fa` on `rig/hc2`; hc2's worktree was not opened and nothing in `app/**` was
+edited. Checked against API.md clarification 17.
+
+### What holds
+
+- **The evening visit** (`office/sheet.js`, b9d2021). A check-out typed at or before the check-in shows "The check-out was after
+  midnight", unticked. Unticked, the time goes on the visit's date and the Worker's "Check-out has to be after check-in." shows;
+  ticked, it goes on the next day. `sheet.spec` proves both for 8:00 AM on a 6–8 PM visit (400, nothing stored; then 200,
+  13 h 58 min). Control (i), a copy that moves the time silently, would store the first try and go red.
+- **The gap check matches the Worker's rule.** A typed time counts as missing when converting it to UTC and back doesn't give the
+  same NL date and `HH:MM`. That catches exactly the spring-forward gap: 02:30 on 2026-03-08 shows "That time doesn't exist on the
+  day the clocks change.", and nothing is sent. The repeated hour on fall-back day round-trips, so it is accepted as its first
+  occurrence, as in the Worker. Without the check the page would send 3:30 AM and the Worker would accept it, so the spec's
+  `puts === 0` would go red.
+- **Presets at the click** (`office/reports.js`, 0eca1fa). `presetRange()` reads `Date.now()` each press. The "three days on
+  without a reload" test goes red under control (j). The Sunday 2026-11-01 11:30 PM test (already Monday in UTC, fall-back day,
+  month start) would go red for a UTC-date or Sunday-first week.
+- **CSV at the click.** The typed From and To replace the shown period, are loaded first, then downloaded. The spec compares the
+  filename, the period label, and the bytes with a direct GET for typed dates without pressing Show.
+- **`scheduled_hours` are printed, not computed.** The page's own rounding is gone; clients, funders and the total print the
+  Worker's strings.
+- **The badge follows the name.** `settings.spec` renames the agency without "SAMPLE" (badge hidden, `sample: false`) and back
+  (badge visible).
+
+### Worth fixing tonight
+
+1. **PAYROLL** · `app/public/office/sheet.js` (b9d2021), the Fix times submit handler and `syncOvernight`. The offer compares
+   bare `HH:MM` strings, and every time is dated from the **visit's** date. A visit whose check-in was already after midnight can't
+   get its check-out, or its check-in, fixed.
+   - **Scenario:** a 11:00–11:55 PM visit on Mon Sep 14. The worker arrives late, and the phone's check-in is 12:10 AM on Tue
+     Sep 15. The phone dies, and the office sets the check-out to 12:50 AM.
+   - "00:50" is after "00:10", so the box is never offered, and the check-out goes as **Mon** 12:50 AM, 22 hours before the check-in.
+     The Worker refuses it ("That time is too far from the visit."), and nothing on the sheet lets the office send Tuesday.
+   - Typing a check-in of 12:10 AM likewise goes as Monday and is refused. The visit stays in payroll's incomplete list.
+   - **Fix:** date a time from the day of the event it replaces (the stored check-in's NL date; for a new check-out, the check-in's
+     date). Offer the box whenever the resulting check-out instant is at or before the check-in instant, and offer the same "after
+     midnight" choice for a check-in typed earlier than the visit's start. `sheet.spec` needs a case with a check-in after midnight.
+
+### Smaller (one line each)
+
+- `sheet.js` `syncOvernight`: when the stored check-out is already on the next day, the box is shown unticked. Editing that check-out
+  then sends the visit's date and gets the Worker's refusal: safe, but the box should start ticked.
+- `reports.js` tabs: switching Payroll/Billing/Missed/Mileage after typing dates without Show reloads the old period and silently
+  puts the old dates back in the inputs.
+- `reports.spec` billing: the `scheduled_hours` assertions can't tell printing from computing (the old page arithmetic gave the
+  same strings for 60 and 90 minutes); only a case like 3 × 20 min (0.33 each, 1.00 total) would.
+- No control breaks the gap check or the CSV-at-click path; both specs would go red without the fix, but neither red run is recorded.
