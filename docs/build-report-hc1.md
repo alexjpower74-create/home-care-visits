@@ -495,3 +495,161 @@ Checked against docs/API.md including clarifications 1-14.
   - The only `evaluate` calls read or scroll.
   - `start-worker.mjs` runs `--local` with `TEST_MODE:1` and an explicit inspector port.
   - No problems found.
+
+## Review of hc2 M2c (9ac55e7)
+
+Read-only, from `git show 9ac55e7:<path>` and `git diff 866ee71 9ac55e7 -- app/` (merged into main as `0c33594`); hc2's
+worktree was not opened and nothing in `app/**` was edited. Checked against docs/API.md clarifications 6, 8-12 and 15.
+
+### What is correct
+
+- **Clarification 6** (`w/queue.js:89-111`, `api.js:7-13,29-31`).
+  - A 200/201 is "sent" only when `data.event.id` equals the queued id, both lower-cased. The Worker's 201, its 200
+    `duplicate` answer (which carries the stored event, voided or not) and a resend aimed at another visit all name that same
+    id, so a real resend is still confirmed. A login page's 200 HTML (no JSON, `data: null`) is a retry.
+  - `redirect: 'error'` is set on the event POST only. Fetch's `redirect` option is supported in WebKit/Safari, and a redirect
+    becomes a thrown TypeError, which `post()` turns into a retry.
+- **Clarification 8 (typing check)** (`w/app.js:104-110`). It matches the Worker exactly: CR/LF normalised, trimmed, over 200
+  code points or over 2 lines → "Keep the note to two short lines.", then `/\d(?:[ -]?\d){11,}/` → "Don't put health card
+  numbers in this app.". Medication wording is checked by the Worker on task labels only, and the page sends the server's labels.
+- **Clarification 10, other keys** (`w/app.js:66-80`). A refused key removes only the saved lists whose `key` is this page's
+  key (and damaged entries); another link's saved list stays. The queue and refused stores stay.
+- **Clarification 11** (`w/app.js:197-199,248-254`). After a later accepted check-in the visit reads "Checked in …" (the
+  server's or the queued check-in wins over the refused one); only the notice remains (finding 8).
+- **Clarification 12, `/api/*`** (`w/sw.js:42-49`). The service worker never touches `/api/*`: it returns early for non-GET,
+  other origins and `/api/`, and handles only the listed files.
+- **Clarification 15** (`office/workers.js`, `clients.js`, `sheet.js`, `week.js`, `app.js`).
+  - Workers and Clients load with `?all=1` and list inactive entries under "Inactive"; the client map shows active pins only.
+  - The sheet adds "<name> (inactive)" as the selected option.
+  - The grid and the 390 day view add an inactive row for every worker named on a visit, and "Assign to" keeps the inactive
+    current worker selected.
+  - The `agencyFromM1Routes` fallback is gone, and a sign-out that does not answer 200 shows the agreed message.
+
+### Findings
+
+1. **DATA LOSS** · `app/public/w/sw.js:35` (`if (res.ok && !res.redirected) await cache.put(path, res.clone())`) and
+   `sw.js:14` (`cache.add` at install). Network-first caches any 200 for a page file, whatever it is.
+   - **Scenario:** a worker's phone joins a café Wi-Fi with a transparent login page that answers every GET with 200 HTML, and
+     the worker opens the page. `/w/`, `/w/app.js` and `/w/queue.js` are each cached as the login page.
+   - Back in a dead zone, the page opens from the cache as the Wi-Fi login page. The module scripts are HTML, so the browser
+     refuses to run them.
+   - There is no Check in and no queue, so nothing tapped in the dead zone is saved, until the phone gets real signal and a
+     good load.
+   - The same happens when the service worker installs behind the portal: `cache.add` accepts a 200 too.
+   - **Suggested fix:** only cache a response whose `Content-Type` matches the file (`text/html` for `/w/`, JavaScript for
+     `.js`, `text/css` for `.css`, SVG for the icon). For `/w/`, also require a marker the real page carries (for example
+     `<meta name="hcv-page" content="worker">`). Apply the same checks at install.
+2. **PAYROLL** · `app/public/w/app.js:130-140`. `loadYesterday` runs only when a list for today exists: `if (S.answer) await
+   loadYesterday(…)`. Clarification 9 says "whenever the saved lists or the queue hold a visit from yesterday … checked in and not
+   checked out".
+   - **Scenario:** Sam checks in at 11:20 PM and the page shows it. At 12:20 AM, in a dead zone, iOS has discarded the tab, and
+     opening the link reloads the page with no signal.
+   - No list for the new date is saved, so `S.answer` stays null and the page says "No saved list on this phone yet. Find signal
+     once to load today's visits.".
+   - "Still open from yesterday" never shows, although yesterday's saved list (and possibly the queue) hold the open visit. There
+     is no Check out, so the 12:20 AM check-out time can't be tapped.
+   - **Suggested fix:** in the catch, when there is no list for today, still call `loadYesterday(localDate(Date.now(), TZ),
+     false)`, and render the yesterday section even when `S.answer` is null.
+   - Missing proof: `proof-yesterday` covers only the case where the check-in reached the Worker and the phone had signal after
+     midnight.
+3. **PAYROLL** · `app/public/w/sw.js:28-40`. The 3-second abort also applies when there is no cached copy, so a slow network
+   gives `Response.error()` instead of a page.
+   - **Scenario:** iOS clears a web app's storage after days without use, or a `cache.put` failed for lack of space. The worker
+     opens the link on one bar of signal where the page takes 5 s: every file is aborted at 3 s and the page doesn't open at all,
+     though waiting would have worked.
+   - **Suggested fix:** look the file up in the cache first. Race the network against 3 s only when there is a cached copy to
+     fall back to; with no copy, wait for the network (or use a much longer limit).
+4. **DATA LOSS** (worked-visit record) · `app/public/w/app.js:72`. A refused key deletes **every** `hcv:draft:*`, whichever link
+   or worker the draft was typed under; drafts are keyed by visit id only (`w/app.js:82-84`). Clarification 10 says "every
+   `hcv:draft:*`", so this follows the contract, but the contract is wrong for this case.
+   - **Scenario:** after a lost-phone scare the office made Sam a new link, but the old one is still on Sam's home screen. Mid-visit,
+     with tasks ticked and a note typed under the new link, Sam taps the old icon; it answers 401 and every draft is deleted.
+   - Back on the new link, the ticks and note are gone. If Sam checks out without noticing, the Worker stores every task
+     `done: false` and no note, and the office and family see nothing done.
+   - **Suggested fix** (needs a lead decision): delete only drafts for visits in the lists saved under the refused key, or key
+     drafts by worker id (`hcv:draft:<worker id>:<visit id>`).
+5. **PAYROLL** (contract; `app/public/w/app.js:153-158` and hc1's `GET /api/worker/visits` date range). A check-in queued for a
+   visit older than yesterday that is not checked out has no card anywhere. The page looks only at yesterday, and the Worker
+   refuses `?date=` before yesterday.
+   - **Scenario:** Saturday 10:05 PM, Alex checks in at Edna F.'s with no signal. The phone dies at the door, and Alex turns it
+     on again on Monday morning.
+   - The queue sends Saturday's check-in with its original time (inside the Worker's 7-day window), but no screen offers Check
+     out. The visit stays "Checked in" and sits in payroll's `incomplete` until the office uses Fix times.
+   - **Suggested fix** (needs a lead decision): let `GET /api/worker/visits?date=` go back 7 days, matching the original-time
+     window (hc1's change), and have the page load every date for which the queue holds a check-in with no check-out; or show a
+     queue-only "Still open" card built from the item's saved client name and time.
+6. **PAYROLL** (contract, low) · `app/public/w/app.js:363,464`. A note the Worker would refuse disables "Yes, check out", and the
+   check-out time is only taken when the button works.
+   - **Scenario:** at the door Sam types a daughter's two phone numbers, sees the button greyed out, and drives on. Twenty minutes
+     later, parked, Sam deletes the numbers and checks out: 20 extra minutes are recorded as worked.
+   - **Suggested fix:** keep the warning but offer "Check out without the note". The Worker stores the check-out either way
+     (clarification 8).
+7. **OTHER** · `app/public/w/app.js:88-93`, with the Worker's duplicate answer (hc1). The "The note wasn't saved" notice comes
+   only from a fresh 201. A resend's `200 duplicate` carries no `note_refused`, because the Worker does not store the refusal.
+   - **Scenario:** a check-out whose note the Worker refused is stored, but the 201 is lost to the 30 s timeout on a weak
+     connection. The resend answers `duplicate: true`, the item is confirmed with no notice, and the worker never learns the
+     note was dropped.
+   - The page's typing check makes this rare, but a note drafted before the update (or edited in another tab) can still get
+     through.
+   - **Suggested fix** (hc1, needs a lead decision): the Worker stores `note_refused` / `tasks_refused` on the check-out event and
+     repeats them in the duplicate answer.
+8. **OTHER** (low) · `app/public/w/app.js:198,248-254`. After a later accepted check-in, the refused check-in's "Not accepted by
+   the office: check-in tapped at 9:04 AM" notice stays on the card next to "Checked in 9:40 AM", and it can only be cleared
+   with Remove in the panel at the bottom.
+   - **Scenario:** a worker reads the red notice as a problem with today's accepted check-in and phones the office, which may fix
+     the accepted time back to 9:04.
+   - **Suggested fix:** when the card has an accepted or queued check-in, word the notice as history ("An earlier check-in at
+     9:04 AM wasn't accepted") and give it a dismiss button.
+9. **OTHER** (low) · `app/public/office/app.js:100-103`. Sign out after the session has already expired answers 401. `office()`
+   ends the session, then the handler shows "Signed out on this computer. The session couldn't be closed at the office. Sign in
+   and out again when the connection is back."
+   - **Scenario:** a coordinator comes back after 15 days and presses Sign out. The page says the session is still open at the
+     office, though the Worker has none, and suggests signing in again to close it.
+   - **Suggested fix:** treat a 401 like a 200 ("Signed out.").
+10. **OTHER** (a window for R1 again) · `app/public/w/sw.js:28-40`. Each file is fetched on its own with its own 3 s limit, so one
+   load can mix new and old files.
+   - **Scenario:** a deploy fixes `queue.js`. On weak signal `app.js` arrives in 2.8 s but `queue.js` times out, so this load
+     runs the new page with the cached **old** queue; if that copy predates clarification 6, any 200 counts as sent again.
+   - The next good load corrects it.
+   - **Suggested fix:** serve the page's modules with a version query (`/w/queue.js?v=…`) written into the cached page, so a
+     page and its modules are always from the same deploy; or have `app.js` check a version exported by `queue.js` and reload.
+
+### Controls and proofs: do they break the real fix, and go red at the assertion meant?
+
+- **The harness** (`app/tests/negative-lib.mjs`):
+  - copies `app/public` and `worker`, runs the named spec on the unbroken copy (VOID if red), applies a `replaceOnce` break (an
+    anchor that must match exactly once), runs again, and exits 0 only if red;
+  - keeps each copy's Playwright output inside the copy, and scrubs repo roots and the home folder from the log;
+  - The committed log holds no machine paths (checked for a home folder and the user name). No run added by M2c is VOID. The word appears twice in the log, both in hc2's older notes (lines 186 and 366) about two earlier re-runs ("queue", "time") that went red for the wrong reason and were run again; those later runs are red at their intended assertions.
+- **Control (f) `negative-portal.mjs`.** Honest. The break removes exactly the clarification 6 check (`&& answeredFor(res,
+  item)`). The unbroken copy passed. The broken run went red at the intended assertion, "the check-in is still saved on the
+  phone": the strip said "All sent" after the login page's 200 (`offline.spec.mjs:181`). Not proven:
+  - `redirect: 'error'`: removing it stays green, because the page-level id check still catches the redirected 200. It is
+    defence in depth, with no WebKit run;
+  - finding 1: the same login page poisoning the service worker's cache is untested.
+- **proof-yesterday.** Honest: red at the "Still open from yesterday" heading (`worker.spec.mjs:131`). It covers only the path
+  where the check-in reached the Worker before midnight and the phone reloads with signal. **Slips through:** a break that
+  drops `queuedIn` (a check-in still queued across midnight), and finding 2 (reload offline after midnight).
+- **proof-forget.** Honest: both breaks go in together, and the red output lists the leftover draft and saved-list keys
+  (`offline.spec.mjs:212`); the queue is asserted to stay. **Slips through:** a `forgetLink` that deletes every
+  `hcv:visits:*` (another link's saved list included) passes, because the spec holds only one key. Finding 4 is untested.
+- **proof-refusedcard.** Honest: red at the notice text (`offline.spec.mjs:246`). The scenario ends with the office's check-in
+  on the card (status "in"). **Slips through:** a break of the `refusedIn ? 'refused'` status, meaning no "Check in again"
+  button, stays green; that path has no assertion.
+- **proof-notecheck.** Honest: red at the note error for two phone numbers (`worker.spec.mjs:151`). A break of the 200-character
+  / 2-line rule stays green (low: `clampNote` already stops a third line and the 201st character while typing).
+- **proof-notice.** Honest: red at "Checked out. The note wasn't saved: …" (`worker.spec.mjs:183`). The refused note is injected
+  by rewriting the POST body in `page.route`, a fair stand-in for a note the page's check missed.
+- **proof-inactive-list, -sheet, -row.** Honest. All three share one test but go red at their own assertions:
+  - list: the "Inactive" heading, `office.spec.mjs:136`;
+  - sheet: `#vs-worker` holds `""`, not Terry's id, `:152`;
+  - row: the "(inactive)" grid row, `:145`.
+
+  Each break leaves the steps before its own assertion working, so none goes red early. They run at 1280 only: the 390 day
+  view's inactive group and its "Assign to" option have no proof.
+- **Controls (a)-(e), re-run in this log.** Still red at their intended assertions:
+  - queue: the saved-on-phone status;
+  - time: `check_in.at` 13:00 against 15:12:10;
+  - board: `data-alert` none at 09:15:00;
+  - familynote: the note count;
+  - overlay: the hit-test finds the transparent element (a follow-on `waitForResponse` error after it is only a consequence).
