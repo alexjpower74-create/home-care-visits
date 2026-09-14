@@ -11,8 +11,7 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="sticky">
-  <header class="top">
+<header class="top">
     <div class="top-inner">
       <div class="brand">
         <span class="agency" id="agency">Home Care Visits</span>
@@ -22,9 +21,9 @@
       <span class="avatar" id="me" hidden></span>
     </div>
   </header>
-  <div class="strip" id="strip" role="status" aria-live="polite" data-state="sent">
-    <div class="strip-inner"><span class="strip-dot" aria-hidden="true"></span><span id="strip-text">Checking what is saved on this phone…</span></div>
-  </div>
+<!-- DECISIONS 22: only the sync strip sticks; the header scrolls away. -->
+<div class="strip sticky" id="strip" role="status" aria-live="polite" data-state="sent">
+  <div class="strip-inner"><span class="strip-dot" aria-hidden="true"></span><span id="strip-text">Checking what is saved on this phone…</span></div>
 </div>
 <main id="main" class="wrap"><p class="empty">Loading today's visits…</p></main>
 <footer id="foot" class="foot wrap"></footer>

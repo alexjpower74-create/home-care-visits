@@ -284,7 +284,9 @@ function render() {
   if (focusId && $(focusId)) { $(focusId).focus(); $(focusId).setSelectionRange(...sel); }
 
   const phone = a?.office_phone;
-  const mileage = S.answer?.mileage;
+  // The answer has no legs list; a leg exists once the server holds two check-ins today (DECISIONS 22).
+  const legs = (S.answer?.visits.filter(v => v.check_in).length ?? 0) - 1;
+  const mileage = legs >= 1 ? S.answer.mileage : null;
   $('foot').innerHTML = `${mileage ? `<p>${esc(mileage.km)} km between visits today (straight line)</p>` : ''}${phone ? `<p>Office: <a href="${telHref(phone)}">${esc(phone)}</a></p>` : ''}`;
 
   $('sheet-root').innerHTML = sheetHtml();
@@ -317,6 +319,8 @@ function getLocation() {
         p => finish({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy_m: Math.round(p.coords.accuracy) }),
         () => finish(null),
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+      // The 8 s timeout only starts once permission is given; a prompt nobody answers must not hold the visit either.
+      setTimeout(() => finish(null), 10000);
     } catch { finish(null); }
   });
 }

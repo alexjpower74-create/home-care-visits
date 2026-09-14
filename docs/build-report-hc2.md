@@ -95,3 +95,57 @@ here has run against the real Worker yet**; that is the first job of M2 (the Pla
 
 ### Needs from other slices
 - Nothing blocking. M2 starts with `git rebase main` once hc1 M1 is merged.
+
+## M2 part A: office pages, Playwright harness, specs (2026-09-14)
+
+Status: **written, committed, NOT RUN.** hc1's M1 is not merged, so there is no Worker. Nothing in part A has run against
+anything; per the lead's instruction nothing ran against the mock either. The only checks so far: `node --check` passes on
+every page module, helper and spec, and `npx playwright test --list` lists 62 tests in 7 files. The `@phone` and `@desktop`
+tests are filtered out by project, not skipped. Part B runs the suite, fixes what fails, and runs negative controls (a)–(e).
+
+### Built
+- **Design fixes (DECISIONS 22):**
+  - On `/w/`, only the sync strip is sticky; the header scrolls away.
+  - The mileage line shows only once the server's answer has two check-ins today, which is at least one leg. The answer
+    has no `legs` list.
+- **Worker page:** besides the 8 s timeout, a 10 s fallback resolves the location to `null`. The API timeout starts only once
+  permission is given, so a prompt nobody answers would otherwise hold the check-in.
+- `public/rules.js`: `alertFor` (the API.md rule) and `nextAlertChange`.
+- **Office `/office/`:**
+  - `core.js`: token in `hcv:office-token`; a 401 without `field` ends the session ("Your session ended. Sign in again.");
+    field errors go by `data-error-for`; Copy link shows "Copied"; the edit sheet host.
+  - `app.js`: PIN sign-in, tabs by hash, Sign out. Reports and Settings are placeholders for M3.
+  - `board.js`: counts and rows. The rule runs on `Date.now()` every 15 s with a reload of the day, after every load, and
+    on a timer set for the next exact 15:00 or 30:00 mark. That timer is what lets `page.clock.runFor(1000)` go from 09:14:59
+    to 09:15:00 with no reload.
+  - `week.js`: grid at ≥ 900 px, where a chip is dragged with pointer events (a real `page.mouse` drag works in both engines)
+    to another worker on the same day. Day tabs + "Assign to" + Save below 900 px. The conflict list sits above; choosing a
+    conflict highlights its chips.
+  - `sheet.js`: worker, date, start, end; Cancel visit (reason) / Restore; "Family can see this note".
+  - `clients.js`: list + Leaflet map (OSM tiles, "© OpenStreetMap contributors"). The form places the pin by clicking the map,
+    and has tasks, visit times with the rebuild warning (existing clients), family contacts, Copy family link.
+  - `workers.js`: zones, availability per weekday, weekly hours, Copy worker link.
+- **Harness:**
+  - `playwright.config.mjs`: 4 projects, one test worker, webServer `tests/start-worker.mjs`, Worker on 7903, inspector 7913,
+    `E2E_WORKER_DIR`.
+  - `helpers.mjs`:
+    - the reset fixture, and the tile route plus the outside-host guard;
+    - `tap`/`tapAt`/`drag`, each hit-testing with `elementFromPoint`;
+    - `typeInto`, which uses `insertText` on touch projects and asserts the value;
+    - `mapPoint`, a point ≥ 16 px from any Leaflet control and not on a marker.
+- **Time in the specs:** every spec runs on **Mon Sep 14, 10:30 AM NDT**. `X-Test-Now` goes on the page's requests and API
+  calls, and `page.clock` gets the same instant, so the server's and the page's "today" agree whatever day the suite runs.
+  The pattern comes from Snow Route's offline spec.
+- **Specs:** worker, offline (including the 500-once and refused tests with the service worker blocked), family, board,
+  planner, office, targets.
+
+### Known risks for part B (unverified guesses, listed so they are checked, not assumed)
+- Office DOM against real answers: labels such as `hours_label`, `zone_names`, `conflict.date` and field names come from
+  API.md only.
+- WebKit: whether `context.setOffline` fires `online`, whether the service worker takes control under Playwright (the
+  offline spec skips only the reload step, with a written reason, when it does not), and whether `clearPermissions` denies
+  geolocation or leaves the prompt hanging (the 10 s fallback covers that).
+- The planner drag needs Terry O.'s and Jo W.'s rows on screen together at 800 px high. `drag()` fails with a message if
+  the drop cell is off screen.
+- `targets.spec` checks every visible button on the worker page at 390, including the visit-card headers and the footer
+  `tel:` link.

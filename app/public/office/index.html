@@ -5,23 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Office</title>
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/theme.css">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/office/office.css">
+<script src="/vendor/leaflet/leaflet.js"></script>
 </head>
 <body>
-<main class="landing">
-  <p><span class="badge" id="badge" hidden>SAMPLE</span></p>
-  <h1 id="agency">Home Care Visits</h1>
-  <p>Office sign-in comes in the next build step (M2).</p>
-  <a class="btn btn-outline" href="/">Back</a>
-</main>
-<script type="module">
-  import { getAgency } from '/api.js';
-  getAgency().then(r => {
-    if (!r.ok) return;
-    document.getElementById('agency').textContent = r.data.name;
-    document.getElementById('badge').hidden = !r.data.sample;
-  }).catch(() => {});
-</script>
+<header class="top office-top">
+  <div class="office-bar">
+    <div class="brand">
+      <span class="agency" id="agency">Home Care Visits</span>
+      <span class="badge" id="badge" hidden>SAMPLE</span>
+    </div>
+    <button type="button" id="signout" class="btn btn-outline btn-inline" hidden>Sign out</button>
+  </div>
+  <nav id="tabs" class="tabs" aria-label="Office sections" hidden>
+    <a href="#today" data-tab="today">Today</a>
+    <a href="#week" data-tab="week">Week</a>
+    <a href="#clients" data-tab="clients">Clients</a>
+    <a href="#workers" data-tab="workers">Workers</a>
+    <a href="#reports" data-tab="reports">Reports</a>
+    <a href="#settings" data-tab="settings">Settings</a>
+  </nav>
+</header>
+<main id="view" class="office-main"><p class="empty">Loading…</p></main>
+<div id="sheet-root"></div>
+<script type="module" src="/office/app.js"></script>
 </body>
 </html>
