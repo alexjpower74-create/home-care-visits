@@ -1457,3 +1457,896 @@ RESULT: went red as required
 
     attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
 
+== 2026-09-14T14:58:33.823Z queue: w/queue.js deletes the item from IndexedDB before posting it, whatever the server answers
+   spec: playwright test offline.spec.mjs --project chromium-390 -g a 500 when signal comes back on 7906 (inspector 7916), copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:176:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:176:3 › with the service worker blocked › a 500 when signal comes back leaves both queued; they send on the next try 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-status')
+    Expected pattern: / · saved on this phone$/
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('.visit[data-visit="18"]').locator('.visit-status') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-status')
+
+
+      191 |
+      192 |     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
+    > 193 |     await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/);
+          |                                                 ^
+      194 |     // A failed send must leave the event on the phone.
+      195 |     await expect.poll(() => aborted, { message: 'the phone tried to send the check-in' }).toBeGreaterThan(0);
+      196 |     await expect(page.locator('#strip-text'), 'the check-in is still saved on the phone after a failed send').toHaveText(/^1 saved on this phone\./);
+        at <repo>/app/tests/offline.spec.mjs:193:49
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/queue/results/offline-with-the-service-w-1a6f9-d-they-send-on-the-next-try-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/queue/results/offline-with-the-service-w-1a6f9-d-they-send-on-the-next-try-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T14:58:54.057Z time: w/queue.js posts each event with at = the send time instead of the time tapped
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: check-in and check-out are saved on 7906 (inspector 7916), copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:119:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped (1.3s) |   1 passed (5.7s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:119:1 › no signal: check-in and check-out are saved, survive a reload, and send later with the times tapped 
+
+    Error: check-in keeps the time tapped
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-09-14T13:00:00.000Z"
+    Received: "2026-09-14T15:12:10.000Z"
+
+      160 |   const token = await officeToken(request);
+      161 |   const v = await officeVisit(request, token, visit.id, undefined, BACK);
+    > 162 |   expect(v.check_in.at, 'check-in keeps the time tapped').toBe(iso(T));
+          |                                                           ^
+      163 |   expect(v.check_out.at, 'check-out keeps the time tapped').toBe(iso(OUT));
+      164 |   expect(v.worked_seconds).toBe(5530);
+      165 |   expect(v.check_in.at_adjusted).toBe(false);
+        at <repo>/app/tests/offline.spec.mjs:162:59
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace .negative/time/results/offline-no-signal-check-in-f4cbd-later-with-the-times-tapped-chromium-390/trace.zip
+
+
+== 2026-09-14T14:59:05.388Z board: public/rules.js turns a visit late 16 minutes after its start instead of 15
+   spec: playwright test board.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/board
+   unbroken copy:   ✓  1 [chromium-1280] › tests/board.spec.mjs:4:1 › the Today board turns late at 15:00 and missed at 30:00 on the page clock, and done after a check-in (1.0s) |   1 passed (5.4s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/board.spec.mjs:4:1 › the Today board turns late at 15:00 and missed at 30:00 on the page clock, and done after a check-in 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('.board-row[data-visit-id="1"]')
+    Expected: "late"
+    Received: "none"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveAttribute" locator('.board-row[data-visit-id="1"]') with timeout 10000ms
+      - waiting for locator('.board-row[data-visit-id="1"]')
+        24 × locator resolved to <li class="board-row" data-visit-id="1" data-alert="none" data-status="scheduled">…</li>
+           - unexpected value "none"
+
+
+      24 |
+      25 |   await page.clock.runFor(1000); // 09:15:00
+    > 26 |   await expect(row).toHaveAttribute('data-alert', 'late');
+         |                     ^
+      27 |   await expect(row).toContainText('Late: not checked in 15 minutes after the start');
+      28 |   const lateToken = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--late-bg').trim());
+      29 |   expect(lateToken).toBe('#fdecc8');
+        at <repo>/app/tests/board.spec.mjs:26:21
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/board/results/board-the-Today-board-turn-7251b-k-and-done-after-a-check-in-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/board/results/board-the-Today-board-turn-7251b-k-and-done-after-a-check-in-chromium-1280/error-context.md
+
+== 2026-09-14T14:59:25.685Z familynote: worker/src/index.js family answer returns the note text even when it is not shareable
+   spec: playwright test family.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/familynote
+   unbroken copy:   ✓  1 [chromium-1280] › tests/family.spec.mjs:7:1 › family link: arrived and left with ticked tasks; the note appears only once the office shares it (2.1s) |   1 passed (6.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/family.spec.mjs:7:1 › family link: arrived and left with ticked tasks; the note appears only once the office shares it 
+
+    Error: the note is not on the page
+
+    expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByText('Bill had a good morning and asked about the garden. (SAMPLE)')
+    Expected: 0
+    Received: 1
+    Timeout:  10000ms
+
+    Call log:
+      - the note is not on the page getByText('Bill had a good morning and asked about the garden. (SAMPLE)') with timeout 10000ms
+      - waiting for getByText('Bill had a good morning and asked about the garden. (SAMPLE)')
+        24 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      38 |   await expect(today.locator('.fam-status'), 'arrived and left are different times').toHaveText('Arrived 10:30 AM, left 11:17 AM');
+      39 |   await expect(today.locator('.ticks li')).toHaveText(labels);
+    > 40 |   await expect(page.getByText(NOTE), 'the note is not on the page').toHaveCount(0);
+         |                                                                     ^
+      41 |   expect(await page.content(), 'the note is nowhere in the page').not.toContain(NOTE);
+      42 |
+      43 |   // The office marks it shareable with real taps in the edit sheet.
+        at <repo>/app/tests/family.spec.mjs:40:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/familynote/results/family-family-link-arrived-6a9e7-y-once-the-office-shares-it-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T14:59:48.185Z overlay: w/app.js wraps Check in with a transparent element laid over it
+   spec: playwright test worker.spec.mjs --project chromium-390 -g check in near the client on 7906 (inspector 7916), copy in app/.negative/overlay
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:35:1 › Sam R.: visits in order, Navigate, check in near the client, tasks and note, check out 47 minutes later (1.6s) |   1 passed (6.0s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:35:1 › Sam R.: visits in order, Navigate, check in near the client, tasks and note, check out 47 minutes later 
+
+    Error: tap(Check in) hit-test at 195,476: something else is on top
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: ""
+    Received: "<div style=\"position:absolute;inset:0;background:transparent\"></div>"
+
+       at helpers.mjs:142
+
+      140 |   await intoView(page, locator);
+      141 |   const { x, y, hit } = await hitTest(locator);
+    > 142 |   expect(hit, `tap(${label}) hit-test at ${Math.round(x)},${Math.round(y)}: something else is on top`).toBe('');
+          |                                                                                                        ^
+      143 |   if (await coarse(page)) await page.touchscreen.tap(x, y);
+      144 |   else await page.mouse.click(x, y);
+      145 | }
+        at tap (<repo>/app/tests/helpers.mjs:142:104)
+        at <repo>/app/tests/worker.spec.mjs:55:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/overlay/results/worker-Sam-R-visits-in-ord-77a4d--check-out-47-minutes-later-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/overlay/results/worker-Sam-R-visits-in-ord-77a4d--check-out-47-minutes-later-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    .negative/overlay/results/worker-Sam-R-visits-in-ord-77a4d--check-out-47-minutes-later-chromium-390/trace.zip
+    Usage:
+
+== 2026-09-14T14:59:58.868Z portal: w/queue.js treats any 200/201 as sent, whatever the body (a Wi-Fi login page's 200 deletes the event)
+   spec: playwright test offline.spec.mjs --project chromium-390 -g not the Worker's answer on 7906 (inspector 7916), copy in app/.negative/portal
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:253:3 › with the service worker blocked › a 200 that is not the Worker's answer (a Wi-Fi login page) keeps the event queued; it then lands exactly once (923ms) |   1 passed (5.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:253:3 › with the service worker blocked › a 200 that is not the Worker's answer (a Wi-Fi login page) keeps the event queued; it then lands exactly once 
+
+    Error: the check-in is still saved on the phone
+
+    expect(locator).toHaveText(expected) failed
+
+    Locator: locator('#strip-text')
+    Expected pattern: /^1 saved on this phone\./
+    Received string:  "All sent"
+    Timeout: 10000ms
+
+    Call log:
+      - the check-in is still saved on the phone locator('#strip-text') with timeout 10000ms
+      - waiting for locator('#strip-text')
+        24 × locator resolved to <span id="strip-text">All sent</span>
+           - unexpected value "All sent"
+
+
+      266 |     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in');
+      267 |     await expect.poll(() => portal, { message: 'the login page answered the first send' }).toBe(1);
+    > 268 |     await expect(page.locator('#strip-text'), 'the check-in is still saved on the phone').toHaveText(/^1 saved on this phone\./);
+          |                                                                                           ^
+      269 |     await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/);
+      270 |     expect(await testEvents(request, visit.id), 'the Worker has not seen it').toHaveLength(0);
+      271 |
+        at <repo>/app/tests/offline.spec.mjs:268:91
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/portal/results/offline-with-the-service-w-eef1f--it-then-lands-exactly-once-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T15:00:19.033Z payrollround: office/reports.js Payroll total = the rounded rows added up (not the Worker's total)
+   spec: playwright test reports.spec.mjs --project chromium-1280 on 7906 (inspector 7916), copy in app/.negative/payrollround
+   unbroken copy:   ✓  1 [chromium-1280] › tests/reports.spec.mjs:29:1 › Payroll shows the Worker's exact hours after two phone journeys and a Fix times; the CSV is the Worker's bytes; Billing, Missed, Mileage (3.7s) |   1 passed (8.1s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/reports.spec.mjs:29:1 › Payroll shows the Worker's exact hours after two phone journeys and a Fix times; the CSV is the Worker's bytes; Billing, Missed, Mileage 
+
+    Error: the Worker's total, not the rounded rows added up (2.02)
+
+    expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#payroll-total .hours')
+    Expected: "2.01"
+    Received: "2.02"
+    Timeout:  10000ms
+
+    Call log:
+      - the Worker's total, not the rounded rows added up (2.02) locator('#payroll-total .hours') with timeout 10000ms
+      - waiting for locator('#payroll-total .hours')
+        24 × locator resolved to <td class="num hours">2.02</td>
+           - unexpected value "2.02"
+
+
+      90 |     for (const c of r.clients) await expect(page.locator(`#payroll-table tr.row-sub[data-worker-id="${r.worker_id}"][data-client-id="${c.client_id}"] .hours`)).toHaveText(c.hours);
+      91 |   }
+    > 92 |   await expect(page.locator('#payroll-total .hours'), "the Worker's total, not the rounded rows added up (2.02)").toHaveText(payroll.total.hours);
+         |                                                                                                                   ^
+      93 |   await expect(page.locator(`#payroll-incomplete [data-visit-id="${margaret.id}"]`), 'fixed: no longer incomplete').toHaveCount(0);
+      94 |   await expect(page.locator(`#payroll-incomplete [data-visit-id="${ruby.id}"]`)).toContainText('Sam R. (SAMPLE) · Ruby T. (SAMPLE)');
+      95 |
+        at <repo>/app/tests/reports.spec.mjs:92:115
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/payrollround/results/reports-Payroll-shows-the--bbfa4-ytes-Billing-Missed-Mileage-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T15:00:44.838Z swpoison: w/sw.js caches any 200 (no Content-Type check, no hcv-page marker)
+   spec: playwright test offline.spec.mjs --project chromium-390 -g Wi-Fi login page answering the worker page's files on 7906 (inspector 7916), copy in app/.negative/swpoison
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:65:1 › a Wi-Fi login page answering the worker page's files never replaces them in the cache (8.9s) |   1 passed (13.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:65:1 › a Wi-Fi login page answering the worker page's files never replaces them in the cache 
+
+    Error: the worker page, not the login page
+
+    expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-name')
+    Expected: "Bill S. (SAMPLE)"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - the worker page, not the login page locator('.visit[data-visit="18"]').locator('.visit-name') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-name')
+
+
+      84 |   await page.reload();
+      85 |   await expect.poll(() => served, { message: "the login page answered the page's files", timeout: 20_000 }).toBeGreaterThanOrEqual(8);
+    > 86 |   await expect(card.locator('.visit-name'), 'the worker page, not the login page').toHaveText(visit.client_name);
+         |                                                                                    ^
+      87 |
+      88 |   // Later, no signal: the page opens from the cache and still works.
+      89 |   poisoned = false;
+        at <repo>/app/tests/offline.spec.mjs:86:84
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/swpoison/results/offline-a-Wi-Fi-login-page-7157f--replaces-them-in-the-cache-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/swpoison/results/offline-a-Wi-Fi-login-page-7157f--replaces-them-in-the-cache-chromium-390/error-context.md
+
+== 2026-09-14T15:01:12.935Z proof-yesterday: clarifications 9/16 removed: w/app.js never loads an earlier day
+   spec: playwright test worker.spec.mjs --project chromium-390 -g visit still open after midnight shows on 7906 (inspector 7916), copy in app/.negative/proof-yesterday
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:108:1 › a visit still open after midnight shows under "Still open from yesterday" and checks out with the right hours (1.5s) |   1 passed (5.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:108:1 › a visit still open after midnight shows under "Still open from yesterday" and checks out with the right hours 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' }) with timeout 10000ms
+      - waiting for locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+
+
+      129 |   await page.reload();
+      130 |   const section = page.locator('.still-open');
+    > 131 |   await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
+          |                                                                                     ^
+      132 |   const open = section.locator(`.visit[data-visit="${visit.id}"]`);
+      133 |   await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · Within 250 m of the client');
+      134 |   await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out 12:20 AM');
+        at <repo>/app/tests/worker.spec.mjs:131:85
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-yesterday/results/worker-a-visit-still-open--e3399-ks-out-with-the-right-hours-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-yesterday/results/worker-a-visit-still-open--e3399-ks-out-with-the-right-hours-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:01:34.083Z proof-queued-midnight: clarification 16 removed: a check-in still in the queue does not open an earlier day
+   spec: playwright test worker.spec.mjs --project chromium-390 -g still queued across midnight on 7906 (inspector 7916), copy in app/.negative/proof-queued-midnight
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:274:3 › with the service worker blocked › a check-in still queued across midnight shows under "Still open from yesterday", then both land (1.6s) |   1 passed (5.9s)
+   broken copy: exit 0 -> GREEN: the check measured nothing
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium-390] › tests/worker.spec.mjs:274:3 › with the service worker blocked › a check-in still queued across midnight shows under "Still open from yesterday", then both land (1.5s)
+
+  1 passed (5.0s)
+
+
+== 2026-09-14T15:01:45.841Z proof-earlier-days: clarification 16 (item 4) removed: only yesterday is looked at, not 7 days back
+   spec: playwright test worker.spec.mjs --project chromium-390 -g Still open from Sat Sep 12 on 7906 (inspector 7916), copy in app/.negative/proof-earlier-days
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:311:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails (1.4s) |   1 passed (5.8s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:311:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.still-open').getByRole('heading', { name: 'Still open from Sat Sep 12' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.still-open').getByRole('heading', { name: 'Still open from Sat Sep 12' }) with timeout 10000ms
+      - waiting for locator('.still-open').getByRole('heading', { name: 'Still open from Sat Sep 12' })
+
+
+      332 |     await page.reload();
+      333 |     const section = page.locator('.still-open');
+    > 334 |     await expect(section.getByRole('heading', { name: 'Still open from Sat Sep 12' })).toBeVisible();
+          |                                                                                        ^
+      335 |     await expect(page.getByText("No saved list on this phone yet. Find signal once to load today's visits.")).toBeVisible();
+      336 |     const open = section.locator(`.visit[data-visit="${george.id}"]`);
+      337 |     await expect(open.locator('.visit-status')).toHaveText('Checked in 9:05 AM · saved on this phone');
+        at <repo>/app/tests/worker.spec.mjs:334:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-earlier-days/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-earlier-days/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:02:06.402Z proof-earlier-without-today: clarification 16 (item 4) removed: earlier days are looked at only when today's list loaded
+   spec: playwright test worker.spec.mjs --project chromium-390 -g Still open from Sat Sep 12 on 7906 (inspector 7916), copy in app/.negative/proof-earlier-without-today
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:311:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails (1.4s) |   1 passed (5.8s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:311:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.still-open').getByRole('heading', { name: 'Still open from Sat Sep 12' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.still-open').getByRole('heading', { name: 'Still open from Sat Sep 12' }) with timeout 10000ms
+      - waiting for locator('.still-open').getByRole('heading', { name: 'Still open from Sat Sep 12' })
+
+
+      332 |     await page.reload();
+      333 |     const section = page.locator('.still-open');
+    > 334 |     await expect(section.getByRole('heading', { name: 'Still open from Sat Sep 12' })).toBeVisible();
+          |                                                                                        ^
+      335 |     await expect(page.getByText("No saved list on this phone yet. Find signal once to load today's visits.")).toBeVisible();
+      336 |     const open = section.locator(`.visit[data-visit="${george.id}"]`);
+      337 |     await expect(open.locator('.visit-status')).toHaveText('Checked in 9:05 AM · saved on this phone');
+        at <repo>/app/tests/worker.spec.mjs:334:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-earlier-without-today/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-earlier-without-today/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:02:26.998Z proof-forget: clarification 10 removed: a refused key leaves its saved lists and drafts on the phone
+   spec: playwright test offline.spec.mjs --project chromium-390 -g a refused link takes the saved lists on 7906 (inspector 7916), copy in app/.negative/proof-forget
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:281:3 › with the service worker blocked › a refused link takes the saved lists and drafts off the phone and keeps the queue (581ms) |   1 passed (5.0s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:281:3 › with the service worker blocked › a refused link takes the saved lists and drafts off the phone and keeps the queue 
+
+    Error: no hcv:visits or hcv:draft keys left
+
+    no hcv:visits or hcv:draft keys left
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "hcv:draft:18",
+    +   "hcv:visits:2:2026-09-14",
+    + ]
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      297 |     await page.reload();
+      298 |     await expect(page.getByText("This link doesn't work any more. Ask the office for a new one.")).toBeVisible();
+    > 299 |     await expect.poll(saved, { message: 'no hcv:visits or hcv:draft keys left' }).toEqual([]);
+          |                                                                                   ^
+      300 |     expect(await page.content(), 'no entry notes on the page').not.toContain(visit.entry_notes);
+      301 |     const queued = await page.evaluate(() => new Promise((resolve, reject) => {
+      302 |       const open = indexedDB.open('home-care-visits');
+        at <repo>/app/tests/offline.spec.mjs:299:83
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+
+== 2026-09-14T15:02:46.732Z proof-draft-key: clarification 16 (item 5) removed: a refused key deletes every link's saved lists and drafts
+   spec: playwright test offline.spec.mjs --project chromium-390 -g two links on one phone on 7906 (inspector 7916), copy in app/.negative/proof-draft-key
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:347:3 › with the service worker blocked › two links on one phone: a refused link clears only its own saved lists and drafts (1.5s) |   1 passed (5.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:347:3 › with the service worker blocked › two links on one phone: a refused link clears only its own saved lists and drafts 
+
+    Error: only Jo's list and draft are left
+
+    only Jo's list and draft are left
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "hcv:draft:1",
+    -   "hcv:visits:1:2026-09-14",
+    - ]
+    + Array []
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      377 |     await page.reload(); // Sam's old link
+      378 |     await expect(page.getByText("This link doesn't work any more. Ask the office for a new one.")).toBeVisible();
+    > 379 |     await expect.poll(async () => Object.keys(await stored()).sort(), { message: "only Jo's list and draft are left" }).toEqual(joKeys);
+          |                                                                                                                         ^
+      380 |   });
+      381 | });
+      382 |
+        at <repo>/app/tests/offline.spec.mjs:379:121
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+
+== 2026-09-14T15:03:08.440Z proof-refusedcard: clarification 11 removed: a refused check-in is not shown on its card
+   spec: playwright test offline.spec.mjs --project chromium-390 -g Fix times stays on its card on 7906 (inspector 7916), copy in app/.negative/proof-refusedcard
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:314:3 › with the service worker blocked › a check-in the office already set with Fix times stays on its card: "Not accepted by the office" (20.8s) |   1 passed (25.1s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:314:3 › with the service worker blocked › a check-in the office already set with Fix times stays on its card: "Not accepted by the office" 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-notice')
+    Expected substring: "An earlier check-in at 10:30 AM wasn't accepted by the office."
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('.visit[data-visit="18"]').locator('.visit-notice') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-notice')
+
+
+      339 |     await expect(card.locator('.visit-status'), "the office's check-in is the visit's").toHaveText('Checked in 10:10 AM · Location not shared');
+      340 |     const notice = card.locator('.visit-notice');
+    > 341 |     await expect(notice).toContainText("An earlier check-in at 10:30 AM wasn't accepted by the office.");
+          |                          ^
+      342 |     await expect(page.locator('.refused-item')).toContainText(words);
+      343 |     await tap(page, notice.getByRole('button', { name: 'Dismiss' }), 'Dismiss');
+      344 |     await expect(card.locator('.visit-notice')).toHaveCount(0);
+        at <repo>/app/tests/offline.spec.mjs:341:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-refusedcard/results/offline-with-the-service-w-1ed3e-Not-accepted-by-the-office--chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-refusedcard/results/offline-with-the-service-w-1ed3e-Not-accepted-by-the-office--chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:04:08.578Z proof-check-in-again: clarification 11 removed: a refused check-in with no other check-in does not offer "Check in again"
+   spec: playwright test worker.spec.mjs --project chromium-390 -g offers "Check in again" on 7906 (inspector 7916), copy in app/.negative/proof-check-in-again
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:241:3 › with the service worker blocked › a refused check-in with no other check-in offers "Check in again"; the new one lands and the old reads as history (1.3s) |   1 passed (5.7s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:241:3 › with the service worker blocked › a refused check-in with no other check-in offers "Check in again"; the new one lands and the old reads as history 
+
+    Error: tap(Check in again): visible
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('.visit[data-visit="18"]').getByRole('button', { name: 'Check in again' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - tap(Check in again): visible locator('.visit[data-visit="18"]').getByRole('button', { name: 'Check in again' }) with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').getByRole('button', { name: 'Check in again' })
+
+
+       at helpers.mjs:139
+
+      137 |
+      138 | export async function tap(page, locator, label = String(locator)) {
+    > 139 |   await expect(locator, `tap(${label}): visible`).toBeVisible();
+          |                                                   ^
+      140 |   await intoView(page, locator);
+      141 |   const { x, y, hit } = await hitTest(locator);
+      142 |   expect(hit, `tap(${label}) hit-test at ${Math.round(x)},${Math.round(y)}: something else is on top`).toBe('');
+        at tap (<repo>/app/tests/helpers.mjs:139:51)
+        at <repo>/app/tests/worker.spec.mjs:266:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-check-in-again/results/worker-with-the-service-wo-b753f-nd-the-old-reads-as-history-chromium-390/test-failed-1.png
+
+== 2026-09-14T15:04:29.361Z proof-notecheck: clarification 8 (typing) removed: the page does not check the note for health card numbers
+   spec: playwright test worker.spec.mjs --project chromium-390 -g 12-digit number in the note on 7906 (inspector 7916), copy in app/.negative/proof-notecheck
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:148:3 › with the service worker blocked › a 12-digit number in the note disables "Yes, check out" and shows the API's words (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:148:3 › with the service worker blocked › a 12-digit number in the note disables "Yes, check out" and shows the API's words 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('.visit[data-visit="18"]').locator('.note-error')
+    Expected: "Don't put health card numbers in this app."
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('.visit[data-visit="18"]').locator('.note-error') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.note-error')
+        24 × locator resolved to <p role="alert" id="note-err-18" class="field-error note-error"></p>
+           - unexpected value ""
+
+
+      149 |     const { card } = await checkedIn(page, context, request, seed);
+      150 |     await typeInto(page, card.locator('textarea'), 'Daughter called from 709 555 0152 709 555 0153 (SAMPLE)', 'note');
+    > 151 |     await expect(card.locator('.note-error')).toHaveText(CARD_WORDS);
+          |                                               ^
+      152 |     await tap(page, card.getByRole('button', { name: 'Check out' }), 'Check out');
+      153 |     const sheet = page.getByRole('dialog');
+      154 |     await expect(sheet.getByRole('button', { name: 'Yes, check out' })).toBeDisabled();
+        at <repo>/app/tests/worker.spec.mjs:151:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-notecheck/results/worker-with-the-service-wo-58e89-t-and-shows-the-API-s-words-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-notecheck/results/worker-with-the-service-wo-58e89-t-and-shows-the-API-s-words-chromium-390/error-context.md
+
+== 2026-09-14T15:04:50.124Z proof-without-note: clarification 16 (item 6) removed: no "Check out without the note" next to the disabled button
+   spec: playwright test worker.spec.mjs --project chromium-390 -g Check out without the note on 7906 (inspector 7916), copy in app/.negative/proof-without-note
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:195:3 › with the service worker blocked › "Check out without the note" next to the disabled "Yes, check out" checks out at that tap, with no note (1.4s) |   1 passed (5.8s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:195:3 › with the service worker blocked › "Check out without the note" next to the disabled "Yes, check out" checks out at that tap, with no note 
+
+    Error: tap(Check out without the note): visible
+
+    expect(locator).toBeVisible() failed
+
+    Locator: getByRole('dialog').getByRole('button', { name: 'Check out without the note' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - tap(Check out without the note): visible getByRole('dialog').getByRole('button', { name: 'Check out without the note' }) with timeout 10000ms
+      - waiting for getByRole('dialog').getByRole('button', { name: 'Check out without the note' })
+
+
+       at helpers.mjs:139
+
+      137 |
+      138 | export async function tap(page, locator, label = String(locator)) {
+    > 139 |   await expect(locator, `tap(${label}): visible`).toBeVisible();
+          |                                                   ^
+      140 |   await intoView(page, locator);
+      141 |   const { x, y, hit } = await hitTest(locator);
+      142 |   expect(hit, `tap(${label}) hit-test at ${Math.round(x)},${Math.round(y)}: something else is on top`).toBe('');
+        at tap (<repo>/app/tests/helpers.mjs:139:51)
+        at <repo>/app/tests/worker.spec.mjs:204:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-without-note/results/worker-with-the-service-wo-4b2fc-ut-at-that-tap-with-no-note-chromium-390/test-failed-1.png
+
+== 2026-09-14T15:05:11.171Z proof-notice: clarification 8 (answer) removed: the page ignores note_refused / tasks_refused
+   spec: playwright test worker.spec.mjs --project chromium-390 -g note refused on its way out on 7906 (inspector 7916), copy in app/.negative/proof-notice
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:164:3 › with the service worker blocked › a note refused on its way out: the check-out lands and the card says "The note wasn't saved: …" (1.4s) |   1 passed (5.8s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:164:3 › with the service worker blocked › a note refused on its way out: the check-out lands and the card says "The note wasn't saved: …" 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.visit[data-visit="18"]').locator('.visit-notice')
+    Expected substring: "Checked out. The note wasn't saved: Don't put health card numbers in this app."
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('.visit[data-visit="18"]').locator('.visit-notice') with timeout 10000ms
+      - waiting for locator('.visit[data-visit="18"]').locator('.visit-notice')
+
+
+      181 |
+      182 |     const notice = card.locator('.visit-notice');
+    > 183 |     await expect(notice).toContainText(`Checked out. The note wasn't saved: ${body.note_refused}`);
+          |                          ^
+      184 |     await expect(card.locator('.visit-status')).toHaveText('Done 10:30 AM – 11:15 AM');
+      185 |
+      186 |     const token = await officeToken(request);
+        at <repo>/app/tests/worker.spec.mjs:183:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-notice/results/worker-with-the-service-wo-5f2be-ys-The-note-wasn-t-saved-…--chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-notice/results/worker-with-the-service-wo-5f2be-ys-The-note-wasn-t-saved-…--chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:05:32.695Z proof-inactive-list-chromium-1280: clarification 15 removed: the Workers screen lists active workers only
+   spec: playwright test office.spec.mjs --project chromium-1280 -g deactivated worker on 7906 (inspector 7916), copy in app/.negative/proof-inactive-list-chromium-1280
+   unbroken copy:   ✓  1 [chromium-1280] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row (1.2s) |   1 passed (5.6s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Inactive' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: 'Inactive' }) with timeout 10000ms
+      - waiting for getByRole('heading', { name: 'Inactive' })
+
+
+      147 |   expect((await saved.json()).active).toBe(false);
+      148 |
+    > 149 |   await expect(page.getByRole('heading', { name: 'Inactive' })).toBeVisible();
+          |                                                                 ^
+      150 |   const inactive = page.locator('#worker-list-inactive .entity', { hasText: 'Terry O. (SAMPLE)' });
+      151 |   await expect(inactive).toBeVisible();
+      152 |   await expect(page.locator('#worker-list .entity', { hasText: 'Terry O. (SAMPLE)' })).toHaveCount(0);
+        at <repo>/app/tests/office.spec.mjs:149:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-inactive-list-chromium-1280/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-inactive-list-chromium-1280/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-1280/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:05:53.390Z proof-inactive-sheet-chromium-1280: clarification 15 removed: the edit sheet leaves out the visit's inactive current worker
+   spec: playwright test office.spec.mjs --project chromium-1280 -g deactivated worker on 7906 (inspector 7916), copy in app/.negative/proof-inactive-sheet-chromium-1280
+   unbroken copy:   ✓  1 [chromium-1280] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row (1.2s) |   1 passed (5.6s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row 
+
+    Error: the sheet keeps the inactive worker
+
+    expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByRole('dialog').locator('#vs-worker')
+    Expected: "5"
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - the sheet keeps the inactive worker getByRole('dialog').locator('#vs-worker') with timeout 10000ms
+      - waiting for getByRole('dialog').locator('#vs-worker')
+        23 × locator resolved to <select id="vs-worker">…</select>
+           - unexpected value ""
+
+
+      163 |   }
+      164 |   const sheet = page.getByRole('dialog');
+    > 165 |   await expect(sheet.locator('#vs-worker'), 'the sheet keeps the inactive worker').toHaveValue(String(terry.id));
+          |                                                                                    ^
+      166 |   await expect(sheet.locator('#vs-worker option:checked')).toHaveText('Terry O. (SAMPLE) (inactive)');
+      167 |   await sheet.locator('#vs-end').fill('09:15');
+      168 |   const save = page.waitForResponse(r => r.url().endsWith(`/api/office/visits/${visit.id}`) && r.request().method() === 'PUT');
+        at <repo>/app/tests/office.spec.mjs:165:84
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-inactive-sheet-chromium-1280/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T15:06:14.300Z proof-inactive-row-chromium-1280: clarification 15 removed: the week has no row (1280) or group (390) for an inactive worker named on a visit
+   spec: playwright test office.spec.mjs --project chromium-1280 -g deactivated worker on 7906 (inspector 7916), copy in app/.negative/proof-inactive-row-chromium-1280
+   unbroken copy:   ✓  1 [chromium-1280] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.grid-worker').filter({ hasText: 'Terry O. (SAMPLE) (inactive)' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.grid-worker').filter({ hasText: 'Terry O. (SAMPLE) (inactive)' }) with timeout 10000ms
+      - waiting for locator('.grid-worker').filter({ hasText: 'Terry O. (SAMPLE) (inactive)' })
+
+
+      156 |   await tab(page, 'Week');
+      157 |   if (testInfo.project.name.endsWith('1280')) {
+    > 158 |     await expect(page.locator('.grid-worker', { hasText: 'Terry O. (SAMPLE) (inactive)' })).toBeVisible();
+          |                                                                                             ^
+      159 |     await tap(page, page.locator(`.cell[data-worker-id="${terry.id}"][data-date="${DAY}"] .chip[data-visit-id="${visit.id}"]`), 'the 8:00 visit');
+      160 |   } else {
+      161 |     await expect(page.locator(`.wgroup[data-worker-id="${terry.id}"] h3`)).toContainText('Terry O. (SAMPLE) (inactive)');
+        at <repo>/app/tests/office.spec.mjs:158:93
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-inactive-row-chromium-1280/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-inactive-row-chromium-1280/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-1280/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:06:35.079Z proof-inactive-list-chromium-390: clarification 15 removed: the Workers screen lists active workers only
+   spec: playwright test office.spec.mjs --project chromium-390 -g deactivated worker on 7906 (inspector 7916), copy in app/.negative/proof-inactive-list-chromium-390
+   unbroken copy:   ✓  1 [chromium-390] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row (1.3s) |   1 passed (5.7s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Inactive' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: 'Inactive' }) with timeout 10000ms
+      - waiting for getByRole('heading', { name: 'Inactive' })
+
+
+      147 |   expect((await saved.json()).active).toBe(false);
+      148 |
+    > 149 |   await expect(page.getByRole('heading', { name: 'Inactive' })).toBeVisible();
+          |                                                                 ^
+      150 |   const inactive = page.locator('#worker-list-inactive .entity', { hasText: 'Terry O. (SAMPLE)' });
+      151 |   await expect(inactive).toBeVisible();
+      152 |   await expect(page.locator('#worker-list .entity', { hasText: 'Terry O. (SAMPLE)' })).toHaveCount(0);
+        at <repo>/app/tests/office.spec.mjs:149:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-inactive-list-chromium-390/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-inactive-list-chromium-390/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T15:06:55.921Z proof-inactive-sheet-chromium-390: clarification 15 removed: the edit sheet leaves out the visit's inactive current worker
+   spec: playwright test office.spec.mjs --project chromium-390 -g deactivated worker on 7906 (inspector 7916), copy in app/.negative/proof-inactive-sheet-chromium-390
+   unbroken copy:   ✓  1 [chromium-390] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row (1.3s) |   1 passed (5.7s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row 
+
+    Error: the sheet keeps the inactive worker
+
+    expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByRole('dialog').locator('#vs-worker')
+    Expected: "5"
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - the sheet keeps the inactive worker getByRole('dialog').locator('#vs-worker') with timeout 10000ms
+      - waiting for getByRole('dialog').locator('#vs-worker')
+        23 × locator resolved to <select id="vs-worker">…</select>
+           - unexpected value ""
+
+
+      163 |   }
+      164 |   const sheet = page.getByRole('dialog');
+    > 165 |   await expect(sheet.locator('#vs-worker'), 'the sheet keeps the inactive worker').toHaveValue(String(terry.id));
+          |                                                                                    ^
+      166 |   await expect(sheet.locator('#vs-worker option:checked')).toHaveText('Terry O. (SAMPLE) (inactive)');
+      167 |   await sheet.locator('#vs-end').fill('09:15');
+      168 |   const save = page.waitForResponse(r => r.url().endsWith(`/api/office/visits/${visit.id}`) && r.request().method() === 'PUT');
+        at <repo>/app/tests/office.spec.mjs:165:84
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-inactive-sheet-chromium-390/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+== 2026-09-14T15:07:17.103Z proof-inactive-row-chromium-390: clarification 15 removed: the week has no row (1280) or group (390) for an inactive worker named on a visit
+   spec: playwright test office.spec.mjs --project chromium-390 -g deactivated worker on 7906 (inspector 7916), copy in app/.negative/proof-inactive-row-chromium-390
+   unbroken copy:   ✓  1 [chromium-390] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row (1.3s) |   1 passed (5.7s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/office.spec.mjs:132:1 › a deactivated worker stays under Inactive, their earlier visit keeps them when saved, and the week shows their row 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.wgroup[data-worker-id="5"] h3')
+    Expected substring: "Terry O. (SAMPLE) (inactive)"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('.wgroup[data-worker-id="5"] h3') with timeout 10000ms
+      - waiting for locator('.wgroup[data-worker-id="5"] h3')
+
+
+      159 |     await tap(page, page.locator(`.cell[data-worker-id="${terry.id}"][data-date="${DAY}"] .chip[data-visit-id="${visit.id}"]`), 'the 8:00 visit');
+      160 |   } else {
+    > 161 |     await expect(page.locator(`.wgroup[data-worker-id="${terry.id}"] h3`)).toContainText('Terry O. (SAMPLE) (inactive)');
+          |                                                                            ^
+      162 |     await tap(page, page.locator(`[data-open-visit="${visit.id}"]`), 'the 8:00 visit');
+      163 |   }
+      164 |   const sheet = page.getByRole('dialog');
+        at <repo>/app/tests/office.spec.mjs:161:76
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-inactive-row-chromium-390/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-inactive-row-chromium-390/results/office-a-deactivated-worke-3f5a2-nd-the-week-shows-their-row-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14 note (hc2): "proof-queued-midnight" at 15:01:34Z stayed GREEN, so it measured nothing. Its spec ("a check-in still
+   queued across midnight") keeps yesterday's saved list, and the queued check-in shows on that list whether or not the
+   queue is consulted. The queue path matters only when no list for that day is saved under the page's key. The proof now
+   runs against "a check-in queued before midnight under an old link…": the office makes a new link and the phone opens it
+   after midnight, when only the queue knows the visit is open. It is re-run below.
+
+== 2026-09-14T15:09:42.210Z proof-queued-midnight: clarification 16 removed: a check-in still in the queue does not open an earlier day
+   spec: playwright test worker.spec.mjs --project chromium-390 -g queued before midnight under an old link on 7906 (inspector 7916), copy in app/.negative/proof-queued-midnight
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:311:3 › with the service worker blocked › a check-in queued before midnight under an old link still opens "Still open from yesterday" on the new link (1.5s) |   1 passed (5.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:311:3 › with the service worker blocked › a check-in queued before midnight under an old link still opens "Still open from yesterday" on the new link 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' }) with timeout 10000ms
+      - waiting for locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+
+
+      333 |     await page.goto(pathOf(fresh.body.worker_url));
+      334 |     const section = page.locator('.still-open');
+    > 335 |     await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
+          |                                                                                       ^
+      336 |     const open = section.locator(`.visit[data-visit="${visit.id}"]`);
+      337 |     await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
+      338 |
+        at <repo>/app/tests/worker.spec.mjs:335:87
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-queued-midnight/results/worker-with-the-service-wo-54f5b-m-yesterday-on-the-new-link-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-queued-midnight/results/worker-with-the-service-wo-54f5b-m-yesterday-on-the-new-link-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+

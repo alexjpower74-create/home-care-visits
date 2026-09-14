@@ -95,7 +95,8 @@ addEventListener('hashchange', route);
 $('signout').addEventListener('click', async () => {
   const r = await office('POST', '/api/office/signout');
   clearToken();
-  showSignin(r.status === 200 ? 'Signed out.'
+  // A 401 means the session had already ended at the office (clarification 16): that is signed out too.
+  showSignin(r.status === 200 || r.status === 401 ? 'Signed out.'
     : "Signed out on this computer. The session couldn't be closed at the office. Sign in and out again when the connection is back.");
 });
 onSessionEnded(message => showSignin(message)); // the API's words ("Your session has ended. Sign in again.")
