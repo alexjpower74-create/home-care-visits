@@ -946,3 +946,51 @@ edited. Only what is worth fixing tonight is written out below; everything small
 - `office.spec.mjs` "Sign out after the session already ended": no proof breaks the 401 branch.
 - `worker.spec.mjs:274` "still queued across midnight" stays in the suite but passes on the saved list, not the queue (hc2 logged
   this; its proof moved to the old-link test).
+
+## Lead review of the M3b review (merged c6f581e)
+
+- Findings 1-3: adopted as API.md clarification 18 (DECISIONS 45-47). The known gaps go into the README as written. Finding 3
+  needed a Worker change, done in M6. **DONE**
+
+## M6 (2026-09-14, rebased on main)
+
+### What was built: DONE
+
+- **`open_dates` on `GET /api/worker/visits`** (clarification 18, finding 3).
+  - One query per answer: the distinct visit dates from today−7 up to, but not including, today, of visits with an effective
+    (non-voided) check-in whose `worker_id` is this worker, and no effective check-out. Ascending, with the requested date
+    left out.
+  - It ignores the visit's current worker, cancellation and soft-removal: what counts is this worker's own open check-in. A visit
+    checked in from a lost phone, or from a visit the office has since reassigned or removed, still shows on a new phone or link.
+  - It does not depend on the requested date, apart from leaving that date out. The contract says "not counting the requested date
+    and today", so a phone that asks for an open day doesn't see it listed twice.
+
+### Verified: DONE
+
+`npm test` at `e44611d`: **23/23 unit, 69/69 API** (68 + 1), nothing skipped. The new test, with now on Monday Sep 14:
+- a check-in 3 days ago (Fri Sep 11) with no check-out → `["2026-09-11"]`;
+- 7 days back (Mon Sep 7) is listed; a one-off visit 8 days back (Sun Sep 6) with an open check-in is not;
+- a **soft-removed** visit (Ruby T., Wed Sep 9, pattern moved at 10:00, Sam's check-in tapped at 10:25 lands at 10:40) is listed;
+- a **voided** check-in is not: Sam checked in to Tue Sep 8 after the visit went to Jo, and the office's Fix times replaced it with
+  Jo's check-in. The test sees Sam's row voided, the date not in Sam's list, and it in Jo's;
+- **another worker's** open check-in (Jo, Thu Sep 10) is in Jo's list only;
+- today's open check-in is never listed;
+- the answer is `["2026-09-07", "2026-09-09", "2026-09-11"]` for no date, today, Sep 13, Sep 16 and Sep 20, and without Sep 7 when Sep 7
+  itself is requested;
+- after Friday's check-out, the list is `["2026-09-07", "2026-09-09"]`.
+
+### Negative controls: DONE
+
+`npm run negative` runs all sixteen, (a)-(p), each red after its unbroken copy passed. The log was re-recorded against
+`e44611d` and holds no machine paths.
+
+| control | break (copy only) | red with |
+|---|---|---|
+| (p) `negative:opendates` | `index.js`: the open-dates window `addDays(today, -7)` → `addDays(today, -1)` | "a check-in 3 days ago with no check-out": `actual: [], expected: ['2026-09-11']` |
+
+(a)-(o) are unchanged and still red at `e44611d`.
+
+### Left undone / next
+
+Nothing for M6. The page side of clarification 18 (saved list first with an 8 s limit, Dismiss hides, loading each of
+`open_dates`) belongs to hc2.
