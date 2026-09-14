@@ -175,3 +175,14 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     complete, leaving the visit in payroll's incomplete list. It joins M3d with clarification 18's page side, hc1's smaller notes and an
     `npm run negative` script in `app/package.json` (the README names it). M3d is the last app round; anything found after it goes to
     the known gaps unless it can lose a check-in or pay someone wrongly.
+
+## 2026-09-14, lead (after hc1's diagnosis of the webkit-390 failure at `6cb9e81`, 13:47)
+
+49. **The one red test in the pinned run at `6cb9e81` was the spec, not the app, and it is fixed in the spec, never filtered in the
+    fixture.** hc1 reproduced it (2 in 15 runs) and traced it: the worker page's refresh after a check-in was still loading when the
+    spec navigated to the office, WebKit logs its own "Fetch API cannot load … due to access control checks." console error while the
+    page unloads, and Playwright's WebKit backend reports every such console error as a `pageerror`. The request's rejection is
+    handled, and a dropped request on a phone that is not navigating never produces it. The spec waits for the refresh ("All sent"
+    and the server's check-in) before leaving `/w/`; filtering the text in the fixture would hide a real uncaught error with a
+    similar message. The page also aborts its visits requests on `pagehide` (hc1's optional hardening), so an unloading page cancels
+    its own fetch. This is hc2's M3e, then the final QA.
