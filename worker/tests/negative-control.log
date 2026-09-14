@@ -1,9 +1,9 @@
 
-=== negative:idempotent 2026-09-14T13:19:28.568Z (HEAD a5706a7) ===
+=== negative:idempotent 2026-09-14T13:30:20.315Z (HEAD 5183d3e) ===
 control (unbroken copy): "events: the same id again answers 200 duplicate and the database still holds exactly one row" pass
 break: migrations/0001_init.sql: "  id TEXT PRIMARY KEY,\n  visit_id INTEGER NOT NULL"  ->  "  id TEXT NOT NULL,\n  visit_id INTEGER NOT NULL"
 break: src/index.js: "'SELECT * FROM events WHERE id = ?1 LIMIT 1'"  ->  "'SELECT * FROM events WHERE id = ?1 AND 0 LIMIT 1'"
-✖ events: the same id again answers 200 duplicate and the database still holds exactly one row (148.502715ms)
+✖ events: the same id again answers 200 duplicate and the database still holds exactly one row (161.301641ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -11,13 +11,13 @@ break: src/index.js: "'SELECT * FROM events WHERE id = ?1 LIMIT 1'"  ->  "'SELEC
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 224.98327
+ℹ duration_ms 242.7206
 
 ✖ failing tests:
 
 test at tests/api.test.mjs:589:1
-✖ events: the same id again answers 200 duplicate and the database still holds exactly one row (148.502715ms)
-  AssertionError [ERR_ASSERTION]: rows stored with this id: [{"id":"f31d61a6-91b9-44c4-9aeb-c70184b087f6","visit_id":18,"worker_id":2,"kind":"check_in","at":"2026-09-14T11:33:00.000Z","at_adjusted":0,"received_at":"2026-09-14T11:33:00.000Z","source":"phone","location":"not_shared","lat":null,"lng":null,"accuracy_m":null,"distance_m":null,"correction_reason":null,"voided_at":null},{"id":"f31d61a6-91b9-44c4-9aeb-c70184b087f6","visit_id":21,"worker_id":2,"kind":"check_in","at":"2026-09-14T13:02:00.000Z","at_adjusted":0,"received_at":"2026-09-14T13:02:00.000Z","source":"phone","location":"not_shared","lat":null,"lng":null,"accuracy_m":null,"distance_m":null,"correction_reason":null,"voided_at":null}]
+✖ events: the same id again answers 200 duplicate and the database still holds exactly one row (161.301641ms)
+  AssertionError [ERR_ASSERTION]: rows stored with this id: [{"id":"1a776c28-4c2a-4453-9775-12bd656af7bd","visit_id":18,"worker_id":2,"kind":"check_in","at":"2026-09-14T11:33:00.000Z","at_adjusted":0,"received_at":"2026-09-14T11:33:00.000Z","source":"phone","location":"not_shared","lat":null,"lng":null,"accuracy_m":null,"distance_m":null,"correction_reason":null,"voided_at":null},{"id":"1a776c28-4c2a-4453-9775-12bd656af7bd","visit_id":21,"worker_id":2,"kind":"check_in","at":"2026-09-14T13:02:00.000Z","at_adjusted":0,"received_at":"2026-09-14T13:02:00.000Z","source":"phone","location":"not_shared","lat":null,"lng":null,"accuracy_m":null,"distance_m":null,"correction_reason":null,"voided_at":null}]
   
   2 !== 1
   
@@ -34,10 +34,10 @@ test at tests/api.test.mjs:589:1
   }
 verdict: RED as expected. "events: the same id again answers 200 duplicate and the database still holds exactly one row" fail when events.id is not a primary key and the insert ignores an id that is already stored.
 
-=== negative:time 2026-09-14T13:19:34.605Z (HEAD a5706a7) ===
+=== negative:time 2026-09-14T13:30:27.509Z (HEAD 5183d3e) ===
 control (unbroken copy): "events: original time kept" pass
 break: src/rules.js: "return { atMs: at, adjusted: false }"  ->  "return { atMs: now, adjusted: false }"
-✖ events: original time kept — at = T with X-Test-Now = T + 45 min stores T; at 2 h ahead is adjusted (112.15127ms)
+✖ events: original time kept — at = T with X-Test-Now = T + 45 min stores T; at 2 h ahead is adjusted (149.066508ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -45,12 +45,12 @@ break: src/rules.js: "return { atMs: at, adjusted: false }"  ->  "return { atMs:
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 191.929178
+ℹ duration_ms 251.690091
 
 ✖ failing tests:
 
 test at tests/api.test.mjs:662:1
-✖ events: original time kept — at = T with X-Test-Now = T + 45 min stores T; at 2 h ahead is adjusted (112.15127ms)
+✖ events: original time kept — at = T with X-Test-Now = T + 45 min stores T; at 2 h ahead is adjusted (149.066508ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   + actual - expected
   
@@ -71,10 +71,10 @@ test at tests/api.test.mjs:662:1
   }
 verdict: RED as expected. "events: original time kept" fail when the Worker stores the time the event arrived instead of the time the worker tapped.
 
-=== negative:familynote 2026-09-14T13:19:40.673Z (HEAD a5706a7) ===
+=== negative:familynote 2026-09-14T13:30:34.800Z (HEAD 5183d3e) ===
 control (unbroken copy): "family privacy: a checked-out visit with a non-shareable note" pass
 break: src/index.js: "note: checkOut && note && note.shareable ? note.text : null"  ->  "note: checkOut && note ? note.text : null"
-✖ family privacy: a checked-out visit with a non-shareable note shows none of what must never reach the family (150.435157ms)
+✖ family privacy: a checked-out visit with a non-shareable note shows none of what must never reach the family (199.944481ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -82,14 +82,14 @@ break: src/index.js: "note: checkOut && note && note.shareable ? note.text : nul
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 225.716249
+ℹ duration_ms 295.616084
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:801:1
-✖ family privacy: a checked-out visit with a non-shareable note shows none of what must never reach the family (150.435157ms)
+test at tests/api.test.mjs:798:1
+✖ family privacy: a checked-out visit with a non-shareable note shows none of what must never reach the family (199.944481ms)
   AssertionError [ERR_ASSERTION]: the family answer contains "Ate well, talked about the SAMPLE garden."
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-familynote/tests/api.test.mjs:826:33)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-familynote/tests/api.test.mjs:823:33)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -102,10 +102,10 @@ test at tests/api.test.mjs:801:1
   }
 verdict: RED as expected. "family privacy: a checked-out visit with a non-shareable note" fail when the family answer carries a note the office has not marked shareable.
 
-=== negative:alert 2026-09-14T13:19:46.764Z (HEAD a5706a7) ===
+=== negative:alert 2026-09-14T13:30:42.340Z (HEAD 5183d3e) ===
 control (unbroken copy): "late/missed rule at the boundaries" pass
 break: src/rules.js: "if (nowMs >= start + LATE_MS) return 'late'"  ->  "if (nowMs > start + LATE_MS) return 'late'"
-✖ late/missed rule at the boundaries: 14:59.999 none, 15:00.000 late, 29:59.999 late, 30:00.000 missed (1.324991ms)
+✖ late/missed rule at the boundaries: 14:59.999 none, 15:00.000 late, 29:59.999 late, 30:00.000 missed (1.532238ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -113,12 +113,12 @@ break: src/rules.js: "if (nowMs >= start + LATE_MS) return 'late'"  ->  "if (now
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 78.988109
+ℹ duration_ms 89.115178
 
 ✖ failing tests:
 
 test at tests/unit.test.mjs:18:1
-✖ late/missed rule at the boundaries: 14:59.999 none, 15:00.000 late, 29:59.999 late, 30:00.000 missed (1.324991ms)
+✖ late/missed rule at the boundaries: 14:59.999 none, 15:00.000 late, 29:59.999 late, 30:00.000 missed (1.532238ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   
   'none' !== 'late'
@@ -137,12 +137,12 @@ test at tests/unit.test.mjs:18:1
   }
 verdict: RED as expected. "late/missed rule at the boundaries" fail when a visit exactly 15:00.000 after its start is not yet late.
 
-=== negative:travelgap 2026-09-14T13:19:47.041Z (HEAD a5706a7) ===
+=== negative:travelgap 2026-09-14T13:30:42.664Z (HEAD 5183d3e) ===
 control (unbroken copy): "conflicts: travel-gap boundary", "conflicts: the SAMPLE base week", "conflicts: a hand-built week" pass
 break: src/conflicts.js: "Math.ceil(metres * 1.3 / 1000)"  ->  "Math.ceil(metres / 1000)"
-✖ conflicts: a hand-built week with exactly one of each kind, exact messages and order (3.888544ms)
-✖ conflicts: travel-gap boundary, gap = needed is fine and gap = needed − 1 is a conflict (0.650401ms)
-✖ conflicts: the SAMPLE base week gives exactly expected_base_week_conflicts (36 visits) (1.996161ms)
+✖ conflicts: a hand-built week with exactly one of each kind, exact messages and order (3.947743ms)
+✖ conflicts: travel-gap boundary, gap = needed is fine and gap = needed − 1 is a conflict (0.68379ms)
+✖ conflicts: the SAMPLE base week gives exactly expected_base_week_conflicts (36 visits) (2.702551ms)
 ℹ tests 3
 ℹ suites 0
 ℹ pass 0
@@ -150,12 +150,12 @@ break: src/conflicts.js: "Math.ceil(metres * 1.3 / 1000)"  ->  "Math.ceil(metres
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 77.156876
+ℹ duration_ms 87.061397
 
 ✖ failing tests:
 
 test at tests/conflicts.test.mjs:46:1
-✖ conflicts: a hand-built week with exactly one of each kind, exact messages and order (3.888544ms)
+✖ conflicts: a hand-built week with exactly one of each kind, exact messages and order (3.947743ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
   ... Skipped lines
@@ -191,7 +191,7 @@ test at tests/conflicts.test.mjs:46:1
   }
 
 test at tests/conflicts.test.mjs:68:1
-✖ conflicts: travel-gap boundary, gap = needed is fine and gap = needed − 1 is a conflict (0.650401ms)
+✖ conflicts: travel-gap boundary, gap = needed is fine and gap = needed − 1 is a conflict (0.68379ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   
   0 !== 1
@@ -212,7 +212,7 @@ test at tests/conflicts.test.mjs:68:1
   }
 
 test at tests/conflicts.test.mjs:129:1
-✖ conflicts: the SAMPLE base week gives exactly expected_base_week_conflicts (36 visits) (1.996161ms)
+✖ conflicts: the SAMPLE base week gives exactly expected_base_week_conflicts (36 visits) (2.702551ms)
   AssertionError [ERR_ASSERTION]: 2026-09-14
   + actual - expected
   ... Skipped lines
@@ -253,10 +253,10 @@ test at tests/conflicts.test.mjs:129:1
   }
 verdict: RED as expected. "conflicts: travel-gap boundary" and "conflicts: the SAMPLE base week" and "conflicts: a hand-built week" fail when the needed travel time drops the 1.3 factor on the straight-line distance.
 
-=== negative:payrollround 2026-09-14T13:19:47.320Z (HEAD a5706a7) ===
+=== negative:payrollround 2026-09-14T13:30:42.964Z (HEAD 5183d3e) ===
 control (unbroken copy): "reports: payroll exactness" pass
 break: src/reports.js: "hours: decimalHours(seconds)"  ->  "hours: (list.reduce((h, v) => h + Math.floor((v.seconds * 100 + 1800) / 3600), 0) / 100).toFixed(2)"
-✖ reports: payroll exactness — 1:00:20 + 0:45:20 + 2:10:20 is 14 160 s and "3.93" (rounding each visit would say 3.94) (290.12924ms)
+✖ reports: payroll exactness — 1:00:20 + 0:45:20 + 2:10:20 is 14 160 s and "3.93" (rounding each visit would say 3.94) (257.276859ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -264,12 +264,12 @@ break: src/reports.js: "hours: decimalHours(seconds)"  ->  "hours: (list.reduce(
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 371.13536
+ℹ duration_ms 333.204798
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:1049:1
-✖ reports: payroll exactness — 1:00:20 + 0:45:20 + 2:10:20 is 14 160 s and "3.93" (rounding each visit would say 3.94) (290.12924ms)
+test at tests/api.test.mjs:1046:1
+✖ reports: payroll exactness — 1:00:20 + 0:45:20 + 2:10:20 is 14 160 s and "3.93" (rounding each visit would say 3.94) (257.276859ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
   ... Skipped lines
@@ -297,7 +297,7 @@ test at tests/api.test.mjs:1049:1
       }
     }
   
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-payrollround/tests/api.test.mjs:1059:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-payrollround/tests/api.test.mjs:1056:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -310,10 +310,10 @@ test at tests/api.test.mjs:1049:1
   }
 verdict: RED as expected. "reports: payroll exactness" fail when hours are rounded per visit and then added.
 
-=== negative:mileageorder 2026-09-14T13:19:53.713Z (HEAD a5706a7) ===
+=== negative:mileageorder 2026-09-14T13:30:49.951Z (HEAD 5183d3e) ===
 control (unbroken copy): "reports: mileage follows check-in order" pass
 break: src/reports.js: "list.sort((a, b) => a.at.localeCompare(b.at) || a.visit_id - b.visit_id)"  ->  "list.sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.visit_id - b.visit_id)"
-✖ reports: mileage follows check-in order, not schedule order (182.691682ms)
+✖ reports: mileage follows check-in order, not schedule order (182.237397ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -321,12 +321,12 @@ break: src/reports.js: "list.sort((a, b) => a.at.localeCompare(b.at) || a.visit_
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 264.055556
+ℹ duration_ms 259.536757
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:1161:1
-✖ reports: mileage follows check-in order, not schedule order (182.691682ms)
+test at tests/api.test.mjs:1158:1
+✖ reports: mileage follows check-in order, not schedule order (182.237397ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
   ... Skipped lines
@@ -378,7 +378,7 @@ test at tests/api.test.mjs:1161:1
       ]
     }
   
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-mileageorder/tests/api.test.mjs:1178:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-mileageorder/tests/api.test.mjs:1175:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -391,10 +391,10 @@ test at tests/api.test.mjs:1161:1
   }
 verdict: RED as expected. "reports: mileage follows check-in order" fail when mileage legs follow the schedule instead of the order the worker checked in.
 
-=== negative:csvguard 2026-09-14T13:19:59.968Z (HEAD a5706a7) ===
+=== negative:csvguard 2026-09-14T13:30:56.562Z (HEAD 5183d3e) ===
 control (unbroken copy): "reports: CSV" pass
 break: src/reports.js: "  if (FORMULA.test(s)) s = `'${s}`\n"  ->  ""
-✖ reports: CSV headers, CRLF, quoting, the formula guard and the filename, for all four (202.761861ms)
+✖ reports: CSV headers, CRLF, quoting, the formula guard and the filename, for all four (176.627429ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -402,12 +402,12 @@ break: src/reports.js: "  if (FORMULA.test(s)) s = `'${s}`\n"  ->  ""
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 287.182062
+ℹ duration_ms 253.77993
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:1196:1
-✖ reports: CSV headers, CRLF, quoting, the formula guard and the filename, for all four (202.761861ms)
+test at tests/api.test.mjs:1193:1
+✖ reports: CSV headers, CRLF, quoting, the formula guard and the filename, for all four (176.627429ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   + actual - expected
   
@@ -418,7 +418,7 @@ test at tests/api.test.mjs:1196:1
       'Sam R. (SAMPLE) total,,2,1.76,1 h 45 min,6340\r\n' +
       'Total,,2,1.76,1 h 45 min,6340\r\n'
   
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-csvguard/tests/api.test.mjs:1226:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-csvguard/tests/api.test.mjs:1223:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -431,10 +431,10 @@ test at tests/api.test.mjs:1196:1
   }
 verdict: RED as expected. "reports: CSV" fail when a text cell starting with = is written as is.
 
-=== negative:missedcancel 2026-09-14T13:20:06.337Z (HEAD a5706a7) ===
+=== negative:missedcancel 2026-09-14T13:31:03.089Z (HEAD 5183d3e) ===
 control (unbroken copy): "reports: missed excludes cancelled visits" pass
 break: src/reports.js: "} else if (!v.cancelled && Date.parse(v.starts_at) + MISSED_MS <= nowMs) {"  ->  "} else if (Date.parse(v.starts_at) + MISSED_MS <= nowMs) {"
-✖ reports: missed excludes cancelled visits, includes a visit with no worker, and late is exactly 15 minutes (206.615276ms)
+✖ reports: missed excludes cancelled visits, includes a visit with no worker, and late is exactly 15 minutes (198.562821ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -442,12 +442,12 @@ break: src/reports.js: "} else if (!v.cancelled && Date.parse(v.starts_at) + MIS
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 280.745905
+ℹ duration_ms 275.568354
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:1129:1
-✖ reports: missed excludes cancelled visits, includes a visit with no worker, and late is exactly 15 minutes (206.615276ms)
+test at tests/api.test.mjs:1126:1
+✖ reports: missed excludes cancelled visits, includes a visit with no worker, and late is exactly 15 minutes (198.562821ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
   ... Skipped lines
@@ -477,7 +477,7 @@ test at tests/api.test.mjs:1129:1
           late_minutes: null,
           time_label: '12:00 PM – 12:45 PM',
   
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-missedcancel/tests/api.test.mjs:1144:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-missedcancel/tests/api.test.mjs:1141:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -490,10 +490,10 @@ test at tests/api.test.mjs:1129:1
   }
 verdict: RED as expected. "reports: missed excludes cancelled visits" fail when a cancelled visit with no check-in is reported as missed.
 
-=== negative:ndtdate 2026-09-14T13:20:12.615Z (HEAD a5706a7) ===
+=== negative:ndtdate 2026-09-14T13:31:09.596Z (HEAD 5183d3e) ===
 control (unbroken copy): "reports: payroll period uses the NL date of the check-in" pass
 break: src/reports.js: "  const date = nlDate(atIso)\n"  ->  "  const date = atIso.slice(0, 10)\n"
-✖ reports: payroll period uses the NL date of the check-in (23:50 NDT on the last day counts, 00:10 the next day does not) (155.932758ms)
+✖ reports: payroll period uses the NL date of the check-in (23:50 NDT on the last day counts, 00:10 the next day does not) (161.219392ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -501,12 +501,12 @@ break: src/reports.js: "  const date = nlDate(atIso)\n"  ->  "  const date = atI
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 232.026569
+ℹ duration_ms 236.5382
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:1078:1
-✖ reports: payroll period uses the NL date of the check-in (23:50 NDT on the last day counts, 00:10 the next day does not) (155.932758ms)
+test at tests/api.test.mjs:1075:1
+✖ reports: payroll period uses the NL date of the check-in (23:50 NDT on the last day counts, 00:10 the next day does not) (161.219392ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   + actual - expected
   
@@ -517,7 +517,7 @@ test at tests/api.test.mjs:1078:1
   -   480
     ]
   
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-ndtdate/tests/api.test.mjs:1094:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-ndtdate/tests/api.test.mjs:1091:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -530,10 +530,10 @@ test at tests/api.test.mjs:1078:1
   }
 verdict: RED as expected. "reports: payroll period uses the NL date of the check-in" fail when the period uses the UTC date of the check-in.
 
-=== negative:inactivekey 2026-09-14T13:20:18.715Z (HEAD a5706a7) ===
+=== negative:inactivekey 2026-09-14T13:31:15.994Z (HEAD 5183d3e) ===
 control (unbroken copy): "worker key: deactivating a worker keeps their link" pass
 break: src/index.js: "'SELECT * FROM workers WHERE worker_key = ?1'"  ->  "'SELECT * FROM workers WHERE worker_key = ?1 AND active = 1'"
-✖ worker key: deactivating a worker keeps their link; their saved check-out still lands; only New link stops it (121.957288ms)
+✖ worker key: deactivating a worker keeps their link; their saved check-out still lands; only New link stops it (125.901755ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 0
@@ -541,17 +541,17 @@ break: src/index.js: "'SELECT * FROM workers WHERE worker_key = ?1'"  ->  "'SELE
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 197.154563
+ℹ duration_ms 202.215827
 
 ✖ failing tests:
 
-test at tests/api.test.mjs:887:1
-✖ worker key: deactivating a worker keeps their link; their saved check-out still lands; only New link stops it (121.957288ms)
+test at tests/api.test.mjs:884:1
+✖ worker key: deactivating a worker keeps their link; their saved check-out still lands; only New link stops it (125.901755ms)
   AssertionError [ERR_ASSERTION]: {"error":"This link doesn't work any more. Ask the office for a new one.","code":"unauthorized"}
   
   401 !== 200
   
-      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-inactivekey/tests/api.test.mjs:897:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-inactivekey/tests/api.test.mjs:894:10)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1409:7)
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
@@ -563,3 +563,71 @@ test at tests/api.test.mjs:887:1
     diff: 'simple'
   }
 verdict: RED as expected. "worker key: deactivating a worker keeps their link" fail when an inactive worker's link stops working before anyone makes a new one.
+
+=== negative:rebuilddelete 2026-09-14T13:31:22.417Z (HEAD 5183d3e) ===
+control (unbroken copy): "soft-remove: a check-in tapped before the pattern changed" pass
+break: src/index.js: "UPDATE visits SET removed_at = ?1, removed_reason = ?${ending.length + 2} WHERE id IN (${doomed}) RETURNING id"  ->  "DELETE FROM visits WHERE id IN (${doomed}) AND ?${ending.length + 2} IS NOT NULL RETURNING id"
+✖ soft-remove: a check-in tapped before the pattern changed lands, shows cancelled and visited, and counts for payroll (124.932798ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 206.824831
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1330:1
+✖ soft-remove: a check-in tapped before the pattern changed lands, shows cancelled and visited, and counts for payroll (124.932798ms)
+  AssertionError [ERR_ASSERTION]: {"error":"That visit isn't on your list.","code":"not_found"}
+  
+  404 !== 201
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-rebuilddelete/tests/api.test.mjs:1345:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 201,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "soft-remove: a check-in tapped before the pattern changed" fail when rebuilt visits are deleted, so a check-in tapped before the change is refused.
+
+=== negative:noteblocks 2026-09-14T13:31:28.908Z (HEAD 5183d3e) ===
+control (unbroken copy): "check-out: a note or a task list that breaks a rule never costs the check-out" pass
+break: src/index.js: "    out.note_refused = e.body.error\n"  ->  "    throw e\n"
+✖ check-out: a note or a task list that breaks a rule never costs the check-out (105.760836ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 181.916232
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1295:1
+✖ check-out: a note or a task list that breaks a rule never costs the check-out (105.760836ms)
+  AssertionError [ERR_ASSERTION]: Bill 2026-09-14: {"error":"Keep the note to two short lines.","code":"bad_request","field":"note"}
+  
+  400 !== 201
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-noteblocks/tests/api.test.mjs:1316:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 400,
+    expected: 201,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-out: a note or a task list that breaks a rule never costs the check-out" fail when a note that breaks a rule refuses the check-out with it.

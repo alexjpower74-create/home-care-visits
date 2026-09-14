@@ -302,3 +302,66 @@ Scope: `git log main -- app/` shows only hc2 M1 (`4379983`). Reviewed: `app/publ
 - The worker key goes in `X-Worker-Key`; labels use the agency time zone; the service worker never intercepts `/api/*`.
 - `no-referrer` meta is on `/w/` and `/f/`; the family page renders only allow-listed fields and stops refreshing on 404.
 - Both pages use the new `kind`/`visit_id` event fields only through the queue item, so clarification 3 needs no page change.
+
+## Lead review of M2 (merged 249b8ec)
+
+- M2 calls 1-6: adopted (API.md clarification 13). **DONE**
+- Review findings R1-R7: all adopted (clarifications 6-12, DECISIONS 27-31). R2 and R3 decided by the lead: soft-remove
+  (clarification 7), and a note or task list never costs a check-out (clarification 8). Both built in M3, on the Worker side.
+  **DONE**
+
+## M3 (2026-09-14, rebased on main 56bc0f5)
+
+### What was built: DONE
+
+- **Clarification 7, soft-remove.** `migrations/0003_visit_removed.sql` adds `visits.removed_at` and `visits.removed_reason`.
+  - **What soft-removes.** `PUT clients/:id` no longer deletes: a changed or ended pattern's future visits with no events get
+    `removed_at` = now. The reason is "Removed when the visit pattern changed." or, for a deactivated client, "Removed when the
+    client was made inactive.". `rebuilt_visits` counts them, and the worker history rows stay.
+  - **Where they are hidden.** A shared `VISIBLE` predicate (not removed, or has an effective event) is part of every visit
+    load: week, day, the office edits (404), the phone list and the family answer. Report rows use the same rule with their
+    joined events. Conflicts are computed from the week's visible visits; missed uses the report rows.
+  - **Generation.** The removed row still holds its `(pattern_id, pattern_date)`, and its pattern has ended, so nothing is
+    generated again.
+  - **Late events.** `POST /api/worker/events` looks the visit up without the filter, so a removed visit still accepts events,
+    and the phone's own answer includes it. Once visited it loads with `cancelled` = true, `cancel_reason` = the removal
+    reason and `visited_after_cancel` = true, and it counts for payroll, billing and mileage.
+  - **Restore.** `restore` on a removed visit that was visited is 409 `bad_state` "This visit was removed from the schedule, so
+    it can't be restored.". A new message, for the lead.
+- **Clarification 8.** The task list and the note are checked separately from the check-out. A refused one is dropped (tasks
+  `[]`, no note) and the 201 adds `note_refused` / `tasks_refused` with the rule's message. A duplicate resend answers as usual.
+  The M1 input-refusal test now expects a good two-line note to be stored; the refused cases moved to the new test.
+
+### Verified: DONE
+
+`npm test` at `5183d3e`: **23/23 unit, 66/66 API** (62 before + 4), nothing skipped. New tests:
+- **check-out:** six check-outs of exactly 3 600 s each. Notes: 3 lines, 201 characters, two phone numbers in a row (health
+  guard) and a number instead of a string. Task lists: missing, and a medication label together with a health-card note. Each
+  is 201 with the expected `note_refused` / `tasks_refused`, `worked_seconds` 3 600, the office note null (or kept when only
+  the tasks were refused), `tasks_done` [], and a resend of the same id 200 `duplicate`.
+- **soft-remove, late check-in:** Alex taps Check in at 8:55 for Walter G.'s Wednesday 9:00 visit. The office moves the pattern
+  to 10:00 at 8:57 (3 visits soft-removed), and the phone's POST arrives at 9:30: 201 with `at` = 8:55. The day board shows the
+  9:00 visit checked in, cancelled, "Removed when the visit pattern changed.", visited, next to the new 10:00 visit; the phone
+  list shows both. After the check-out, Wednesday payroll and billing count 3 600 s for Alex and missed does not list it. The
+  removed Thursday visit answers 404 to move, cancel and fix times.
+- **soft-remove, invisible:** after the change, the removed Wednesday–Friday 9:00 visit ids appear in none of the raw week, day
+  (×3), phone, family and missed answers. The week shows Mon 9:00, Tue 9:00, Wed–Fri 10:00; missed lists only the 10:00 visits;
+  the family week matches.
+- **soft-remove, deactivated client:** the week keeps only Mon and Tue, Thursday's day board and Wed–Fri missed have no Walter.
+  A late check-in on the removed Wednesday visit is 201 and shows "Removed when the client was made inactive.", visited.
+
+### Negative controls: DONE
+
+`npm run negative` runs all thirteen, (a)-(m), each red after its unbroken copy passed. The log was re-recorded against
+`5183d3e` and checked for machine paths.
+
+| control | break (copy only) | red with |
+|---|---|---|
+| (l) `negative:rebuilddelete` | `index.js`: the soft-remove `UPDATE visits SET removed_at = …` → `DELETE FROM visits WHERE id IN (…)` | the 8:55 check-in answers 404 `{"error":"That visit isn't on your list."}` instead of 201 |
+| (m) `negative:noteblocks` | `index.js`: `out.note_refused = e.body.error` → `throw e` | `Bill 2026-09-14: {"error":"Keep the note to two short lines.","code":"bad_request","field":"note"}` instead of 201 |
+
+(a)-(k) are unchanged and still red at `5183d3e`.
+
+### Left undone / next
+
+Waiting for the lead's prompt for the read-only review of hc2's office pages once they are on main.
