@@ -881,8 +881,9 @@ async function workerVisits (ctx) {
   const worker = await requireWorker(ctx)
   const today = nlDate(ctx.nowMs)
   const date = ctx.url.searchParams.get('date') || today
-  if (!isDate(date) || date < addDays(today, -1) || date > addDays(today, 6)) {
-    throw badRequest('date', 'Pick a day from yesterday to next week.')
+  // 7 days back (clarification 16): the phone may need a visit still open from an earlier day, inside the original-time window.
+  if (!isDate(date) || date < addDays(today, -7) || date > addDays(today, 6)) {
+    throw badRequest('date', 'Pick a day from last week to next week.')
   }
   await ensureVisits(ctx, date, date)
   const db = ctx.db
@@ -960,6 +961,12 @@ function checkedNote (value) {
   return note
 }
 
+/** What the Worker refused on a stored check-out (clarification 16), repeated to the phone on a resend. Worker answers only. */
+const storedRefusals = e => ({
+  ...(e.note_refused ? { note_refused: e.note_refused } : {}),
+  ...(e.tasks_refused ? { tasks_refused: e.tasks_refused } : {})
+})
+
 async function postEvent (ctx) {
   const worker = await requireWorker(ctx)
   const body = await readJson(ctx.request)
@@ -970,7 +977,9 @@ async function postEvent (ctx) {
   for (let attempt = 0; ; attempt++) {
     // An id already stored (any visit, any worker, voided or not) is a resend: answer what is stored, change nothing.
     const stored = await db.prepare('SELECT * FROM events WHERE id = ?1 LIMIT 1').bind(id).first()
-    if (stored) return json(200, { duplicate: true, event: workerEventView(stored), visit: await workerVisitById(db, stored.visit_id) })
+    if (stored) {
+      return json(200, { duplicate: true, event: workerEventView(stored), visit: await workerVisitById(db, stored.visit_id), ...storedRefusals(stored) })
+    }
 
     const input = validateEvent(body)
     const visit = await db.prepare(`SELECT v.*, c.lat AS client_lat, c.lng AS client_lng,
@@ -1013,9 +1022,9 @@ async function postEvent (ctx) {
     event.at_adjusted = adjusted ? 1 : 0
 
     stmts.push(db.prepare(`INSERT INTO events (id, visit_id, worker_id, kind, at, at_adjusted, received_at, source, location, lat, lng, accuracy_m,
-      distance_m, correction_reason, voided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL, NULL)`)
+      distance_m, correction_reason, voided_at, note_refused, tasks_refused) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL, NULL, ?14, ?15)`)
       .bind(event.id, event.visit_id, event.worker_id, event.kind, event.at, event.at_adjusted, event.received_at, event.source,
-        event.location, event.lat, event.lng, event.accuracy_m, event.distance_m))
+        event.location, event.lat, event.lng, event.accuracy_m, event.distance_m, input.note_refused ?? null, input.tasks_refused ?? null))
     if (input.kind === 'check_out') {
       stmts.push(db.prepare('DELETE FROM visit_tasks WHERE visit_id = ?1').bind(visit.id))
       input.tasks.forEach((t, pos) => stmts.push(db.prepare(

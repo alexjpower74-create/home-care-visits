@@ -784,10 +784,14 @@ test('worker visits: only this worker\'s visits for the date, in order, with ent
 
   const tue = await api('GET', `/api/worker/visits?date=${TUE}`, { key })
   assert.deepEqual(tue.body.visits.map(v => v.client_name), ['Frank H. (SAMPLE)'])
+  // Clarification 16: 7 days back to 6 days ahead.
   assert.equal((await api('GET', '/api/worker/visits?date=2026-09-13', { key })).status, 200, 'yesterday is allowed')
+  const weekBack = await api('GET', '/api/worker/visits?date=2026-09-07', { key })
+  assert.equal(weekBack.status, 200, '7 days back is allowed')
+  assert.deepEqual(weekBack.body.visits.map(v => v.client_name), ['Bill S. (SAMPLE)', 'Ruby T. (SAMPLE)'], "last Monday's visits")
   assert.equal((await api('GET', '/api/worker/visits?date=2026-09-20', { key })).status, 200, '6 days ahead is allowed')
-  expectError(await api('GET', '/api/worker/visits?date=2026-09-21', { key }), 400, 'bad_request', 'date', 'Pick a day from yesterday to next week.')
-  expectError(await api('GET', '/api/worker/visits?date=2026-09-12', { key }), 400, 'bad_request', 'date')
+  expectError(await api('GET', '/api/worker/visits?date=2026-09-06', { key }), 400, 'bad_request', 'date', 'Pick a day from last week to next week.')
+  expectError(await api('GET', '/api/worker/visits?date=2026-09-21', { key }), 400, 'bad_request', 'date', 'Pick a day from last week to next week.')
   expectError(await api('GET', '/api/worker/visits', {}), 401, 'unauthorized')
 
   assert.equal((await visitOf(token, MON, 'Ruby', nl(MON, '10:40'))).status, 'checked_in')
@@ -1293,7 +1297,7 @@ test('demo seed: a lived-in fortnight with exactly one missed, a late Sam R. vis
 // ================================================================ M3 (API.md clarifications 7 and 8)
 
 test('check-out: a note or a task list that breaks a rule never costs the check-out', async () => {
-  const { token, keyOf } = await setup()
+  const { token, keyOf, familyKey } = await setup()
   const key = keyOf('Sam')
   const TWO_LINES = 'Keep the note to two short lines.'
   const TASKS = "The task list didn't come through. Reload and try again."
@@ -1304,7 +1308,8 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
     [WED, 'Bill', { note: 123 }, { note_refused: TWO_LINES }],
     [WED, 'Ruby', { tasks: undefined, note: 'Kept this note.' }, { tasks_refused: TASKS }],
     [THU, 'Frank', { tasks: [{ task_id: 1, kind: 'medication_reminder', label: 'Gave her pills', done: true }], note: 'MCP 1234 5678 9012' },
-      { tasks_refused: MEDICATION, note_refused: HEALTH }]
+      { tasks_refused: MEDICATION, note_refused: HEALTH }],
+    [FRI, 'Bill', { note: 'A clean note. (SAMPLE)' }, {}]
   ]
   for (const [date, client, body, refused] of cases) {
     const v = await visitOf(token, date, client)
@@ -1324,6 +1329,20 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
     const again = await api('POST', '/api/worker/events', { key, now: plus(outAt, 5), body: { id, visit_id: v.id, kind: 'check_out', at: outAt, tasks: [], ...body } })
     assert.equal(again.status, 200, again.text)
     assert.equal(again.body.duplicate, true)
+    // Clarification 16: the resend's answer repeats what was refused (and a clean check-out's has neither field).
+    assert.equal(again.body.note_refused, refused.note_refused, `resend of ${client} ${date}: ${again.text}`)
+    assert.equal(again.body.tasks_refused, refused.tasks_refused, `resend of ${client} ${date}: ${again.text}`)
+    if (!refused.note_refused && !refused.tasks_refused) assert.ok(!('note_refused' in again.body) && !('tasks_refused' in again.body))
+  }
+  // Never in the office or family views.
+  const later = nl(FRI, '18:00')
+  const views = [
+    (await api('GET', `/api/office/week?start=${MON}`, { token, now: later })).text,
+    ...(await Promise.all([MON, TUE, WED, THU, FRI].map(d => api('GET', `/api/office/day?date=${d}`, { token, now: later })))).map(r => r.text),
+    ...(await Promise.all(['Bill', 'Ruby', 'Frank'].map(c => api('GET', `/api/family/${familyKey(c)}`, { now: later })))).map(r => r.text)
+  ]
+  for (const text of views) {
+    for (const s of ['note_refused', 'tasks_refused', TWO_LINES, TASKS, MEDICATION]) assert.ok(!text.includes(s), `a view contains ${s}`)
   }
 })
 
