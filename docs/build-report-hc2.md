@@ -931,3 +931,48 @@ The fixed moved-visit test first passed 12/12 (3 runs on each project). Then the
 
 The 4 skipped are unchanged, each with its written WebKit reason. Servers: the suite's Worker (7903/7913) and the controls'
 Worker (7906/7916) were stopped by their runners, and all four ports are free.
+
+## M3g: the two test-honesty gaps from hc1's review of M3e (DECISIONS 54, 2026-09-14)
+
+Rebased on main at 12a066a.
+
+1. **The map test requires MapLibre.** `office.spec` "the Clients map: the OpenFreeMap attribution…" now requires
+   `data-base="maplibre"` in all four projects, as they all ran in M3e. It always checks the MapLibre canvas and that the
+   style and TileJSON came from the fixtures. It used to accept `maplibre|plain` and check MapLibre only when it loaded, so a
+   regression dropping every browser to the plain background still passed. The no-WebGL spec still requires `"plain"`.
+2. **The network guard compares seen with answered** (`tests/helpers.mjs`).
+   - Every `tiles.openfreemap.org` request the context sees is recorded, as is every one a fixture route answered.
+   - After each test, `unansweredOf(seen, answered)` must come back empty, polling up to 5 s for a route still finishing.
+     Each answer matches one sighting of the same URL, so a repeat request is counted too.
+   - A request routed to no fixture still fails as "not in the map fixtures".
+   - **Shown to fail on known-bad input.** The helpers run from the real tree, so a copy-and-break control can't reach them.
+     A small spec in `office.spec` feeds the comparison a seen-but-unanswered tile and a seen-but-unanswered style; it reports
+     both, and reports nothing when every sighting was answered.
+3. **Proof `proof-webgl-required`** (`negative-m2c-proofs.mjs`, now 20 proofs): the copy's WebGL check always returns false. The
+   map test on chromium-1280 must go red.
+
+### Results (run alone, 18:32Z–18:34Z)
+`office.spec` and `targets.spec` in all four projects: 50 passed, 0 failed, 0 skipped.
+
+| project | passed |
+|---|---|
+| chromium-390 | 13 |
+| chromium-1280 | 12 |
+| webkit-390 | 13 |
+| webkit-1280 | 12 |
+
+- Every project printed "MapLibre with WebGL".
+- The new guard check found no unanswered OpenFreeMap request in any test, including the targets tests that leave the Clients
+  map mid-load.
+
+Each proof and the control passed on its unbroken copy first, then went red:
+
+| check | break (copy only) | red with |
+|---|---|---|
+| **proof-webgl-required** (new) | `webgl()` always returns false | "MapLibre with WebGL, not the fallback": expected "maplibre", received "plain" |
+| proof-webgl-fallback | the layer is added whether or not WebGL works | "the fallback base": expected "plain", received "" |
+| (m) attribution | the `addAttribution` line removed | expected "OpenFreeMap © OpenMapTiles Data from OpenStreetMap", received "" |
+
+As you asked, the full suite and the other controls were not run this round; your final QA runs them.
+`app/tests/negative-control.log` holds no machine paths. The controls' Worker (7906/7916) and the specs' Worker (7903/7913) were
+stopped by their runners, and all four ports are free.

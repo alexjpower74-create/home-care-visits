@@ -127,6 +127,12 @@ const PROOFS = [
       replaceOnce(file, '  try {\n    layer.addTo(map);\n  } catch {', '  layer.addTo(map); // PROOF: no fallback\n  try {\n  } catch {');
     },
   },
+  {
+    name: 'proof-webgl-required',
+    what: 'DECISIONS 54: office/clients.js never finds WebGL, so every browser gets the plain background',
+    args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'the OpenFreeMap attribution and its three links'],
+    breakIt: copy => replaceOnce(app(copy, 'office/clients.js'), '    return !!gl;', '    return false; // PROOF: no browser has WebGL'),
+  },
   ...inactive('chromium-1280'),
   ...inactive('chromium-390'),
 ];
