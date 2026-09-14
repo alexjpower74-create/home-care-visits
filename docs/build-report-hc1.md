@@ -1044,3 +1044,64 @@ edited. Checked against API.md clarification 17.
 - `reports.spec` billing: the `scheduled_hours` assertions can't tell printing from computing (the old page arithmetic gave the
   same strings for 60 and 90 minutes); only a case like 3 × 20 min (0.33 each, 1.00 total) would.
 - No control breaks the gap check or the CSV-at-click path; both specs would go red without the fix, but neither red run is recorded.
+
+## Diagnosis: webkit pageerror on navigation (6cb9e81)
+
+Diagnosed on main `4bdc689` (the same `app/public` as `6cb9e81`) with the Worker on hc1's ports (7905/7915). Nothing in `app/**` was
+edited; scratch specs and configs live in the git-ignored `.negative/diag/`.
+
+**Reproduced.** `E2E_PORT=7905 npx playwright test tests/targets.spec.mjs --project webkit-390 --repeat-each 15`: 2 of 15 runs of
+"Check in, Check out and the late and missed rows meet 4.5 : 1" failed the guarded fixture with "…/127.0.0.1:7905/api/worker/visits
+due to access control checks.". The other 58 passed.
+
+**Which promise.** An instrumented copy of the same flow (no route interception) caught the error with its stack, 1 in 25 runs:
+`request (api.js:18:26)` ← `load (w/app.js:124:33)` ← `onSent (w/app.js:28:55)` ← `drain (w/queue.js:145)`.
+- The check-in's answer makes the queue call `onSent`, which starts `load()`. Its `GET /api/worker/visits` is still in flight when
+  the spec's `signIn` navigates to `/office/`.
+- That request is **handled**: `await workerVisits(key)` at `w/app.js:124` is inside `load()`'s `try`, and the catch falls back to
+  the saved list.
+- What fails the test is not an unhandled promise. It is a **console error that WebKit logs itself** when the page unloads mid-fetch,
+  and Playwright's WebKit backend reports every such console error as a `pageerror`.
+
+The evidence:
+1. **Playwright's mapping.** `playwright-core/lib/coreBundle.js`, WebKit `_onConsoleMessage`: any console message with
+   `level === "error" && source === "javascript"` goes to `page.addPageError`. The name is the text before the first colon, and
+   the stack is the console message's stack trace.
+   - WebKit's text is "Fetch API cannot load http://127.0.0.1:…/api/worker/visits due to access control checks.", so the reported
+     name "Fetch API cannot load http" and message "/127.0.0.1:…" are that split, not a JS exception's name.
+   - A truly unhandled fetch rejection (control F4, 5/5) reports as `TypeError: Load failed`, a different shape.
+2. **Handled rejections never report.** A fetch in flight during a navigation, handled by `.then(ok, err)`, by one `try/await`, or
+   by two async layers like `request()` → `load()`: 0 page errors in 15 runs (F1-F3, real Worker, no interception). The same with
+   the `X-Worker-Key` header: 0/5 (F6). Navigating the moment `onSent`'s refresh starts, with and without the service worker, with
+   and without Web Locks: 0/30 (G1-G3).
+3. **No rejection event in the hit.** The captured failing run logged `beforeunload`, but no `unhandledrejection` event.
+4. **Not the service worker.** The same spec with `serviceWorkers: 'block'` still failed 1/15; the service worker never handles
+   `/api/*`.
+
+I could not make WebKit log "access control checks" on demand. It appears only in a narrow window of the unload (about 1 run in
+10-25), so point 1 is shown by the mapping and the matching message shape, not by a deterministic repro.
+
+**The other candidates are cleared.**
+- The queue sender: `post()` catches.
+- `loadEarlier`: awaited, and its GET is inside `try`.
+- `api.js` `request()` / `res.json()`: awaited by callers inside `try`, and `json()` has its own `try`.
+- The service worker's page fetch: not on the stack, and blocking it does not help.
+- "WebKit reports a rejection handled late, after unload" is not what happens either: handled rejections during unload stayed silent
+  every time.
+
+**A real phone.** A dropped request with no navigation does not produce it. With the network gone (F5, F7) or the request aborted
+(the dropped-no-navigation variant), the fetch rejects with "TypeError: Load failed", the page's `catch` runs, and WebKit logs only
+"Failed to load resource: …": 0 page errors in 15 runs. Even the navigation case is only a console line on a phone. The page is
+leaving, and the rejection it logged is handled, so nothing is lost or shown to the worker.
+
+**Fix for hc2 (the spec, not the app).**
+- `tests/targets.spec.mjs` "…meet 4.5 : 1" navigates to `/office/` while the phone's refresh after the check-in is still loading.
+  Before `signIn(page)`, it should wait until that refresh has finished: the card shows the server's check-in, not the queued one
+  (`await expect(page.locator('.visit-status').first()).not.toContainText('saved on this phone')` after it reads "Checked in"),
+  and the strip reads "All sent".
+- The first test in the same file already waits for "Within 250 m of the client" and "All sent" before moving on, which is why it
+  never hits this.
+- Do not filter the message in the guarded fixture: a real uncaught error with a similar text would then slip through.
+- The same rule applies to any spec that leaves `/w/` straight after a queued send.
+- Optional app hardening, not required: when the visits GETs gain `AbortSignal.timeout(8000)` (clarification 18), also abort them
+  on `pagehide`, so an unloading page cancels its own fetch instead of letting WebKit fail it mid-teardown.
