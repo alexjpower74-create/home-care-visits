@@ -23,6 +23,10 @@ const FAMILY_KEY_MESSAGE = "This link doesn't work. Ask the agency for a new one
 const GAP_MESSAGE = "That time doesn't exist on the day the clocks change."
 const PHONE_MESSAGE = 'Type a 10-digit phone number, like 709-555-0152.'
 const NOT_ON_LIST = "That visit isn't on your list."
+const REMOVED_PATTERN = 'Removed when the visit pattern changed.'
+const REMOVED_INACTIVE = 'Removed when the client was made inactive.'
+// A soft-removed visit exists only once it has an effective event (clarification 7).
+const VISIBLE = '(v.removed_at IS NULL OR EXISTS (SELECT 1 FROM events ve WHERE ve.visit_id = v.id AND ve.voided_at IS NULL))'
 
 // ---- responses ----
 
@@ -378,25 +382,24 @@ async function updateClient (ctx, idText) {
       'INSERT INTO family_contacts (client_id, position, name, relationship, phone) VALUES (?1, ?2, ?3, ?4, ?5)'
     ).bind(id, pos, f.name, f.relationship, f.phone))
   ]
-  let deleteIndex = -1
+  let removeIndex = -1
   if (ending.length) {
     const inList = placeholders(ending.length, 2)
-    // Future visits of an ended pattern with no events at all go; a past or started visit is never touched.
-    const doomed = `SELECT v.id FROM visits v WHERE v.pattern_id IN (${inList}) AND v.starts_at > ?1
+    // Future visits of an ended pattern with no events at all are soft-removed (clarification 7): a phone may still hold a
+    // check-in for one. A past or started visit is never touched.
+    const doomed = `SELECT v.id FROM visits v WHERE v.pattern_id IN (${inList}) AND v.starts_at > ?1 AND v.removed_at IS NULL
       AND NOT EXISTS (SELECT 1 FROM events e WHERE e.visit_id = v.id)`
-    stmts.push(
-      db.prepare(`UPDATE patterns SET ended_at = ?1 WHERE id IN (${inList})`).bind(ctx.nowIso, ...ending),
-      db.prepare(`DELETE FROM visit_workers WHERE visit_id IN (${doomed})`).bind(ctx.nowIso, ...ending)
-    )
-    deleteIndex = stmts.length
-    stmts.push(db.prepare(`DELETE FROM visits WHERE id IN (${doomed}) RETURNING id`).bind(ctx.nowIso, ...ending))
+    stmts.push(db.prepare(`UPDATE patterns SET ended_at = ?1 WHERE id IN (${inList})`).bind(ctx.nowIso, ...ending))
+    removeIndex = stmts.length
+    stmts.push(db.prepare(`UPDATE visits SET removed_at = ?1, removed_reason = ?${ending.length + 2} WHERE id IN (${doomed}) RETURNING id`)
+      .bind(ctx.nowIso, ...ending, c.active ? REMOVED_PATTERN : REMOVED_INACTIVE))
   }
   for (const p of added) {
     stmts.push(db.prepare('INSERT INTO patterns (client_id, days, start_hm, end_hm, worker_id, valid_from_at, ended_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)')
       .bind(id, JSON.stringify(p.days), p.start, p.end, p.worker_id, ctx.nowIso))
   }
   const results = await db.batch(stmts)
-  const rebuilt = deleteIndex >= 0 ? results[deleteIndex].results.length : 0
+  const rebuilt = removeIndex >= 0 ? results[removeIndex].results.length : 0
   return json(200, { ...(await clientById(ctx, id)), rebuilt_visits: rebuilt })
 }
 
@@ -543,8 +546,12 @@ async function ensureVisits (ctx, from, to) {
     isoSecond(r.starts_at), isoSecond(r.ends_at), r.worker_id, ctx.nowIso)))
 }
 
-/** Visits matching `where` (over alias v) with their effective events, task snapshots and notes. */
-async function loadVisitRecords (db, where, binds) {
+/**
+ * Visits matching `where` (over alias v) with their effective events, task snapshots and notes. Soft-removed visits with no
+ * effective event are left out unless `all`; one that was visited reads as cancelled with its removal reason.
+ */
+async function loadVisitRecords (db, whereOwn, binds, { all = false } = {}) {
+  const where = all ? whereOwn : `(${whereOwn}) AND ${VISIBLE}`
   const ids = `SELECT v.id FROM visits v WHERE ${where}`
   const [visits, events, tasks, notes] = await db.batch([
     prep(db, `SELECT v.*, c.name AS client_name, c.zone_id, c.lat, c.lng, c.address, c.entry_notes, w.name AS worker_name,
@@ -559,6 +566,10 @@ async function loadVisitRecords (db, where, binds) {
   const tk = groupBy(tasks.results, 'visit_id')
   const nt = new Map(notes.results.map(n => [n.visit_id, n]))
   return visits.results.map(row => {
+    if (row.removed_at) {
+      row.cancelled = 1
+      row.cancel_reason = row.removed_reason
+    }
     const own = ev.get(row.id) || []
     return {
       row,
@@ -570,8 +581,8 @@ async function loadVisitRecords (db, where, binds) {
   })
 }
 
-async function visitRecord (db, id) {
-  const [rec] = await loadVisitRecords(db, 'v.id = ?1', [id])
+async function visitRecord (db, id, opts) {
+  const [rec] = await loadVisitRecords(db, 'v.id = ?1', [id], opts)
   return rec || null
 }
 
@@ -693,7 +704,7 @@ async function clientTasksFor (db, clientIds) {
 }
 
 async function workerVisitById (db, id) {
-  const rec = await visitRecord(db, id)
+  const rec = await visitRecord(db, id, { all: true }) // the phone's own answer, even for a removed visit
   return workerVisitView(rec, await clientTasksFor(db, [rec.row.client_id]))
 }
 
@@ -831,6 +842,7 @@ async function restoreVisit (ctx, idText) {
   const rec = await officeVisit(ctx, Number(idText))
   const body = await readJson(ctx.request)
   if (body.version !== rec.row.version) throw stale()
+  if (rec.row.removed_at) throw badState('This visit was removed from the schedule, so it can\'t be restored.')
   return versionedUpdate(ctx, rec, body.version, 'cancelled = 0, cancel_reason = NULL', [])
 }
 
@@ -909,8 +921,25 @@ function validateEvent (body) {
     }
     return out
   }
-  if (!Array.isArray(body.tasks) || body.tasks.length > 12) throw badRequest('tasks', TASKS_MESSAGE)
-  out.tasks = body.tasks.map(t => {
+  // Neither the task list nor the note ever costs a check-out (clarification 8): a refused one is dropped and named.
+  try {
+    out.tasks = checkedTasks(body.tasks)
+  } catch (e) {
+    if (!(e instanceof HttpError)) throw e
+    out.tasks_refused = e.body.error
+  }
+  try {
+    out.note = checkedNote(body.note)
+  } catch (e) {
+    if (!(e instanceof HttpError)) throw e
+    out.note_refused = e.body.error
+  }
+  return out
+}
+
+function checkedTasks (tasks) {
+  if (!Array.isArray(tasks) || tasks.length > 12) throw badRequest('tasks', TASKS_MESSAGE)
+  return tasks.map(t => {
     if (!t || typeof t !== 'object' || !Object.hasOwn(TASK_LABELS, t.kind) || typeof t.label !== 'string' || typeof t.done !== 'boolean' ||
       !(t.task_id === undefined || t.task_id === null || Number.isInteger(t.task_id))) {
       throw badRequest('tasks', TASKS_MESSAGE)
@@ -921,12 +950,14 @@ function validateEvent (body) {
     if (recordsMedicationGiven(label)) throw badRequest('tasks', MEDICATION_MESSAGE)
     return { task_id: t.task_id ?? null, kind: t.kind, label, done: t.done }
   })
-  if (body.note !== undefined && body.note !== null && typeof body.note !== 'string') throw badRequest('note', 'Keep the note to two short lines.')
-  const note = (body.note || '').replace(/\r\n?/g, '\n').trim()
+}
+
+function checkedNote (value) {
+  if (value !== undefined && value !== null && typeof value !== 'string') throw badRequest('note', 'Keep the note to two short lines.')
+  const note = (value || '').replace(/\r\n?/g, '\n').trim()
   if (chars(note) > 200 || note.split('\n').length > 2) throw badRequest('note', 'Keep the note to two short lines.')
   guardText(note, 'note')
-  out.note = note
-  return out
+  return note
 }
 
 async function postEvent (ctx) {
@@ -1003,7 +1034,12 @@ async function postEvent (ctx) {
       if (isUniqueViolation(e) && attempt < 2) continue
       throw e
     }
-    return json(201, { event: workerEventView(event), visit: await workerVisitById(db, visit.id) })
+    return json(201, {
+      event: workerEventView(event),
+      visit: await workerVisitById(db, visit.id),
+      ...(input.note_refused ? { note_refused: input.note_refused } : {}),
+      ...(input.tasks_refused ? { tasks_refused: input.tasks_refused } : {})
+    })
   }
 }
 
@@ -1216,7 +1252,7 @@ function reportPeriod (ctx) {
 
 /** One row per visit dated in the period or checked in near it (the reports pick by the check-in's NL date themselves). */
 async function reportRows (db, from, to) {
-  return (await db.prepare(`SELECT v.id AS visit_id, v.date, v.start_hm AS start, v.end_hm AS "end", v.starts_at, v.cancelled,
+  return (await db.prepare(`SELECT v.id AS visit_id, v.date, v.start_hm AS start, v.end_hm AS "end", v.starts_at, v.cancelled, v.removed_at,
       v.client_id, c.name AS client_name, c.funder_id, f.name AS funder_name, c.lat, c.lng, w.name AS worker_name,
       ci.at AS check_in_at, ci.worker_id AS check_in_worker_id, wi.name AS check_in_worker_name, co.at AS check_out_at
     FROM visits v JOIN clients c ON c.id = v.client_id JOIN funders f ON f.id = c.funder_id
@@ -1224,9 +1260,9 @@ async function reportRows (db, from, to) {
     LEFT JOIN events ci ON ci.visit_id = v.id AND ci.kind = 'check_in' AND ci.voided_at IS NULL
     LEFT JOIN workers wi ON wi.id = ci.worker_id
     LEFT JOIN events co ON co.visit_id = v.id AND co.kind = 'check_out' AND co.voided_at IS NULL
-    WHERE (ci.at >= ?1 AND ci.at < ?2) OR v.date BETWEEN ?3 AND ?4`)
+    WHERE ((ci.at >= ?1 AND ci.at < ?2) OR v.date BETWEEN ?3 AND ?4) AND (v.removed_at IS NULL OR ci.id IS NOT NULL OR co.id IS NOT NULL)`)
     .bind(`${addDays(from, -1)}T00:00:00.000Z`, `${addDays(to, 2)}T00:00:00.000Z`, from, to).all()).results
-    .map(row => ({ ...row, scheduled_minutes: minutesOf(row.end) - minutesOf(row.start) }))
+    .map(row => ({ ...row, cancelled: row.removed_at ? 1 : row.cancelled, scheduled_minutes: minutesOf(row.end) - minutesOf(row.start) }))
 }
 
 const REPORTS = {
