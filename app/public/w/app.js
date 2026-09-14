@@ -1,13 +1,14 @@
-// Worker phone: today's visits (and any visit still open from yesterday), Navigate, Check in (location never blocks),
+// Worker phone: today's visits (and any visit still open from the last 7 days), Navigate, Check in (location never blocks),
 // tasks + note, Check out, offline queue.
 import { workerVisits, postWorkerEvent, getAgency } from '../api.js';
 import { createQueue } from './queue.js';
-import { TZ, timeLabel, localDate, addDays, esc, telHref } from '../time.js';
+import { TZ, timeLabel, localDate, addDays, dateLabelOf, initials, esc, telHref } from '../time.js';
 
 const key = new URLSearchParams(location.search).get('k') || '';
 const CACHE_PREFIX = 'hcv:visits:';
 const DRAFT_PREFIX = 'hcv:draft:';
 const NOTICE_PREFIX = 'hcv:notice:';
+const EARLIER_DAYS = 7; // the Worker's original-time window and its visits date range (clarification 16)
 // The Worker's note rules (docs/API.md privacy guards, clarification 8), checked while typing.
 const HEALTH_CARD = /\d(?:[ -]?\d){11,}/;
 const NOTE_LINES = 'Keep the note to two short lines.';
@@ -15,7 +16,7 @@ const NOTE_CARD = "Don't put health card numbers in this app.";
 const $ = id => document.getElementById(id);
 
 const S = {
-  answer: null, yesterday: null, agency: null, savedAt: null, stale: false, noList: false, keyRefused: false,
+  answer: null, earlier: [], agency: null, savedAt: null, stale: false, noList: false, keyRefused: false,
   loading: false, reloadAgain: false, items: [], refused: [], openId: null, openChosen: false,
   locating: null, sheetFor: null, sheetOpened: false, confirming: false, error: null,
 };
@@ -28,8 +29,10 @@ const queue = createQueue({
   onKeyRefused: () => { if (!S.keyRefused) { forgetLink(); render(); } },
 });
 
-const tz = () => (S.answer ?? S.yesterday)?.agency?.timezone || TZ;
-const agencyInfo = () => (S.answer ?? S.yesterday)?.agency || S.agency;
+/** A list the Worker answered (today's, or an earlier day's), for the worker and agency details. */
+const knownAnswer = () => S.answer ?? S.earlier.find(a => a.worker) ?? null;
+const tz = () => knownAnswer()?.agency?.timezone || TZ;
+const agencyInfo = () => knownAnswer()?.agency || S.agency;
 
 /* ---------- storage ---------- */
 function ls(fn, fallback = null) { try { return fn(localStorage); } catch { return fallback; } }
@@ -61,29 +64,32 @@ function savedList(date) {
   });
 }
 
-// Clarification 10: when this page's key is refused, the saved lists (entry notes, key-safe codes) and every draft leave the
-// phone. The queue and refused stores stay: they hold worked time and never entry notes.
+// Clarifications 10 and 16: when this page's key is refused, the saved lists (entry notes, key-safe codes) and the drafts stored
+// under that key leave the phone. Another link's lists and drafts stay, and so do the queue and refused stores.
 function forgetLink() {
-  Object.assign(S, { keyRefused: true, answer: null, yesterday: null, stale: false, sheetFor: null });
+  Object.assign(S, { keyRefused: true, answer: null, earlier: [], stale: false, sheetFor: null });
   ls(s => {
     for (let i = s.length - 1; i >= 0; i--) {
       const k = s.key(i);
-      if (!k) continue;
-      if (k.startsWith(DRAFT_PREFIX)) { s.removeItem(k); continue; }
-      if (!k.startsWith(CACHE_PREFIX)) continue;
+      if (!k || !(k.startsWith(DRAFT_PREFIX) || k.startsWith(CACHE_PREFIX))) continue;
       let rec = null;
       try { rec = JSON.parse(s.getItem(k)); } catch { rec = null; }
-      if (!rec || rec.key === key) s.removeItem(k);
+      if (rec?.key === key) s.removeItem(k);
     }
   });
   queue.setPageKeyRefused();
 }
 
-const draftOf = id => ls(s => JSON.parse(s.getItem(DRAFT_PREFIX + id)), null) || { done: {}, note: '' };
-const saveDraft = (id, d) => ls(s => s.setItem(DRAFT_PREFIX + id, JSON.stringify(d)));
+// Clarification 16: a draft is { key, done, note }, stored under the link it was typed with.
+function draftOf(id) {
+  const d = ls(s => JSON.parse(s.getItem(DRAFT_PREFIX + id)), null);
+  return { done: d?.done || {}, note: d?.note || '' };
+}
+const saveDraft = (id, d) => ls(s => s.setItem(DRAFT_PREFIX + id, JSON.stringify({ key, done: d.done, note: d.note })));
 const clearDraft = id => ls(s => s.removeItem(DRAFT_PREFIX + id));
 
 // Clarification 8: a check-out whose note or task list the Worker refused is still stored; the phone says so until dismissed.
+// A 200 duplicate repeats the refusal (clarification 16), so a resend after a lost 201 still says it.
 const noticeOf = id => ls(s => JSON.parse(s.getItem(NOTICE_PREFIX + id)), null);
 function rememberRefusals(answers = []) {
   for (const { item, data } of answers) {
@@ -120,7 +126,7 @@ async function load() {
       Object.assign(S, { answer: r.data, savedAt: Date.now(), stale: false, noList: false, keyRefused: false });
       saveList(r.data);
       queue.setPage(key, r.data.worker.id, { live: true });
-      await loadYesterday(r.data.date, true);
+      await loadEarlier(r.data.date, true);
     } else if (r.status === 401) {
       forgetLink();
       await loadAgency();
@@ -135,7 +141,10 @@ async function load() {
         queue.setPage(key, rec.answer.worker.id);
       }
     }
-    if (S.answer) await loadYesterday(S.answer.date, false);
+    // Earlier open visits whether or not today's list loaded.
+    await loadEarlier(S.answer?.date ?? localDate(Date.now(), TZ), true);
+    const seen = knownAnswer();
+    if (!S.answer && seen) queue.setPage(key, seen.worker.id);
     S.stale = !!S.answer;
     S.noList = !S.answer;
   } finally {
@@ -148,25 +157,42 @@ async function load() {
 // A visit is still open when it is checked in and its check-out has not reached the Worker yet.
 const stillOpen = x => x.status === 'in' || (x.status === 'done' && x.cout.saved);
 
-// Clarification 9: while yesterday's saved list or the queue holds a visit from yesterday that is checked in and not checked
-// out, the page also loads yesterday and shows those visits first, with their Check out.
-async function loadYesterday(today, online) {
-  const y = addDays(today, -1);
-  const saved = savedList(y)?.answer ?? null;
-  const known = S.yesterday?.date === y ? S.yesterday : saved;
-  const queuedIn = S.items.some(i => i.event.kind === 'check_in' && i.visit_date === y);
-  if (!queuedIn && !known?.visits.map(view).some(stillOpen)) { S.yesterday = null; return; }
-  if (online) {
-    try {
-      const r = await workerVisits(key, y);
-      if (r.status === 200) {
-        saveList(r.data);
-        S.yesterday = r.data.visits.map(view).some(stillOpen) ? r.data : null;
-        return;
-      }
-    } catch { /* no signal: the saved list stands in */ }
+// A visit the phone holds an event for, missing from the list (no saved list, or no longer assigned), still gets a card.
+function withQueued(answer, queued, date) {
+  const base = answer ?? { date, date_label: dateLabelOf(date), worker: null, agency: null, visits: [] };
+  const ids = new Set(base.visits.map(v => v.id));
+  const extra = [];
+  for (const i of queued) {
+    if (ids.has(i.event.visit_id)) continue;
+    ids.add(i.event.visit_id);
+    extra.push({ id: i.event.visit_id, client_name: i.client_name, client_initials: initials(i.client_name), address: '', lat: null,
+      lng: null, entry_notes: '', tasks: [], date, time_label: i.time_label, cancelled: false, check_in: null, check_out: null,
+      tasks_done: [], note: null });
   }
-  S.yesterday = known;
+  return extra.length ? { ...base, visits: [...base.visits, ...extra] } : base;
+}
+
+// Clarification 16: every date up to 7 days back for which the saved lists or the queue hold a visit checked in and not checked
+// out is loaded (or, with no signal, rebuilt from the saved list and the queue) and shown before today, oldest first.
+async function loadEarlier(today, online) {
+  const found = [];
+  for (let d = EARLIER_DAYS; d >= 1; d--) {
+    const date = addDays(today, -d);
+    const queued = S.items.filter(i => i.visit_date === date);
+    const known = S.earlier.find(a => a.date === date) ?? savedList(date)?.answer ?? null;
+    const queuedIn = queued.some(i => i.event.kind === 'check_in');
+    if (!queuedIn && !known?.visits.map(view).some(stillOpen)) continue;
+    let answer = null;
+    if (online) {
+      try {
+        const r = await workerVisits(key, date);
+        if (r.status === 200) { saveList(r.data); answer = r.data; }
+      } catch { /* no signal: the saved list and the queue stand in */ }
+    }
+    answer = withQueued(answer ?? known, queued, date);
+    if (answer.visits.map(view).some(stillOpen)) found.push(answer);
+  }
+  S.earlier = found;
 }
 
 async function loadAgency() {
@@ -223,13 +249,14 @@ function bodyHtml(x) {
     const action = S.locating === v.id
       ? `<div class="locating" role="status"><p>Getting location…</p><button type="button" class="btn btn-outline" data-act="skip-location">Skip location</button></div>`
       : `<button type="button" class="btn btn-big btn-check-in" data-act="check-in" data-visit="${v.id}">${x.status === 'refused' ? 'Check in again' : 'Check in'}</button>`;
-    return `${gettingIn}<a class="btn btn-outline" href="${esc(navigateHref(v))}" target="_blank" rel="noopener noreferrer">Navigate</a>${action}`;
+    const nav = v.lat != null ? `<a class="btn btn-outline" href="${esc(navigateHref(v))}" target="_blank" rel="noopener noreferrer">Navigate</a>` : '';
+    return `${gettingIn}${nav}${action}`;
   }
   if (x.status === 'in') {
     const d = draftOf(v.id);
     const tasks = v.tasks.map(t => `<label class="task"><input type="checkbox" data-act="task" data-visit="${v.id}" data-task="${t.id}"${d.done[t.id] ? ' checked' : ''}>
       <span class="task-text"><span class="task-label">${esc(t.label)}</span>${t.detail ? `<span class="task-detail">${esc(t.detail)}</span>` : ''}${t.kind === 'medication_reminder' ? '<span class="task-note">Reminder only. This app doesn\'t record medication given.</span>' : ''}</span></label>`).join('');
-    return `<fieldset class="tasks"><legend>Tasks</legend>${tasks}</fieldset>
+    return `${tasks ? `<fieldset class="tasks"><legend>Tasks</legend>${tasks}</fieldset>` : ''}
       <div class="field"><label for="note-${v.id}">Note (two short lines)</label>
       <textarea id="note-${v.id}" data-act="note" data-visit="${v.id}" rows="2" maxlength="200" autocomplete="off">${esc(d.note)}</textarea>
       <p class="counter" id="count-${v.id}">${d.note.length} / 200</p>
@@ -246,7 +273,12 @@ function bodyHtml(x) {
 function noticesHtml(x) {
   const out = [];
   const r = x.refusedIn;
-  if (r) {
+  if (r && x.cin) {
+    // Clarification 16: once the visit has an accepted or queued check-in, the refused one is history.
+    out.push(`<div class="visit-notice notice" role="status">
+      <p>An earlier check-in at ${esc(timeLabel(r.event.at, r.tz || tz()))} wasn't accepted by the office.</p>
+      <button type="button" class="btn btn-outline" data-act="dismiss-refused" data-seq="${r.seq}">Dismiss</button></div>`);
+  } else if (r) {
     const phone = r.office_phone;
     out.push(`<div class="visit-notice notice notice-bad" role="alert">
       <p>Not accepted by the office: check-in tapped at ${esc(timeLabel(r.event.at, r.tz || tz()))}.${phone ? ` Call the office: <a href="${telHref(phone)}">${esc(phone)}</a>` : ' Call the office.'}</p>
@@ -270,7 +302,7 @@ function cardHtml(x) {
     <button type="button" class="visit-head" data-act="toggle" data-visit="${v.id}" aria-expanded="${open}">
       <span class="visit-time">${esc(v.time_label)}</span>
       <span class="visit-who"><span class="avatar" aria-hidden="true">${esc(v.client_initials)}</span><span class="visit-name">${esc(v.client_name)}</span></span>
-      <span class="visit-town">${esc(town)}</span>
+      ${town ? `<span class="visit-town">${esc(town)}</span>` : ''}
       ${line ? `<span class="visit-status">${esc(line)}</span>` : ''}
     </button>
     ${noticesHtml(x)}
@@ -305,18 +337,21 @@ function mainHtml() {
   const refusedKey = S.keyRefused || queue.status().pageKeyRefused;
   if (!key) out.push('<div class="notice notice-bad" role="alert">This page needs the link the office gave you. Ask the office for your link.</div>');
   else if (refusedKey) out.push(`<div class="notice notice-bad" role="alert">This link doesn't work any more. Ask the office for a new one.</div>`);
-  else if (S.answer) {
-    if (S.stale) out.push(`<p class="notice notice-saved">Saved list from ${esc(timeLabel(S.savedAt, tz()))}</p>`);
-    const ys = (S.yesterday?.visits ?? []).map(view).filter(stillOpen);
-    const xs = S.answer.visits.map(view);
+  else if (S.answer || S.earlier.length) {
+    if (S.stale && S.answer) out.push(`<p class="notice notice-saved">Saved list from ${esc(timeLabel(S.savedAt, tz()))}</p>`);
+    const earlier = S.earlier.map(a => ({ a, xs: a.visits.map(view).filter(stillOpen) })).filter(g => g.xs.length);
+    const xs = (S.answer?.visits ?? []).map(view);
     if (!S.openChosen) {
-      S.openId = ([...ys, ...xs].find(x => x.status === 'in') || xs.find(x => x.status === 'todo' || x.status === 'refused'))?.v.id ?? null;
+      S.openId = ([...earlier.flatMap(g => g.xs), ...xs].find(x => x.status === 'in') || xs.find(x => x.status === 'todo' || x.status === 'refused'))?.v.id ?? null;
     }
-    if (ys.length) {
-      out.push(`<section class="still-open" aria-labelledby="still-open-h"><h2 id="still-open-h">Still open from yesterday</h2>
-        <ol class="visits">${ys.map(cardHtml).join('')}</ol></section>`);
+    const yesterday = addDays(S.answer?.date ?? localDate(Date.now(), tz()), -1);
+    for (const g of earlier) {
+      const heading = g.a.date === yesterday ? 'Still open from yesterday' : `Still open from ${dateLabelOf(g.a.date)}`;
+      out.push(`<section class="still-open" aria-labelledby="still-open-${g.a.date}"><h2 id="still-open-${g.a.date}">${esc(heading)}</h2>
+        <ol class="visits">${g.xs.map(cardHtml).join('')}</ol></section>`);
     }
-    out.push(xs.length ? `<ol class="visits">${xs.map(cardHtml).join('')}</ol>` : '<p class="empty">No visits for you today.</p>');
+    if (S.answer) out.push(xs.length ? `<ol class="visits">${xs.map(cardHtml).join('')}</ol>` : '<p class="empty">No visits for you today.</p>');
+    else out.push("<p class=\"notice notice-saved\">No saved list on this phone yet. Find signal once to load today's visits.</p>");
   } else if (S.noList) {
     out.push("<p class=\"notice notice-saved\">No saved list on this phone yet. Find signal once to load today's visits.</p>");
   } else {
@@ -344,7 +379,7 @@ function stripState() {
   return { state, text };
 }
 
-const allVisits = () => [...(S.yesterday?.visits ?? []), ...(S.answer?.visits ?? [])];
+const allVisits = () => [...S.earlier.flatMap(a => a.visits), ...(S.answer?.visits ?? [])];
 const findVisit = id => allVisits().find(v => v.id === id);
 
 function sheetHtml() {
@@ -361,6 +396,7 @@ function sheetHtml() {
     ${note ? `<blockquote class="quote">${esc(note)}</blockquote>` : '<p class="muted">No note</p>'}
     <p class="field-error note-error" role="alert">${esc(problem ?? '')}</p>
     <button type="button" class="btn btn-big btn-check-out" data-act="confirm-check-out"${S.confirming || problem ? ' disabled' : ''}>Yes, check out</button>
+    ${problem ? '<button type="button" class="btn btn-outline" data-act="check-out-without-note">Check out without the note</button>' : ''}
     <button type="button" class="btn btn-outline" data-act="sheet-cancel">Not yet</button>
   </div></div>`;
 }
@@ -380,8 +416,9 @@ function render() {
   $('badge').hidden = !a?.sample;
   $('today').textContent = S.answer ? `Today, ${S.answer.date_label}` : '';
   const me = $('me');
-  me.hidden = !S.answer;
-  if (S.answer) { me.textContent = S.answer.worker.initials; me.title = S.answer.worker.name; }
+  const who = knownAnswer()?.worker;
+  me.hidden = !who;
+  if (who) { me.textContent = who.initials; me.title = who.name; }
 
   const strip = stripState();
   $('strip').dataset.state = strip.state;
@@ -414,9 +451,10 @@ function uuid() {
 }
 
 function metaFor(v) {
-  const a = S.answer ?? S.yesterday;
-  return { key, worker_id: a.worker.id, client_name: v.client_name, time_label: v.time_label, visit_date: v.date,
-    office_phone: a.agency.office_phone, tz: tz() };
+  const a = knownAnswer();
+  const held = S.items.find(i => i.event.visit_id === v.id);
+  return { key, worker_id: a?.worker.id ?? held?.worker_id, client_name: v.client_name, time_label: v.time_label, visit_date: v.date,
+    office_phone: a?.agency.office_phone ?? held?.office_phone ?? '', tz: tz() };
 }
 
 /** Resolves with { lat, lng, accuracy_m } or null (denied, error, timeout, Skip). Never rejects, never blocks the visit. */
@@ -457,16 +495,17 @@ async function checkIn(id) {
   await refreshQueue();
 }
 
-async function confirmCheckOut() {
+/** withoutNote (clarification 16): the note breaks a rule, and the worker checks out now rather than fixing it. */
+async function confirmCheckOut({ withoutNote = false } = {}) {
   const v = findVisit(S.sheetFor);
   if (!v || S.confirming) return;
   const d = draftOf(v.id);
-  if (noteProblem(d.note)) return;
-  const at = new Date().toISOString(); // taken at "Yes, check out"
+  if (!withoutNote && noteProblem(d.note)) return;
+  const at = new Date().toISOString(); // taken at the tap that confirms
   S.confirming = true;
   const event = { id: uuid(), visit_id: v.id, kind: 'check_out', at,
     tasks: v.tasks.map(t => ({ task_id: t.id, kind: t.kind, label: t.label, done: !!d.done[t.id] })) };
-  const note = clampNote(d.note).trim();
+  const note = withoutNote ? '' : clampNote(d.note).trim();
   if (note) event.note = note;
   try {
     await queue.add(event, metaFor(v));
@@ -497,7 +536,9 @@ document.addEventListener('click', e => {
     case 'sheet-cancel': S.sheetFor = null; render(); break;
     case 'sheet-back': if (e.target === t) { S.sheetFor = null; render(); } break;
     case 'confirm-check-out': confirmCheckOut(); break;
+    case 'check-out-without-note': confirmCheckOut({ withoutNote: true }); break;
     case 'dismiss-notice': ls(s => s.removeItem(NOTICE_PREFIX + id)); render(); break;
+    case 'dismiss-refused': queue.removeRefused(Number(t.dataset.seq)); break;
     case 'remove-refused': queue.removeRefused(Number(t.dataset.seq)); break;
     case 'remove-held': queue.removeHeld(Number(t.dataset.seq)); break;
     default: break;
@@ -533,6 +574,6 @@ addEventListener('offline', () => render());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/w/sw.js', { scope: '/w/' }).catch(() => {});
-// The queue first: whether yesterday is still open depends on what the phone holds.
+// The queue first: which earlier days are still open depends on what the phone holds.
 refreshQueue().then(load);
 queue.start();

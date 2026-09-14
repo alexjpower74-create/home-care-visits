@@ -23,6 +23,19 @@ test("Sign out that can't reach the office says the session is still open there"
   expect(await page.evaluate(() => localStorage.getItem('hcv:office-token')), 'the token is gone from this computer').toBeNull();
 });
 
+test('Sign out after the session already ended at the office says "Signed out."', async ({ page, context, request }) => {
+  await setNow(page, context, NOW);
+  await signIn(page);
+  const token = await page.evaluate(() => localStorage.getItem('hcv:office-token'));
+  expect((await api(request, 'POST', '/api/office/signout', { token })).status, 'the session ends elsewhere').toBe(200);
+  const res = page.waitForResponse(r => r.url().endsWith('/api/office/signout'));
+  await tap(page, page.locator('#signout'), 'Sign out');
+  expect((await res).status()).toBe(401);
+  await expect(page.getByText('Signed out.', { exact: true })).toBeVisible();
+  await expect(page.getByText("The session couldn't be closed at the office", { exact: false })).toHaveCount(0);
+  await expect(page.locator('#pin')).toBeVisible();
+});
+
 async function newClient(page, name, { task }) {
   await tab(page, 'Clients');
   await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');

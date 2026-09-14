@@ -1,27 +1,78 @@
-// M2c proofs: each fix's assertion fails without the fix. Same copy-and-break harness as the lettered controls (the unbroken
-// copy passes first, then the broken copy must go red); one break per fix, one spec test each. Exit 0 only if every proof is red.
+// Proofs that each page and office fix's assertion fails without the fix (M2c, extended in M3b). Same copy-and-break harness as
+// the lettered controls: the unbroken copy passes first, then the broken copy must go red. One break per fix, one spec test
+// each. Exit 0 only if every proof is red.
 import path from 'node:path';
 import { control, replaceOnce } from './negative-lib.mjs';
 
 const app = (copy, file) => path.join(copy, 'app', 'public', file);
+const EARLIER_LOOP = '  for (let d = EARLIER_DAYS; d >= 1; d--) {';
+const FORGET_LINE = '      if (rec?.key === key) s.removeItem(k);';
+
+const inactive = project => [
+  {
+    name: `proof-inactive-list-${project}`,
+    what: 'clarification 15 removed: the Workers screen lists active workers only',
+    args: ['office.spec.mjs', '--project', project, '-g', 'deactivated worker'],
+    breakIt: copy => replaceOnce(app(copy, 'office/workers.js'), "office('GET', '/api/office/workers?all=1')", "office('GET', '/api/office/workers') /* PROOF */"),
+  },
+  {
+    name: `proof-inactive-sheet-${project}`,
+    what: "clarification 15 removed: the edit sheet leaves out the visit's inactive current worker",
+    args: ['office.spec.mjs', '--project', project, '-g', 'deactivated worker'],
+    breakIt: copy => replaceOnce(app(copy, 'office/sheet.js'),
+      '    const inactive = v.worker_id != null && !workers.some(w => w.id === v.worker_id)',
+      '    const inactive = false /* PROOF */ && v.worker_id != null && !workers.some(w => w.id === v.worker_id)'),
+  },
+  {
+    name: `proof-inactive-row-${project}`,
+    what: 'clarification 15 removed: the week has no row (1280) or group (390) for an inactive worker named on a visit',
+    args: ['office.spec.mjs', '--project', project, '-g', 'deactivated worker'],
+    breakIt: copy => replaceOnce(app(copy, 'office/week.js'),
+      '      if (v.worker_id != null && !active.has(v.worker_id) && !inactive.has(v.worker_id)) {',
+      '      if (false /* PROOF */ && v.worker_id != null && !active.has(v.worker_id) && !inactive.has(v.worker_id)) {'),
+  },
+];
 
 const PROOFS = [
   {
     name: 'proof-yesterday',
-    what: 'clarification 9 removed: w/app.js never loads yesterday',
-    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'Still open from yesterday'],
+    what: 'clarifications 9/16 removed: w/app.js never loads an earlier day',
+    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'visit still open after midnight shows'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'), EARLIER_LOOP, '  for (let d = EARLIER_DAYS; d >= 99; d--) { // PROOF: no earlier day'),
+  },
+  {
+    name: 'proof-queued-midnight',
+    what: 'clarification 16 removed: a check-in still in the queue does not open an earlier day',
+    // Not "still queued across midnight": there yesterday's saved list also holds the visit, so that spec can't tell (it stayed
+    // green at 15:01Z). Here the new link has no saved list for yesterday; only the queue knows.
+    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'queued before midnight under an old link'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'), "    const queuedIn = queued.some(i => i.event.kind === 'check_in');", '    const queuedIn = false; // PROOF'),
+  },
+  {
+    name: 'proof-earlier-days',
+    what: 'clarification 16 (item 4) removed: only yesterday is looked at, not 7 days back',
+    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'Still open from Sat Sep 12'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'), EARLIER_LOOP, '  for (let d = 1; d >= 1; d--) { // PROOF: yesterday only'),
+  },
+  {
+    name: 'proof-earlier-without-today',
+    what: "clarification 16 (item 4) removed: earlier days are looked at only when today's list loaded",
+    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'Still open from Sat Sep 12'],
     breakIt: copy => replaceOnce(app(copy, 'w/app.js'),
-      '  if (!queuedIn && !known?.visits.map(view).some(stillOpen)) { S.yesterday = null; return; }',
-      '  S.yesterday = null; return; // PROOF: yesterday is never loaded'),
+      '    await loadEarlier(S.answer?.date ?? localDate(Date.now(), TZ), true);',
+      '    if (S.answer) await loadEarlier(S.answer.date, true); // PROOF'),
   },
   {
     name: 'proof-forget',
-    what: 'clarification 10 removed: a refused key leaves the saved lists and drafts on the phone',
+    what: 'clarification 10 removed: a refused key leaves its saved lists and drafts on the phone',
     args: ['offline.spec.mjs', '--project', 'chromium-390', '-g', 'a refused link takes the saved lists'],
-    breakIt: copy => {
-      replaceOnce(app(copy, 'w/app.js'), '      if (k.startsWith(DRAFT_PREFIX)) { s.removeItem(k); continue; }', '      if (k.startsWith(DRAFT_PREFIX)) continue; // PROOF');
-      replaceOnce(app(copy, 'w/app.js'), '      if (!rec || rec.key === key) s.removeItem(k);', '      // PROOF: saved lists are kept');
-    },
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'), FORGET_LINE, '      // PROOF: nothing removed'),
+  },
+  {
+    name: 'proof-draft-key',
+    what: "clarification 16 (item 5) removed: a refused key deletes every link's saved lists and drafts",
+    args: ['offline.spec.mjs', '--project', 'chromium-390', '-g', 'two links on one phone'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'), FORGET_LINE, '      s.removeItem(k); // PROOF: every link'),
   },
   {
     name: 'proof-refusedcard',
@@ -32,43 +83,41 @@ const PROOFS = [
       '  const refusedIn = null; // PROOF'),
   },
   {
+    name: 'proof-check-in-again',
+    what: 'clarification 11 removed: a refused check-in with no other check-in does not offer "Check in again"',
+    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'offers "Check in again"'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'),
+      "  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : refusedIn ? 'refused' : 'todo';",
+      "  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : 'todo'; // PROOF"),
+  },
+  {
     name: 'proof-notecheck',
     what: 'clarification 8 (typing) removed: the page does not check the note for health card numbers',
     args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', '12-digit number in the note'],
     breakIt: copy => replaceOnce(app(copy, 'w/app.js'), '  if (HEALTH_CARD.test(t)) return NOTE_CARD;', '  // PROOF: no health card check'),
   },
   {
+    name: 'proof-without-note',
+    what: 'clarification 16 (item 6) removed: no "Check out without the note" next to the disabled button',
+    args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'Check out without the note'],
+    breakIt: copy => replaceOnce(app(copy, 'w/app.js'),
+      "    ${problem ? '<button type=\"button\" class=\"btn btn-outline\" data-act=\"check-out-without-note\">Check out without the note</button>' : ''}",
+      '    <!-- PROOF: no way out but fixing the note -->'),
+  },
+  {
     name: 'proof-notice',
-    what: "clarification 8 (answer) removed: the page ignores note_refused / tasks_refused",
+    what: 'clarification 8 (answer) removed: the page ignores note_refused / tasks_refused',
     args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', 'note refused on its way out'],
     breakIt: copy => replaceOnce(app(copy, 'w/app.js'), '  onSent: answers => { rememberRefusals(answers); load(); },', '  onSent: () => { load(); }, // PROOF'),
   },
-  {
-    name: 'proof-inactive-list',
-    what: 'clarification 15 removed: the Workers screen lists active workers only',
-    args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'deactivated worker'],
-    breakIt: copy => replaceOnce(app(copy, 'office/workers.js'), "office('GET', '/api/office/workers?all=1')", "office('GET', '/api/office/workers') /* PROOF */"),
-  },
-  {
-    name: 'proof-inactive-sheet',
-    what: "clarification 15 removed: the edit sheet leaves out the visit's inactive current worker",
-    args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'deactivated worker'],
-    breakIt: copy => replaceOnce(app(copy, 'office/sheet.js'),
-      '    const inactive = v.worker_id != null && !workers.some(w => w.id === v.worker_id)',
-      '    const inactive = false /* PROOF */ && v.worker_id != null && !workers.some(w => w.id === v.worker_id)'),
-  },
-  {
-    name: 'proof-inactive-row',
-    what: 'clarification 15 removed: the week has no row for an inactive worker named on a visit',
-    args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'deactivated worker'],
-    breakIt: copy => replaceOnce(app(copy, 'office/week.js'),
-      '      if (v.worker_id != null && !active.has(v.worker_id) && !inactive.has(v.worker_id)) {',
-      '      if (false /* PROOF */ && v.worker_id != null && !active.has(v.worker_id) && !inactive.has(v.worker_id)) {'),
-  },
+  ...inactive('chromium-1280'),
+  ...inactive('chromium-390'),
 ];
 
+// PROOF=<name> runs one proof.
+const only = process.env.PROOF;
 let failed = 0;
-for (const p of PROOFS) {
+for (const p of PROOFS.filter(x => !only || x.name === only)) {
   const code = control(p);
   console.log(`${p.name}: ${code === 0 ? 'red as required' : code === 2 ? 'VOID' : 'STAYED GREEN'}`);
   if (code !== 0) failed += 1;

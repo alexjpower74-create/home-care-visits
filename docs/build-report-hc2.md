@@ -480,3 +480,120 @@ when its time crosses noon ("10:30 AM–12:00 P"). The chip time now wraps as we
 
 After the chip-time CSS change, the full suite ran alone once more: **130 passed, 0 failed, 0 skipped** (33/32/33/32). The office
 screenshots were retaken (4 passed); the 1280 week shows "Irene C. (SAMPLE)" and "10:30 AM–12:00 PM" wrapped inside the cell.
+
+## M3b: the page side of clarification 16 and hc1's proof gaps (2026-09-14)
+
+Rebased on main at 5bac755 (hc1 M4: the 7-day visits range, and refusals repeated on a 200 duplicate).
+
+### Built
+1. **The service worker caches only the real page** (`w/sw.js`, rewritten).
+   - A response is kept only when it is 200, not redirected, and has the right `Content-Type`: `text/html`, JavaScript,
+     `text/css` or `image/svg+xml`.
+   - `/w/` must also contain `<meta name="hcv-page" content="worker">`, now in `w/index.html`.
+   - The same checks run at install, and install fails rather than cache a login page.
+2. **One set.** On a navigation the service worker fetches every file. Only when all required files pass does it store them
+   as a new cache `hcv-w-set-<time>`, keeping the one before. The page's client id is pinned to the set it was served from,
+   and its module requests are answered from that set.
+3. **No 3-second race without a copy.** The 3 s race against the cached page runs only when a set exists. With none, it
+   waits for the network, and a response that fails the checks is shown but never cached. The single `hcv-w-v*` caches from
+   before M3b are deleted.
+4. **Open visits from the last 7 days** (`loadEarlier`).
+   - Every date up to 7 days back is checked, oldest first, where the saved lists or the queue hold a visit checked in and
+     not checked out.
+   - This happens whether or not today's list loaded. Online the date is fetched (`?date=`); with no signal it is rebuilt
+     from the saved list and the queue.
+   - A queued visit missing from any list still gets a card built from the queued item.
+   - Headings: "Still open from yesterday" / "Still open from Sat Sep 12".
+5. **Drafts `{ key, done, note }`.** A refused key removes only `hcv:visits:*` and `hcv:draft:*` entries whose stored `key` is
+   that key.
+6. **"Check out without the note"** sits next to the disabled "Yes, check out". It takes the check-out time at that tap and
+   sends no note.
+7. **A refusal on a 200 duplicate** reaches the same "The note wasn't saved: …" notice. The queue already confirmed a
+   duplicate by its event id, and hc1's M4 now repeats the refusal.
+8. **An earlier refused check-in** reads "An earlier check-in at 9:04 AM wasn't accepted by the office." with Dismiss (which
+   removes it from `refused`) once the card has an accepted or queued check-in. With no other check-in, it keeps the red
+   notice and "Check in again".
+9. **Office sign out:** a 401 reads "Signed out.".
+
+### New specs (all four projects unless marked)
+- **`offline.spec`:**
+  - *The login page poisons nothing (Chromium):* during an online reload, `context.route` answers all nine page files
+    (sw.js included) with 200 `text/html`. The worker page still shows, and it reloads offline from the cache and checks in.
+  - *Offline reload after midnight (Chromium):* checked in at 11:20 PM with signal; then no signal, the clock at 12:20 AM, a
+    reload. "No saved list…" shows beside "Still open from yesterday", the check-out is queued, it sends, and 3 600 s are
+    worked.
+  - *Two links on one phone:* Jo's and Sam's lists and drafts are stored under their own keys. Sam's New link and a reload
+    leave only Jo's list and draft.
+  - *The Fix-times refusal:* now asserts the history wording and Dismiss.
+- **`worker.spec`:**
+  - *Check out without the note:* no note sent, the check-out at that tap, 1 200 s.
+  - *The lost first answer:* `route.fetch` then `abort`; the resend's `200 duplicate` carries `note_refused` and the notice
+    shows.
+  - *"Check in again":* a spoiled location gets a 400 on the card; "Check in again" lands at 10:35 and the old one becomes
+    history with Dismiss.
+  - *A check-in still queued across midnight:* it shows under "Still open from yesterday", and both events land with 3 600 s.
+  - *A Saturday check-in still open on Monday* with today's list answering 500: "Still open from Sat Sep 12" and "No saved
+    list…", then both land with the Saturday time kept.
+- **`office.spec`:** sign out after the session ended elsewhere answers 401 and reads "Signed out.".
+- **WebKit skips:** the two Chromium-only tests are `test.skip` on WebKit with the reason "Playwright's WebKit neither reloads
+  a page with the context offline nor routes a service worker's own fetches". That makes 4 skipped: 2 tests × 2 WebKit
+  projects.
+- **`worker.spec`, the queue alone opens yesterday:** a check-in is queued at 11:20 PM under Sam's old link. The office makes a
+  new link, and at 12:20 AM the new link shows "Still open from yesterday". The queued check-in is re-sent under the new key
+  (same worker), and the check-out lands with 3 600 s. Added after `proof-queued-midnight` stayed green (below).
+
+### Results (full suite run alone, 2026-09-14)
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 43 | 0 | 0 |
+| chromium-1280 | 42 | 0 | 0 |
+| webkit-390 | 41 | 0 | 2 |
+| webkit-1280 | 40 | 0 | 2 |
+| **total** | **166** | **0** | **4** |
+
+The 4 skipped are the two Chromium-only tests (offline reload after midnight, login-page cache poisoning) on the two WebKit
+projects. Each carries the written reason: Playwright's WebKit neither reloads with the context offline nor routes a service
+worker's own fetches. No route is missing behind them. Steps still skipped inside tests on WebKit: the no-signal reload in the
+first offline test, and the clipboard read-back.
+
+### Negative controls (a)–(h) and proofs (run alone, 14:58–15:09Z; `app/tests/negative-control.log`)
+Each passed on its unbroken copy first, then went red at the named assertion.
+
+| check | break (copy only) | red with |
+|---|---|---|
+| (a) queue | deletes before posting | `/ · saved on this phone$/`: element(s) not found |
+| (b) time | `at` = send time | "check-in keeps the time tapped": expected `…13:00:00.000Z`, received `…15:12:10.000Z` |
+| (c) board | late at 16 min | at 09:15:00 `data-alert` expected `"late"`, received `"none"` |
+| (d) familynote | the copied Worker returns every note | "the note is not on the page": expected 0, received 1 |
+| (e) overlay | transparent `div` over Check in | `tap(Check in) hit-test at 195,476: something else is on top` |
+| (f) portal | any 200 counts as sent | "the check-in is still saved on the phone": received `"All sent"` |
+| (g) payrollround | Payroll total = rounded rows added up | expected `"2.01"`, received `"2.02"` |
+| **(h) swpoison** (new) | `w/sw.js` caches any 200 (no type check, no page marker) | "the worker page, not the login page": `.visit-name` "Bill S. (SAMPLE)" not found |
+| proof-yesterday | no earlier day is loaded | heading "Still open from yesterday": not found |
+| proof-queued-midnight | the queue no longer opens an earlier day | heading "Still open from yesterday" on the new link: not found (see note) |
+| **proof-earlier-days** (item 4) | only yesterday is looked at | heading "Still open from Sat Sep 12": not found |
+| **proof-earlier-without-today** (item 4) | earlier days only when today's list loaded | heading "Still open from Sat Sep 12": not found |
+| proof-forget | a refused key keeps its lists and drafts | "no hcv:visits or hcv:draft keys left": received 4 keys |
+| **proof-draft-key** (item 5) | a refused key deletes every link's lists and drafts | "only Jo's list and draft are left": received none |
+| proof-refusedcard | no refused check-in on its card | "An earlier check-in at 10:30 AM wasn't accepted by the office.": not found |
+| proof-check-in-again | no "refused" state | `tap(Check in again): visible`: not found |
+| proof-notecheck | no health card check while typing | `.note-error` expected the words, received `""` |
+| **proof-without-note** (item 6) | no "Check out without the note" | `tap(Check out without the note): visible`: not found |
+| proof-notice | `note_refused` ignored | "Checked out. The note wasn't saved: …": not found |
+| proof-inactive-list / -sheet / -row, **1280 and now 390** | clarification 15 removed one piece at a time | the "Inactive" heading; `#vs-worker` `""` instead of `"5"`; the 1280 grid row / the 390 group heading "Terry O. (SAMPLE) (inactive)" |
+
+**A proof that measured nothing, and what changed.** `proof-queued-midnight` first ran against "a check-in still queued across
+midnight" and stayed **GREEN**. That spec keeps yesterday's saved list, which already shows the queued check-in, so the queue
+path is never needed there. The proof now runs against the old-link test above, where only the queue knows the visit is open,
+and it goes red. The green run and a note explaining it stay in the log.
+
+Run: `node app/tests/negative-<queue|time|board|familynote|overlay|portal|payrollround|swpoison>.mjs`, and
+`node app/tests/negative-m2c-proofs.mjs` (`PROOF=<name>` for one).
+
+### Phone screenshots (viewport, all four projects, looked at)
+- `app/tests/shots/phone-still-open-earlier-day-<project>.png`: "Still open from Sat Sep 12" with George N. checked in at 9:05 AM
+  and its Check out, above "No visits for you today".
+- `phone-checkout-without-note-<project>.png`: the sheet with the note, "Don't put health card numbers in this app.", the
+  disabled "Yes, check out", "Check out without the note" and "Not yet".
+
+Made with `npx playwright test -c playwright.shots.config.mjs` (8 passed, office and phone).
