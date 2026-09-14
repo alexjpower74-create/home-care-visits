@@ -888,7 +888,9 @@ async function workerVisits (ctx) {
   await ensureVisits(ctx, date, date)
   const db = ctx.db
   const [records, agency, metres, open] = await Promise.all([
-    loadVisitRecords(db, 'v.date = ?1 AND v.worker_id = ?2', [date, worker.id]),
+    // Clarification 21: also the visits this worker checked in to that the office has since given to someone else (or no one),
+    // so the worker who checked in, the only one who may check out, still has the card.
+    loadVisitRecords(db, "v.date = ?1 AND (v.worker_id = ?2 OR EXISTS (SELECT 1 FROM events ce WHERE ce.visit_id = v.id AND ce.kind = 'check_in' AND ce.voided_at IS NULL AND ce.worker_id = ?2))", [date, worker.id]),
     loadAgency(db),
     checkInMileage(db, worker.id, date),
     // Clarification 18: the days this worker left a visit checked in and not checked out, so a new phone or link can finish it.
@@ -906,7 +908,7 @@ async function workerVisits (ctx) {
     date,
     date_label: dayLabel(date),
     server_now: new Date(ctx.nowMs).toISOString(),
-    visits: records.map(r => workerVisitView(r, tasks)),
+    visits: records.map(r => ({ ...workerVisitView(r, tasks), reassigned: r.row.worker_id !== worker.id })),
     mileage: { metres, km: kmText(metres), note: 'Straight-line distance between your check-ins today.' },
     open_dates: open.results.map(r => r.date).filter(d => d !== date)
   })

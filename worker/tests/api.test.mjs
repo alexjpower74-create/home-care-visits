@@ -710,8 +710,9 @@ test('events: a reassigned visit still accepts the first worker\'s check-in, and
   assert.equal(v.check_in.worker_id, workerId('Sam'))
   expectError(await checkOut(keyOf('Jo'), bill.id, nl(MON, '09:50')), 409, 'bad_state', undefined, 'Another worker checked in to this visit.')
   assert.equal((await checkOut(keyOf('Sam'), bill.id, nl(MON, '09:55'))).status, 201)
+  // Clarification 21: Sam holds the check-in, so the visit stays on Sam's list, marked reassigned.
   const samList = await api('GET', `/api/worker/visits?date=${MON}`, { key: keyOf('Sam') })
-  assert.ok(!samList.body.visits.some(x => x.id === bill.id), 'the list shows visits currently assigned')
+  assert.equal(samList.body.visits.find(x => x.id === bill.id)?.reassigned, true, "Sam's check-in keeps the card on Sam's list")
 })
 
 test('events: a cancelled visit accepts events and the office sees visited_after_cancel', async () => {
@@ -864,6 +865,73 @@ test('worker visits: open_dates lists the earlier days this worker left a visit 
   // Its check-out takes Friday off the list.
   assert.equal((await checkOut(sam, bill11.id, nl(FRI11, '10:00'), { now: later })).status, 201)
   assert.deepEqual(await openDates(sam, undefined, later), [MON7, WED9])
+})
+
+test('worker visits: a visit this worker checked in to stays on their list after a reassignment, with reassigned true', async () => {
+  const { token, keyOf, workerId } = await setup()
+  const sam = keyOf('Sam')
+  const jo = keyOf('Jo')
+  const listOf = async (key, date = MON, now = NOW) => {
+    const r = await api('GET', `/api/worker/visits?date=${date}`, { key, now })
+    assert.equal(r.status, 200, r.text)
+    return r.body
+  }
+
+  // Sam is on the way with no signal; the office gives Bill S. to Jo at 8:50; Sam's check-in tapped at 9:02 lands afterwards.
+  const bill = await visitOf(token, MON, 'Bill')
+  const moved = await api('PUT', `/api/office/visits/${bill.id}`, { token, now: nl(MON, '08:50'), body: moveBody(bill, { worker_id: workerId('Jo') }) })
+  assert.equal(moved.status, 200, moved.text)
+  assert.equal((await checkIn(sam, bill.id, nl(MON, '09:02'))).status, 201)
+  const after = nl(MON, '09:10')
+  const samList = await listOf(sam, MON, after)
+  assert.deepEqual(samList.visits.map(v => [v.client_name, v.reassigned]), [['Bill S. (SAMPLE)', true], ['Ruby T. (SAMPLE)', false]], 'sorted by start, each marked')
+  assert.equal(samList.visits[0].check_in.at, nl(MON, '09:02'))
+  const joList = await listOf(jo, MON, after)
+  const joBill = joList.visits.find(v => v.id === bill.id)
+  assert.equal(joBill?.reassigned, false, "on Jo's list as Jo's own visit")
+  assert.ok(joList.visits.every(v => v.reassigned === false))
+  assert.equal((await checkOut(sam, bill.id, nl(MON, '09:58'), { now: nl(MON, '10:00') })).status, 201, 'the worker who checked in checks out')
+  const done = (await listOf(sam, MON, nl(MON, '10:01'))).visits.find(v => v.id === bill.id)
+  assert.equal(done.reassigned, true)
+  assert.equal(done.check_out.at, nl(MON, '09:58'), 'it keeps its check-out')
+
+  // Given to no one before Sam's check-in lands: still Sam's card, reassigned true.
+  const ruby = await visitOf(token, MON, 'Ruby')
+  assert.equal((await api('PUT', `/api/office/visits/${ruby.id}`, { token, now: nl(MON, '10:00'), body: moveBody(ruby, { worker_id: null }) })).status, 200)
+  assert.equal((await checkIn(sam, ruby.id, nl(MON, '10:31'))).status, 201)
+  assert.deepEqual((await listOf(sam, MON, nl(MON, '10:40'))).visits.map(v => [v.client_name, v.reassigned]), [['Bill S. (SAMPLE)', true], ['Ruby T. (SAMPLE)', true]])
+
+  // Reassigned before anyone checked in: not on Sam's list.
+  const frank = await visitOf(token, TUE, 'Frank')
+  assert.equal((await api('PUT', `/api/office/visits/${frank.id}`, { token, body: moveBody(frank, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.deepEqual((await listOf(sam, TUE)).visits.map(v => v.client_name), [], "Tuesday's only visit went to Jo")
+
+  // A voided check-in doesn't bring a visit back: Sam's check-in on Wednesday's Bill S. is replaced by the office's for Jo.
+  const billWed = await visitOf(token, WED, 'Bill')
+  assert.equal((await api('PUT', `/api/office/visits/${billWed.id}`, { token, now: nl(WED, '08:00'), body: moveBody(billWed, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.equal((await checkIn(sam, billWed.id, nl(WED, '09:03'))).status, 201)
+  assert.ok((await listOf(sam, WED, nl(WED, '09:10'))).visits.some(v => v.id === billWed.id), 'on the list while Sam holds the check-in')
+  const w = await visitOf(token, WED, 'Bill', nl(WED, '12:00'))
+  const fix = await api('PUT', `/api/office/visits/${w.id}/times`, { token, now: nl(WED, '12:00'), body: { check_in_at: nl(WED, '09:00'), reason: 'Jo was there (SAMPLE)', version: w.version } })
+  assert.equal(fix.status, 200, fix.text)
+  assert.ok(!(await listOf(sam, WED, nl(WED, '12:01'))).visits.some(v => v.id === billWed.id), 'gone once the check-in is voided')
+})
+
+test('worker visits: the open_dates day of a reassigned visit has its card', async () => {
+  const { token, keyOf, workerId } = await setup()
+  const sam = keyOf('Sam')
+  const FRI11 = '2026-09-11'
+  const bill = await visitOf(token, FRI11, 'Bill', nl(FRI11, '07:00'))
+  assert.equal((await api('PUT', `/api/office/visits/${bill.id}`, { token, now: nl(FRI11, '08:50'), body: moveBody(bill, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.equal((await checkIn(sam, bill.id, nl(FRI11, '09:02'))).status, 201)
+  const today = await api('GET', '/api/worker/visits', { key: sam })
+  assert.deepEqual(today.body.open_dates, [FRI11])
+  const friday = await api('GET', `/api/worker/visits?date=${FRI11}`, { key: sam })
+  const card = friday.body.visits.find(v => v.id === bill.id)
+  assert.ok(card, "Friday's list has the open visit")
+  assert.equal(card.reassigned, true)
+  assert.equal(card.check_in.at, nl(FRI11, '09:02'))
+  assert.equal(card.check_out, null)
 })
 
 // ---------------------------------------------------------------- family link
