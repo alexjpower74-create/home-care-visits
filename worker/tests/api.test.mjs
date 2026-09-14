@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { localToUtc } from '../src/time.js'
+import { addDays, localToUtc } from '../src/time.js'
 import { distanceM, kmText } from '../src/geo.js'
 import { SAMPLE } from '../src/sample-data.js'
 
@@ -555,7 +555,9 @@ test('events: check-in 201 with location near and distance_m (office view), far 
   const pin = pinOf('Bill')
   const near = await checkIn(keyOf('Sam'), bill.id, at, { location: { lat: pin.lat + 0.0003, lng: pin.lng, accuracy_m: 18 } })
   assert.equal(near.status, 201, near.text)
-  assert.deepEqual(Object.keys(near.body.event).sort(), ['at', 'at_label', 'id', 'location_label', 'source'])
+  assert.deepEqual(Object.keys(near.body.event).sort(), ['at', 'at_label', 'id', 'kind', 'location_label', 'source', 'visit_id'])
+  assert.equal(near.body.event.kind, 'check_in')
+  assert.equal(near.body.event.visit_id, bill.id)
   assert.equal(near.body.event.location_label, 'Within 250 m of the client')
   assert.equal(near.body.event.at_label, '9:04 AM')
   assert.equal(near.body.visit.id, bill.id)
@@ -873,4 +875,420 @@ test('family: status labels for scheduled, not checked in yet, no check-in recor
 
   expectError(await api('GET', '/api/family/not-a-real-key-at-all', { now }), 404, 'not_found', undefined, "This link doesn't work. Ask the agency for a new one.")
   expectError(await api('GET', '/api/family/', { now }), 404, 'not_found')
+})
+
+// ================================================================ M2
+
+const workerInput = w => {
+  const { id, initials, zone_names, availability_label, max_week_label, worker_url, ...input } = w
+  return input
+}
+
+test('worker key: deactivating a worker keeps their link; their saved check-out still lands; only New link stops it', async () => {
+  const { token, keyOf, workerId } = await setup()
+  const bill = await visitOf(token, MON, 'Bill')
+  const key = keyOf('Sam')
+  assert.equal((await checkIn(key, bill.id, nl(MON, '09:02'))).status, 201)
+  const sam = (await api('GET', '/api/office/workers', { token })).body.workers.find(w => w.name.startsWith('Sam'))
+  const off = await api('PUT', `/api/office/workers/${sam.id}`, { token, now: nl(MON, '09:10'), body: { ...workerInput(sam), active: false } })
+  assert.equal(off.status, 200, off.text)
+  assert.equal(off.body.active, false)
+  const list = await api('GET', '/api/worker/visits', { key, now: nl(MON, '09:20') })
+  assert.equal(list.status, 200, list.text)
+  assert.deepEqual(list.body.visits.map(v => v.id), [bill.id], 'the started visit stays theirs, the unstarted one is taken off')
+  const out = await checkOut(key, bill.id, nl(MON, '09:58'), { now: nl(MON, '10:30') })
+  assert.equal(out.status, 201, out.text)
+  assert.equal((await visitOf(token, MON, 'Bill', nl(MON, '10:30'))).worked_seconds, 56 * 60)
+  const link = await api('POST', `/api/office/workers/${workerId('Sam')}/new-link`, { token, now: nl(MON, '10:31') })
+  assert.equal(link.status, 200, link.text)
+  expectError(await api('GET', '/api/worker/visits', { key, now: nl(MON, '10:32') }), 401, 'unauthorized')
+  const fresh = new URL(link.body.worker_url).searchParams.get('k')
+  assert.equal((await api('GET', '/api/worker/visits', { key: fresh, now: nl(MON, '10:32') })).status, 200)
+})
+
+test('new link: a new worker link makes the old key 401, a new family link makes the old key 404', async () => {
+  const { token, keyOf, workerId, clientId, familyKey } = await setup()
+  const oldKey = keyOf('Jo')
+  assert.equal((await api('GET', '/api/worker/visits', { key: oldKey })).status, 200)
+  const w = await api('POST', `/api/office/workers/${workerId('Jo')}/new-link`, { token })
+  assert.equal(w.status, 200, w.text)
+  assert.equal(w.body.name, 'Jo W. (SAMPLE)')
+  const newKey = new URL(w.body.worker_url).searchParams.get('k')
+  assert.notEqual(newKey, oldKey)
+  assert.ok(newKey.length >= 22)
+  expectError(await api('GET', '/api/worker/visits', { key: oldKey }), 401, 'unauthorized')
+  assert.equal((await api('GET', '/api/worker/visits', { key: newKey })).status, 200)
+
+  const oldFamily = familyKey('Walter')
+  assert.equal((await api('GET', `/api/family/${oldFamily}`)).status, 200)
+  const c = await api('POST', `/api/office/clients/${clientId('Walter')}/new-link`, { token })
+  assert.equal(c.status, 200, c.text)
+  const newFamily = new URL(c.body.family_url).searchParams.get('k')
+  assert.notEqual(newFamily, oldFamily)
+  expectError(await api('GET', `/api/family/${oldFamily}`), 404, 'not_found')
+  assert.equal((await api('GET', `/api/family/${newFamily}`)).status, 200)
+  expectError(await api('POST', '/api/office/workers/999/new-link', { token }), 404, 'not_found')
+  expectError(await api('POST', '/api/office/clients/999/new-link', { token }), 404, 'not_found')
+  expectError(await api('POST', `/api/office/clients/${clientId('Walter')}/new-link`), 401, 'unauthorized')
+})
+
+test('office agency: GET and PUT, and the public agency follows', async () => {
+  const { token } = await setup()
+  const r = await api('GET', '/api/office/agency', { token })
+  assert.equal(r.status, 200, r.text)
+  assert.deepEqual(r.body, {
+    name: AGENCY, sample: true, timezone: 'America/St_Johns', office_phone: '709-555-0100', late_after_minutes: 15, missed_after_minutes: 30,
+    near_metres: 250, office: { label: 'SAMPLE office, Grand Falls-Windsor', lat: 48.964, lng: -55.66444 }, zones: SAMPLE.zones, funders: SAMPLE.funders
+  })
+  expectError(await api('GET', '/api/office/agency'), 401, 'unauthorized')
+  expectError(await api('PUT', '/api/office/agency', { token, body: { name: ' ', office_phone: '709-555-0100' } }), 400, 'bad_request', 'name', 'Give the agency a name.')
+  expectError(await api('PUT', '/api/office/agency', { token, body: { name: 'N'.repeat(81), office_phone: '709-555-0100' } }), 400, 'bad_request', 'name')
+  expectError(await api('PUT', '/api/office/agency', { token, body: { name: 'Exploits Home Support', office_phone: '555' } }), 400, 'bad_request', 'office_phone', 'Type a 10-digit phone number, like 709-555-0152.')
+  const put = await api('PUT', '/api/office/agency', { token, body: { name: 'Exploits Home Support', office_phone: '(709) 555-0109' } })
+  assert.equal(put.status, 200, put.text)
+  assert.equal(put.body.sample, false)
+  assert.equal(put.body.office_phone, '709-555-0109')
+  assert.deepEqual((await api('GET', '/api/agency')).body.name, 'Exploits Home Support')
+  assert.equal((await api('GET', '/api/agency')).body.sample, false)
+})
+
+test('office PIN: 4 to 8 digits; a wrong current PIN is 401 field current and keeps the session; the new PIN signs in', async () => {
+  const { token } = await setup()
+  expectError(await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '12' } }), 400, 'bad_request', 'new', 'Use 4 to 8 digits.')
+  expectError(await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '123456789' } }), 400, 'bad_request', 'new')
+  expectError(await api('PUT', '/api/office/pin', { token, body: { current: '1111', new: '2468' } }), 401, 'unauthorized', 'current', 'That PIN is not right.')
+  assert.equal((await api('GET', '/api/office/clients', { token })).status, 200, 'the session stays')
+  expectError(await api('PUT', '/api/office/pin', { body: { current: '4826', new: '2468' } }), 401, 'unauthorized')
+  assert.equal((await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '246813' } })).status, 200)
+  expectError(await api('POST', '/api/office/signin', { body: { pin: '4826' } }), 401, 'unauthorized', 'pin')
+  assert.equal((await api('POST', '/api/office/signin', { body: { pin: '246813' } })).status, 200)
+})
+
+test('rate guards: 5 wrong PINs from one IP → 429 even for the right PIN; other IPs and a passed window are fine; wrong current PINs count', async () => {
+  const { token } = await setup()
+  const ip = '10.9.9.1'
+  for (let i = 0; i < 5; i++) expectError(await api('POST', '/api/office/signin', { ip, body: { pin: '1111' } }), 401, 'unauthorized', 'pin')
+  expectError(await api('POST', '/api/office/signin', { ip, body: { pin: '4826' } }), 429, 'rate_limited', undefined, 'Too many tries. Wait 15 minutes and try again.')
+  assert.equal((await api('POST', '/api/office/signin', { ip: '10.9.9.2', body: { pin: '4826' } })).status, 200)
+  assert.equal((await api('POST', '/api/office/signin', { ip, now: plusMs(NOW, 15 * 60000 - 1000), body: { pin: '4826' } })).status, 429)
+  assert.equal((await api('POST', '/api/office/signin', { ip, now: plusMs(NOW, 15 * 60000 + 1000), body: { pin: '4826' } })).status, 200)
+
+  const ip3 = '10.9.9.3'
+  for (let i = 0; i < 4; i++) await api('POST', '/api/office/signin', { ip: ip3, body: { pin: '0000' } })
+  expectError(await api('PUT', '/api/office/pin', { token, ip: ip3, body: { current: '0000', new: '2468' } }), 401, 'unauthorized', 'current')
+  expectError(await api('POST', '/api/office/signin', { ip: ip3, body: { pin: '4826' } }), 429, 'rate_limited')
+  expectError(await api('PUT', '/api/office/pin', { token, ip: ip3, body: { current: '4826', new: '2468' } }), 429, 'rate_limited')
+})
+
+test('rate guards: 30 unknown family keys from one IP → 429 for every lookup from that IP, known keys included', async () => {
+  const { familyKey } = await setup()
+  const ip = '10.8.8.1'
+  const known = familyKey('Walter')
+  for (let i = 0; i < 30; i++) expectError(await api('GET', `/api/family/guess-${i}-aaaaaaaaaaaaaaaa`, { ip }), 404, 'not_found')
+  expectError(await api('GET', `/api/family/${known}`, { ip }), 429, 'rate_limited', undefined, 'Too many tries. Wait a few minutes and try again.')
+  expectError(await api('GET', '/api/family/guess-31-aaaaaaaaaaaaaaaa', { ip }), 429, 'rate_limited')
+  assert.equal((await api('GET', `/api/family/${known}`, { ip: '10.8.8.2' })).status, 200)
+  assert.equal((await api('GET', `/api/family/${known}`, { ip, now: plusMs(NOW, 10 * 60000 + 1000) })).status, 200)
+})
+
+test('fix times: the office sets a missing check-out; the phone\'s later check-out is 409; the voided phone event stays', async () => {
+  const { token, keyOf, clientId } = await setup()
+  const bill = await visitOf(token, MON, 'Bill')
+  const phoneIn = await checkIn(keyOf('Sam'), bill.id, nl(MON, '09:03'))
+  assert.equal(phoneIn.status, 201)
+  const now = nl(MON, '13:00')
+  let v = await visitOf(token, MON, 'Bill', now)
+  const put = (body, visit = v) => api('PUT', `/api/office/visits/${visit.id}/times`, { token, now, body: { version: visit.version, reason: 'Phone battery died (SAMPLE)', ...body } })
+  expectError(await put({ check_in_at: null, check_out_at: null }), 400, 'bad_request', 'check_in_at', 'Give a check-in or a check-out time.')
+  expectError(await put({ check_out_at: nl(MON, '10:01'), reason: '' }), 400, 'bad_request', 'reason', 'Say why the time is being fixed.')
+  expectError(await put({ check_out_at: nl(MON, '10:01'), reason: 'MCP 1234 5678 9012' }), 400, 'bad_request', 'reason', HEALTH)
+  expectError(await put({ check_out_at: nl(MON, '09:03') }), 400, 'bad_request', 'check_out_at', 'Check-out has to be after check-in.')
+  expectError(await put({ check_out_at: nl(TUE, '10:01') }), 400, 'bad_request', 'check_out_at', 'That time is too far from the visit.')
+  expectError(await put({ check_out_at: nl(MON, '10:01'), version: v.version + 1 }), 409, 'stale')
+
+  const fixed = await put({ check_out_at: nl(MON, '10:01') })
+  assert.equal(fixed.status, 200, fixed.text)
+  assert.equal(fixed.body.version, v.version + 1)
+  assert.equal(fixed.body.worked_seconds, 58 * 60)
+  assert.equal(fixed.body.status, 'checked_out')
+  assert.equal(fixed.body.check_out.source, 'office')
+  assert.equal(fixed.body.check_out.correction_reason, 'Phone battery died (SAMPLE)')
+  assert.equal(fixed.body.check_out.at_label, '10:01 AM')
+  assert.equal(fixed.body.check_out.location, null)
+
+  expectError(await checkOut(keyOf('Sam'), bill.id, nl(MON, '10:05'), { now: nl(MON, '13:05') }), 409, 'already_checked_out')
+
+  v = fixed.body
+  const fixIn = await put({ check_in_at: nl(MON, '09:00') })
+  assert.equal(fixIn.status, 200, fixIn.text)
+  assert.equal(fixIn.body.check_in.source, 'office')
+  assert.equal(fixIn.body.check_in.location, 'not_shared')
+  assert.equal(fixIn.body.check_in.worker_name, 'Sam R. (SAMPLE)')
+  assert.equal(fixIn.body.worked_seconds, 61 * 60)
+  const rows = await storedEvents(bill.id)
+  assert.equal(rows.length, 3, JSON.stringify(rows))
+  assert.deepEqual(rows.filter(e => e.voided_at).map(e => e.id), [phoneIn.body.event.id])
+  const payroll = await api('GET', `/api/office/reports/payroll?from=${MON}&to=${MON}`, { token, now })
+  assert.equal(payroll.body.total.seconds, 61 * 60)
+
+  const loose = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '14:00', end: '15:00' } })
+  expectError(await put({ check_in_at: nl(MON, '14:00') }, loose.body), 400, 'bad_request', 'worker_id', 'Assign a worker first.')
+  const walter = await visitOf(token, MON, 'Walter', now)
+  expectError(await put({ check_out_at: nl(MON, '10:00') }, walter), 400, 'bad_request', 'check_out_at')
+})
+
+/** A worker's visit worked from `startHm` for exactly `seconds`, through the phone routes. */
+async function work (token, key, date, clientPrefix, startHm, seconds) {
+  const v = await visitOf(token, date, clientPrefix)
+  const at = nl(date, startHm)
+  assert.equal((await checkIn(key, v.id, at)).status, 201)
+  assert.equal((await checkOut(key, v.id, plusMs(at, seconds * 1000))).status, 201)
+  return v
+}
+
+test('reports: payroll exactness — 1:00:20 + 0:45:20 + 2:10:20 is 14 160 s and "3.93" (rounding each visit would say 3.94)', async () => {
+  const { token, keyOf, workerId, clientId } = await setup()
+  await work(token, keyOf('Sam'), MON, 'Bill', '09:00', 3620)
+  await work(token, keyOf('Sam'), MON, 'Ruby', '10:30', 2720)
+  await work(token, keyOf('Sam'), WED, 'Bill', '09:00', 7820)
+  await work(token, keyOf('Alex'), MON, 'Walter', '09:05', 3600)
+  const open = await visitOf(token, TUE, 'Walter')
+  assert.equal((await checkIn(keyOf('Alex'), open.id, nl(TUE, '09:01'))).status, 201)
+  const r = await api('GET', `/api/office/reports/payroll?from=${MON}&to=${WED}`, { token, now: nl(WED, '18:00') })
+  assert.equal(r.status, 200, r.text)
+  assert.deepEqual(r.body, {
+    from: MON,
+    to: WED,
+    period_label: 'Mon Sep 14 to Wed Sep 16',
+    rows: [
+      { worker_id: workerId('Alex'), worker_name: 'Alex B. (SAMPLE)', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min',
+        clients: [{ client_id: clientId('Walter'), client_name: 'Walter G. (SAMPLE)', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min' }] },
+      { worker_id: workerId('Sam'), worker_name: 'Sam R. (SAMPLE)', visits: 3, seconds: 14160, hours: '3.93', hm_label: '3 h 56 min',
+        clients: [
+          { client_id: clientId('Bill'), client_name: 'Bill S. (SAMPLE)', visits: 2, seconds: 11440, hours: '3.18', hm_label: '3 h 10 min' },
+          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' }
+        ] }
+    ],
+    total: { visits: 4, seconds: 17760, hours: '4.93', hm_label: '4 h 56 min' },
+    incomplete: [{ visit_id: open.id, worker_name: 'Alex B. (SAMPLE)', client_name: 'Walter G. (SAMPLE)', date_label: 'Tue Sep 15', check_in_label: '9:01 AM' }],
+    note: 'Hours are check-out minus check-in, added up to the second and rounded once.'
+  })
+})
+
+test('reports: payroll period uses the NL date of the check-in (23:50 NDT on the last day counts, 00:10 the next day does not)', async () => {
+  const { token, keyOf, clientId, workerId } = await setup()
+  const make = async (date, start, end) => {
+    const r = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Doris'), worker_id: workerId('Jo'), date, start, end } })
+    assert.equal(r.status, 201, r.text)
+    return r.body
+  }
+  const lateNight = await make(TUE, '23:30', '23:59')
+  const earlyMorning = await make(WED, '00:00', '00:45')
+  assert.equal(nl(TUE, '23:50').slice(0, 10), WED, 'the 23:50 NDT check-in is already Wednesday in UTC')
+  assert.equal((await checkIn(keyOf('Jo'), lateNight.id, nl(TUE, '23:50'))).status, 201)
+  assert.equal((await checkOut(keyOf('Jo'), lateNight.id, nl(TUE, '23:58'))).status, 201)
+  assert.equal((await checkIn(keyOf('Jo'), earlyMorning.id, nl(WED, '00:10'))).status, 201)
+  assert.equal((await checkOut(keyOf('Jo'), earlyMorning.id, nl(WED, '00:40'))).status, 201)
+  const now = nl(WED, '12:00')
+  const monTue = await api('GET', `/api/office/reports/payroll?from=${MON}&to=${TUE}`, { token, now })
+  assert.deepEqual([monTue.body.total.visits, monTue.body.total.seconds], [1, 480])
+  const wed = await api('GET', `/api/office/reports/payroll?from=${WED}&to=${WED}`, { token, now })
+  assert.deepEqual([wed.body.total.visits, wed.body.total.seconds], [1, 1800])
+})
+
+test('reports: billing by funder with scheduled minutes, and the period refusals', async () => {
+  const { token, keyOf, clientId } = await setup()
+  await work(token, keyOf('Sam'), MON, 'Bill', '09:00', 3620)
+  await work(token, keyOf('Sam'), MON, 'Ruby', '10:30', 2720)
+  await work(token, keyOf('Alex'), MON, 'Walter', '09:05', 3600)
+  const r = await api('GET', `/api/office/reports/billing?from=${MON}&to=${MON}`, { token, now: nl(MON, '18:00') })
+  assert.equal(r.status, 200, r.text)
+  assert.deepEqual(r.body, {
+    from: MON,
+    to: MON,
+    period_label: 'Mon Sep 14 to Mon Sep 14',
+    funders: [
+      { funder_id: 1, funder_name: 'SAMPLE Regional home support program', visits: 2, seconds: 6340, hours: '1.76', hm_label: '1 h 45 min',
+        clients: [
+          { client_id: clientId('Bill'), client_name: 'Bill S. (SAMPLE)', visits: 1, scheduled_minutes: 60, seconds: 3620, hours: '1.01', hm_label: '1 h 0 min' },
+          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, scheduled_minutes: 90, seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' }
+        ] },
+      { funder_id: 3, funder_name: 'SAMPLE Veterans program', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min',
+        clients: [{ client_id: clientId('Walter'), client_name: 'Walter G. (SAMPLE)', visits: 1, scheduled_minutes: 60, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min' }] }
+    ],
+    total: { visits: 3, seconds: 9940, hours: '2.76', hm_label: '2 h 45 min' },
+    note: 'Hours worked are check-out minus check-in.'
+  })
+  expectError(await api('GET', `/api/office/reports/billing?from=${TUE}&to=${MON}`, { token }), 400, 'bad_request', 'to', 'The end date has to be on or after the start date.')
+  expectError(await api('GET', `/api/office/reports/billing?from=2026-07-01&to=2026-09-01`, { token }), 400, 'bad_request', 'to', 'Pick up to 62 days at a time.')
+  assert.equal((await api('GET', `/api/office/reports/billing?from=2026-07-01&to=2026-08-31`, { token })).status, 200, '62 days is allowed')
+  expectError(await api('GET', `/api/office/reports/billing?to=${MON}`, { token }), 400, 'bad_request', 'from')
+  expectError(await api('GET', `/api/office/reports/billing?from=${MON}&to=${MON}`), 401, 'unauthorized')
+})
+
+test('reports: missed excludes cancelled visits, includes a visit with no worker, and late is exactly 15 minutes', async () => {
+  const { token, keyOf, clientId } = await setup()
+  const margaret = await visitOf(token, MON, 'Margaret')
+  assert.equal((await checkIn(keyOf('Jo'), margaret.id, plusMs(nl(MON, '08:45'), -1000))).status, 201) // 14:59 late: not listed
+  const walter = await visitOf(token, MON, 'Walter')
+  assert.equal((await checkIn(keyOf('Alex'), walter.id, nl(MON, '09:15'))).status, 201)
+  const ruby = await visitOf(token, MON, 'Ruby')
+  assert.equal((await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'Away (SAMPLE)', version: ruby.version } })).status, 200)
+  const loose = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Doris'), worker_id: null, date: MON, start: '10:00', end: '11:00' } })
+  const r = await api('GET', `/api/office/reports/missed?from=${MON}&to=${MON}`, { token, now: nl(MON, '12:30') })
+  assert.equal(r.status, 200, r.text)
+  const bill = await visitOf(token, MON, 'Bill')
+  const ron = await visitOf(token, MON, 'Ron')
+  const gladys = await visitOf(token, MON, 'Gladys')
+  const missed = (v, worker) => ({ visit_id: v.id, date: MON, date_label: 'Mon Sep 14', time_label: v.time_label, client_name: v.client_name, worker_name: worker, what: 'missed', what_label: 'Missed: no check-in', late_minutes: null, check_in_label: null })
+  assert.deepEqual(r.body, {
+    from: MON,
+    to: MON,
+    period_label: 'Mon Sep 14 to Mon Sep 14',
+    rows: [
+      missed(bill, 'Sam R. (SAMPLE)'),
+      { visit_id: walter.id, date: MON, date_label: 'Mon Sep 14', time_label: '9:00 AM – 10:00 AM', client_name: 'Walter G. (SAMPLE)', worker_name: 'Alex B. (SAMPLE)', what: 'late', what_label: 'Late: checked in 15 min after the start', late_minutes: 15, check_in_label: '9:15 AM' },
+      missed(ron, 'Jo W. (SAMPLE)'),
+      missed(loose.body, null),
+      missed(gladys, 'Jo W. (SAMPLE)') // 12:00 + 30 min is exactly now
+    ]
+  })
+  // A week nobody opened still reports its missed visits.
+  const nextWeek = await api('GET', '/api/office/reports/missed?from=2026-09-21&to=2026-09-21', { token, now: '2026-09-21T23:00:00.000Z' })
+  assert.equal(nextWeek.body.rows.length, 6)
+})
+
+test('reports: mileage follows check-in order, not schedule order', async () => {
+  const { token, keyOf, clientId, workerId } = await setup()
+  const make = async (client, start, end) => (await api('POST', '/api/office/visits', { token, body: { client_id: clientId(client), worker_id: workerId('Sam'), date: MON, start, end } })).body
+  const margaret = await make('Margaret', '13:00', '13:30')
+  const walter = await make('Walter', '14:00', '14:30')
+  const frank = await make('Frank', '15:00', '15:30')
+  // Against the schedule: Botwood first, then the two Grand Falls-Windsor clients.
+  assert.equal((await checkIn(keyOf('Sam'), walter.id, nl(MON, '12:40'))).status, 201)
+  assert.equal((await checkIn(keyOf('Sam'), margaret.id, nl(MON, '13:05'))).status, 201)
+  assert.equal((await checkIn(keyOf('Sam'), frank.id, nl(MON, '15:02'))).status, 201)
+  assert.equal((await checkIn(keyOf('Alex'), (await visitOf(token, MON, 'Walter')).id, nl(MON, '09:01'))).status, 201) // one check-in: no row
+  const r = await api('GET', `/api/office/reports/mileage?from=${MON}&to=${MON}`, { token, now: nl(MON, '16:00') })
+  assert.equal(r.status, 200, r.text)
+  const d = (a, b) => distanceM(pinOf(a).lat, pinOf(a).lng, pinOf(b).lat, pinOf(b).lng)
+  const m1 = d('Walter', 'Margaret')
+  const m2 = d('Margaret', 'Frank')
+  assert.ok(m1 > 25000 && m2 < 5000)
+  assert.deepEqual(r.body, {
+    from: MON,
+    to: MON,
+    period_label: 'Mon Sep 14 to Mon Sep 14',
+    rows: [{
+      worker_id: workerId('Sam'), worker_name: 'Sam R. (SAMPLE)', date: MON, date_label: 'Mon Sep 14',
+      legs: [
+        { from_client: 'Walter G. (SAMPLE)', to_client: 'Margaret P. (SAMPLE)', metres: m1, km: kmText(m1) },
+        { from_client: 'Margaret P. (SAMPLE)', to_client: 'Frank H. (SAMPLE)', metres: m2, km: kmText(m2) }
+      ],
+      metres: m1 + m2,
+      km: kmText(m1 + m2)
+    }],
+    total: [{ worker_id: workerId('Sam'), worker_name: 'Sam R. (SAMPLE)', metres: m1 + m2, km: kmText(m1 + m2) }],
+    note: "Straight-line distance between clients, in the order the worker checked in. Not road distance. The drive to the first client and home from the last isn't counted."
+  })
+})
+
+test('reports: CSV headers, CRLF, quoting, the formula guard and the filename, for all four', async () => {
+  const { token, keyOf, workerId } = await setup()
+  const add = async (name, lat) => {
+    const r = await api('POST', '/api/office/clients', { token, body: goodClient({ name, lat, lng: -55.67, zone_id: 1, funder_id: 2, patterns: [], family_contacts: [] }) })
+    assert.equal(r.status, 201, r.text)
+    return r.body
+  }
+  const kit = await add('Kit "K" O\'Brien, Jr. (SAMPLE)', 48.97)
+  const sum = await add('=SUM(A1) (SAMPLE)', 48.98)
+  const visit = async (client, start, end) => (await api('POST', '/api/office/visits', { token, body: { client_id: client.id, worker_id: workerId('Sam'), date: MON, start, end } })).body
+  const v1 = await visit(kit, '13:00', '14:00')
+  const v2 = await visit(sum, '14:30', '15:00')
+  assert.equal((await checkIn(keyOf('Sam'), v1.id, nl(MON, '13:00'))).status, 201)
+  assert.equal((await checkOut(keyOf('Sam'), v1.id, plusMs(nl(MON, '13:00'), 3620 * 1000))).status, 201)
+  assert.equal((await checkIn(keyOf('Sam'), v2.id, nl(MON, '14:30'))).status, 201)
+  assert.equal((await checkOut(keyOf('Sam'), v2.id, plusMs(nl(MON, '14:30'), 2720 * 1000))).status, 201)
+  const now = nl(MON, '15:30')
+  const csv = async kind => {
+    const r = await api('GET', `/api/office/reports/${kind}.csv?from=${MON}&to=${MON}`, { token, now })
+    assert.equal(r.status, 200, r.text)
+    assert.equal(r.headers.get('content-type'), 'text/csv; charset=utf-8')
+    assert.equal(r.headers.get('content-disposition'), `attachment; filename="home-care-${kind}-${MON}-to-${MON}.csv"`)
+    assert.equal(r.headers.get('cache-control'), 'no-store')
+    assert.ok(!r.text.startsWith('﻿'), 'no BOM')
+    assert.ok(r.text.endsWith('\r\n'))
+    assert.ok(!r.text.replace(/\r\n/g, '').includes('\n'), 'every line ends CRLF')
+    return r.text
+  }
+  const KIT = '"Kit ""K"" O\'Brien, Jr. (SAMPLE)"'
+  const SUM = "'=SUM(A1) (SAMPLE)"
+  assert.equal(await csv('payroll'), [
+    'Worker,Client,Visits,Hours (decimal),Hours and minutes,Seconds',
+    `Sam R. (SAMPLE),${SUM},1,0.76,0 h 45 min,2720`,
+    `Sam R. (SAMPLE),${KIT},1,1.01,1 h 0 min,3620`,
+    'Sam R. (SAMPLE) total,,2,1.76,1 h 45 min,6340',
+    'Total,,2,1.76,1 h 45 min,6340', ''
+  ].join('\r\n'))
+  assert.equal(await csv('billing'), [
+    'Funder,Client,Visits,Scheduled hours,Hours worked (decimal),Hours and minutes,Seconds',
+    `Private pay (SAMPLE),${SUM},1,0.50,0.76,0 h 45 min,2720`,
+    `Private pay (SAMPLE),${KIT},1,1.00,1.01,1 h 0 min,3620`,
+    'Private pay (SAMPLE) total,,2,1.50,1.76,1 h 45 min,6340',
+    'Total,,2,1.50,1.76,1 h 45 min,6340', ''
+  ].join('\r\n'))
+  const missed = (await csv('missed')).split('\r\n')
+  assert.equal(missed[0], 'Date,Scheduled,Client,Worker,What happened,Minutes late')
+  assert.equal(missed[1], '2026-09-14,8:30 AM – 9:30 AM,Margaret P. (SAMPLE),Jo W. (SAMPLE),Missed: no check-in,')
+  const km = kmText(distanceM(48.97, -55.67, 48.98, -55.67))
+  assert.equal(await csv('mileage'), [
+    'Worker,Date,From,To,Kilometres (straight line)',
+    `Sam R. (SAMPLE),2026-09-14,${KIT},${SUM},${km}`,
+    `Sam R. (SAMPLE) total,,,,${km}`, ''
+  ].join('\r\n'))
+  expectError(await api('GET', `/api/office/reports/payroll.csv?from=${MON}&to=${MON}`, { now }), 401, 'unauthorized')
+})
+
+test('demo seed: a lived-in fortnight with exactly one missed, a late Sam R. visit, one checked in, a Chris M. double-booking and payroll', async () => {
+  for (const now of [nl(WED, '11:00'), nl(WED, '06:10')]) {
+    const r = await api('POST', '/api/test/seed', { now, body: { scenario: 'demo' } })
+    assert.equal(r.status, 200, r.text)
+    assert.equal(r.body.office_url, `${BASE}/office/`)
+    assert.equal(r.body.pin, '4826')
+    assert.equal(r.body.workers.length, 5)
+    assert.equal(r.body.clients.length, 12)
+    const token = (await api('POST', '/api/office/signin', { now, body: { pin: '4826' } })).body.token
+    const day = await dayVisits(token, WED, now)
+    assert.equal(day.filter(v => v.alert === 'missed').length, 1, `${now}: ${JSON.stringify(day.map(v => [v.client_name, v.start, v.alert, v.status]))}`)
+    assert.ok(day.some(v => v.alert === 'late' && v.worker_name === 'Sam R. (SAMPLE)' && v.pattern_id === null), 'Sam R. is late')
+    assert.equal(day.filter(v => v.status === 'checked_in').length, 1)
+    for (const v of day) {
+      if (Date.parse(v.starts_at) + 30 * 60000 <= Date.parse(now) && v.alert !== 'missed') assert.equal(v.status, 'checked_out', `${v.client_name} ${v.start}`)
+    }
+    const thisWeek = await week(token, MON, now)
+    assert.ok(thisWeek.conflicts.some(c => c.kind === 'double_booked' && c.worker_id === r.body.workers.find(w => w.name.startsWith('Chris')).id))
+    const lastWeek = await week(token, '2026-09-07', now)
+    assert.equal(lastWeek.visits.length, 36)
+    assert.ok(lastWeek.visits.every(v => v.status === 'checked_out'), 'last week is all done')
+    assert.equal(lastWeek.visits.find(v => v.client_name.startsWith('Edna') && v.date === '2026-09-11').worker_name, 'Chris M. (SAMPLE)')
+    const past = [...lastWeek.visits, ...thisWeek.visits].filter(v => v.check_out)
+    for (const v of past) {
+      const inAfter = (Date.parse(v.check_in.at) - Date.parse(v.starts_at)) / 60000
+      assert.ok(inAfter >= 0 && inAfter <= 9, `check-in ${inAfter} min after the start`)
+    }
+    const locations = past.map(v => v.check_in.location)
+    assert.equal(locations.filter(l => l === 'far').length, 1)
+    assert.equal(locations.filter(l => l === 'not_shared').length, 1)
+    const notes = past.filter(v => v.note)
+    assert.ok(notes.length > past.length / 3 && notes.length < past.length * 2 / 3, `${notes.length} notes on ${past.length} visits`)
+    assert.ok(notes.some(v => v.note.shareable) && notes.some(v => !v.note.shareable))
+    const payroll = await api('GET', `/api/office/reports/payroll?from=${addDays(WED, -13)}&to=${WED}`, { token, now })
+    assert.ok(payroll.body.rows.length >= 4 && payroll.body.total.seconds > 0)
+
+    const again = await api('POST', '/api/test/seed', { now, body: { scenario: 'demo' } })
+    assert.equal(again.status, 200)
+    const token2 = (await api('POST', '/api/office/signin', { now, body: { pin: '4826' } })).body.token
+    assert.deepEqual(await dayVisits(token2, WED, now), day, 'the same now gives the same demo')
+  }
+  expectError(await api('POST', '/api/test/seed', { body: { scenario: 'party' } }), 400, 'bad_request', 'scenario')
 })

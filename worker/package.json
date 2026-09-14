@@ -12,6 +12,12 @@
     "negative:familynote": "node tests/negative-familynote.mjs",
     "negative:alert": "node tests/negative-alert.mjs",
     "negative:travelgap": "node tests/negative-travelgap.mjs",
-    "negative": "node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-familynote.mjs && node tests/negative-alert.mjs && node tests/negative-travelgap.mjs"
+    "negative:payrollround": "node tests/negative-payrollround.mjs",
+    "negative:mileageorder": "node tests/negative-mileageorder.mjs",
+    "negative:csvguard": "node tests/negative-csvguard.mjs",
+    "negative:missedcancel": "node tests/negative-missedcancel.mjs",
+    "negative:ndtdate": "node tests/negative-ndtdate.mjs",
+    "negative:inactivekey": "node tests/negative-inactivekey.mjs",
+    "negative": "node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-familynote.mjs && node tests/negative-alert.mjs && node tests/negative-travelgap.mjs && node tests/negative-payrollround.mjs && node tests/negative-mileageorder.mjs && node tests/negative-csvguard.mjs && node tests/negative-missedcancel.mjs && node tests/negative-ndtdate.mjs && node tests/negative-inactivekey.mjs"
   }
 }
