@@ -6734,3 +6734,178 @@ Running 1 test using 1 worker
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+== 2026-09-14T19:21:52.835Z proof-yesterday: clarifications 9/16 removed: w/app.js never loads an earlier day
+   spec: playwright test worker.spec.mjs --project chromium-390 -g visit still open after midnight shows on 7906 (inspector 7916), copy in app/.negative/proof-yesterday
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:137:1 › a visit still open after midnight shows under "Still open from yesterday" and checks out with the right hours (1.5s) |   1 passed (5.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:137:1 › a visit still open after midnight shows under "Still open from yesterday" and checks out with the right hours 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' }) with timeout 10000ms
+      - waiting for locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+
+
+      161 |   await page.reload();
+      162 |   const section = page.locator('.still-open');
+    > 163 |   await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
+          |                                                                                     ^
+      164 |   const open = section.locator(`.visit[data-visit="${visit.id}"]`);
+      165 |   await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · Within 250 m of the client');
+      166 |   for (const list of lists) expect((await list).status()).toBe(200);
+        at <repo>/app/tests/worker.spec.mjs:163:85
+
+    Error: page.waitForResponse: Test ended.
+
+      157 |   // today's and yesterday's lists answer: tap after that.
+      158 |   await setNow(page, context, outAt);
+    > 159 |   const listOf = date => page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && (new URL(r.url()).searchParams.get('date') ?? '') === date);
+          |                               ^
+      160 |   const lists = [listOf(''), listOf(DAY)];
+
+== 2026-09-14T19:22:14.115Z proof-queued-midnight: clarification 16 removed: a check-in still in the queue does not open an earlier day
+   spec: playwright test worker.spec.mjs --project chromium-390 -g queued before midnight under an old link on 7906 (inspector 7916), copy in app/.negative/proof-queued-midnight
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:374:3 › with the service worker blocked › a check-in queued before midnight under an old link still opens "Still open from yesterday" on the new link (1.2s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:374:3 › with the service worker blocked › a check-in queued before midnight under an old link still opens "Still open from yesterday" on the new link 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' }) with timeout 10000ms
+      - waiting for locator('.still-open').getByRole('heading', { name: 'Still open from yesterday' })
+
+
+      396 |     await page.goto(pathOf(fresh.body.worker_url));
+      397 |     const section = page.locator('.still-open');
+    > 398 |     await expect(section.getByRole('heading', { name: 'Still open from yesterday' })).toBeVisible();
+          |                                                                                       ^
+      399 |     const open = section.locator(`.visit[data-visit="${visit.id}"]`);
+      400 |     await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
+      401 |     // First the card built from the queued item alone (clarification 18, drawn before any request); the loaded card, with Ron
+        at <repo>/app/tests/worker.spec.mjs:398:87
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-queued-midnight/results/worker-with-the-service-wo-54f5b-m-yesterday-on-the-new-link-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-queued-midnight/results/worker-with-the-service-wo-54f5b-m-yesterday-on-the-new-link-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+
+== 2026-09-14T19:22:34.605Z proof-earlier-days: clarification 16 (item 4) removed: only yesterday is looked at, not 7 days back
+   spec: playwright test worker.spec.mjs --project chromium-390 -g Still open from Sat Sep 12 on 7906 (inspector 7916), copy in app/.negative/proof-earlier-days
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:417:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:417:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: page.waitForResponse: Test timeout of 120000ms exceeded.
+
+      437 |     await setNow(page, context, NOW);
+      438 |     // The page draws Saturday from this phone first, then again when Saturday's list answers: tap after that.
+    > 439 |     const satList = page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && new URL(r.url()).searchParams.get('date') === sat);
+          |                          ^
+      440 |     await page.reload();
+      441 |     expect((await satList).status()).toBe(200);
+      442 |     const section = page.locator('.still-open');
+        at <repo>/app/tests/worker.spec.mjs:439:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-earlier-days/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-earlier-days/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    .negative/proof-earlier-days/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace .negative/proof-earlier-days/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+
+== 2026-09-14T19:24:44.497Z proof-earlier-without-today: clarification 16 (item 4) removed: earlier days are looked at only when today's list loaded
+   spec: playwright test worker.spec.mjs --project chromium-390 -g Still open from Sat Sep 12 on 7906 (inspector 7916), copy in app/.negative/proof-earlier-without-today
+   unbroken copy:   ✓  1 [chromium-390] › tests/worker.spec.mjs:417:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/worker.spec.mjs:417:3 › with the service worker blocked › a Saturday check-in still open on Monday shows under "Still open from Sat Sep 12", even when today's list fails 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: page.waitForResponse: Test timeout of 120000ms exceeded.
+
+      437 |     await setNow(page, context, NOW);
+      438 |     // The page draws Saturday from this phone first, then again when Saturday's list answers: tap after that.
+    > 439 |     const satList = page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && new URL(r.url()).searchParams.get('date') === sat);
+          |                          ^
+      440 |     await page.reload();
+      441 |     expect((await satList).status()).toBe(200);
+      442 |     const section = page.locator('.still-open');
+        at <repo>/app/tests/worker.spec.mjs:439:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-earlier-without-today/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-earlier-without-today/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    .negative/proof-earlier-without-today/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace .negative/proof-earlier-without-today/results/worker-with-the-service-wo-a8f25-ven-when-today-s-list-fails-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+
+== 2026-09-14T19:26:54.469Z proof-card-kept: M3h removed: every redraw replaces all of the worker page, so an unchanged card becomes a new node
+   spec: playwright test worker.spec.mjs --project chromium-1280 -g still queued across midnight on 7906 (inspector 7916), copy in app/.negative/proof-card-kept
+   unbroken copy:   ✓  1 [chromium-1280] › tests/worker.spec.mjs:318:3 › with the service worker blocked › a check-in still queued across midnight shows under "Still open from yesterday", then both land (1.1s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/worker.spec.mjs:318:3 › with the service worker blocked › a check-in still queued across midnight shows under "Still open from yesterday", then both land 
+
+    Error: the unchanged card is the node drawn from the phone
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      356 |     await expect(open.locator('.visit-status')).toHaveText('Checked in 11:20 PM · saved on this phone');
+      357 |     // The card's markup did not change across that redraw, so it must be the same node: a tap at that moment is never lost.
+    > 358 |     expect(await open.evaluate(el => el.drawnFromThePhone === true), 'the unchanged card is the node drawn from the phone').toBe(true);
+          |                                                                                                                             ^
+      359 |
+      360 |     await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out 12:20 AM');
+      361 |     // Signal returns only now, so the queued check-in's send does not redraw the card under the tap.
+        at <repo>/app/tests/worker.spec.mjs:358:125
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/proof-card-kept/results/worker-with-the-service-wo-917b9-om-yesterday-then-both-land-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .negative/proof-card-kept/results/worker-with-the-service-wo-917b9-om-yesterday-then-both-land-chromium-1280/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    .negative/proof-card-kept/results/worker-with-the-service-wo-917b9-om-yesterday-then-both-land-chromium-1280/trace.zip
+    Usage:
+
+        npx playwright show-trace .negative/proof-card-kept/results/worker-with-the-service-wo-917b9-om-yesterday-then-both-land-chromium-1280/trace.zip
+
+
