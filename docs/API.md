@@ -541,3 +541,14 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
     - **Retries are measured, not only awaited** (hc1's note on `waitEvent`). The specs that wait for a queued send also assert the
       page time it took: the first retry after one failure within 5 s of page time plus one 20 s tick, a 500 then success within the
       contract's backoff. A slow or missing retry schedule then fails instead of hiding inside minutes of fast-forwarded clock.
+18. **(hc1 review of hc2 M3b, findings 1-3) The phone never waits on the network to show what it knows.**
+    - **Saved list first** (finding 1, PAYROLL). The worker page renders the saved lists (today and any open earlier day) and the
+      queue **before** any network call, then refreshes. Every `GET /api/worker/visits` carries `AbortSignal.timeout(8000)`; a
+      timeout is a failed load, so the saved list stays with "Saved list from 7:02 AM".
+    - **Dismiss hides, never deletes** (finding 2, PAYROLL). "Dismiss" on the earlier-refused-check-in notice only hides that
+      notice (the dismissed `seq` is kept in `localStorage` `hcv:dismissed`). The refused item stays under "Not accepted by the
+      office" until the worker taps Remove there.
+    - **The Worker names the open days** (finding 3, PAYROLL). `GET /api/worker/visits` adds
+      `"open_dates": ["2026-09-12"]`: the NL dates, up to 7 days before today, of visits whose effective check-in was made by this
+      worker and that have no effective check-out, ascending, not counting the requested date and today. The page also loads each of
+      those dates, so a visit checked in from a lost phone can be checked out from a new phone or a new link.

@@ -155,3 +155,15 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
 44. **Work split.** hc1 M5 (now): the Worker side of 17 (sessions on PIN change, `scheduled_hours`) with tests and a negative
     control. hc2 M3c, after M3b: the page side of 17 and the two spec gaps (badge hidden after a rename without SAMPLE; presets on a
     fall-back Sunday night that is already Monday in UTC).
+
+## 2026-09-14, lead (after hc1's review of hc2 M3b, 12:55)
+
+45. **The three payroll findings are fixed tonight; the service-worker edge cases are known gaps** (API.md 18; the gaps are listed in
+    docs/build-report-hc1.md and README). The fixed three are ordinary days for a home support worker: one bar of signal at the door,
+    tapping Dismiss on a notice, a lost phone replaced on Monday. The known gaps need two reloads racing a background refresh, or a
+    browser that leaves `resultingClientId` unset, and they fall back to the network rather than losing a tap.
+46. **The Worker tells the phone which days are still open** (`open_dates`), rather than the phone guessing from what it saved.
+    Only the Worker knows about a check-in made on a phone that no longer exists, and payroll's incomplete list is otherwise stuck
+    until the office uses Fix times.
+47. **Work split, final rounds.** hc1 M6: `open_dates` with tests and a negative control. hc2 M3d, after M3c: saved list first with
+    the 8 s limit, Dismiss that hides, and loading `open_dates`, each with a spec. Then the lead's final QA.
