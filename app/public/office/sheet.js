@@ -1,7 +1,9 @@
 // The visit edit sheet: worker, date, start, end; Cancel visit (reason) / Restore; Fix times (NL time, reason);
 // "Family can see this note". Every refusal shows the API's words.
 import { office, openSheet, closeSheet, showErrors, esc } from './core.js';
-import { TZ, localToUtcMs, localHm, addDays } from '../time.js';
+import { TZ, localToUtcMs, localHm, localDate, addDays } from '../time.js';
+
+const GAP_WORDS = "That time doesn't exist on the day the clocks change.";
 
 const eventText = e => (e
   ? `${e.at_label} (${e.source === 'office' ? `set by the office: ${e.correction_reason}` : `from the phone${e.location_label ? `, ${e.location_label}` : ''}`})`
@@ -46,6 +48,7 @@ export async function openVisitSheet(visit, onChanged) {
             <input type="time" id="vs-fix-out" value="${v.check_out ? localHm(v.check_out.at, TZ) : ''}">
             <p class="field-error" data-error-for="check_out_at" role="alert"></p></div>
         </div>
+        <label class="check" id="vs-overnight-row" hidden><input type="checkbox" id="vs-fix-overnight"> The check-out was after midnight</label>
         <div class="field"><label for="vs-fix-reason">Why the time is being fixed</label><input id="vs-fix-reason" maxlength="120" autocomplete="off">
           <p class="field-error" data-error-for="reason" role="alert"></p></div>
         <button type="submit" class="btn btn-outline">Fix times</button>
@@ -93,16 +96,34 @@ export async function openVisitSheet(visit, onChanged) {
       // Only a changed time is sent, so a phone's time (with its seconds) is never replaced by the same minute.
       const inHm = q('#vs-fix-in').value;
       const outHm = q('#vs-fix-out').value;
+      // Clarification 17: each time is on the visit's date; the next day only when the office ticks "after midnight".
+      const outDate = q('#vs-fix-overnight').checked ? addDays(v.date, 1) : v.date;
       const checkIn = inHm && inHm !== (v.check_in ? localHm(v.check_in.at, TZ) : '') ? localToUtcMs(v.date, inHm, TZ) : null;
-      const inMs = checkIn ?? (v.check_in ? Date.parse(v.check_in.at) : null);
-      let checkOut = outHm && outHm !== (v.check_out ? localHm(v.check_out.at, TZ) : '') ? localToUtcMs(v.date, outHm, TZ) : null;
-      // A check-out earlier on the clock than the check-in is after midnight.
-      if (checkOut != null && inMs != null && checkOut <= inMs) checkOut = localToUtcMs(addDays(v.date, 1), outHm, TZ);
+      const checkOut = outHm && outHm !== (v.check_out ? localHm(v.check_out.at, TZ) : '') ? localToUtcMs(outDate, outHm, TZ) : null;
+      // Clarification 17: a time in the spring-forward gap does not exist on that day. It is refused here and not sent.
+      showErrors(sheet, null);
+      for (const [ms, date, hm, field] of [[checkIn, v.date, inHm, 'check_in_at'], [checkOut, outDate, outHm, 'check_out_at']]) {
+        if (ms != null && (localDate(ms, TZ) !== date || localHm(ms, TZ) !== hm)) {
+          showErrors(sheet, { ok: false, data: { field, error: GAP_WORDS } });
+          return;
+        }
+      }
       const r = await office('PUT', `/api/office/visits/${v.id}/times`, {
         check_in_at: isoOf(checkIn), check_out_at: isoOf(checkOut), reason: q('#vs-fix-reason').value, version: v.version,
       });
       if (await done(r)) { timesNote = 'Times saved.'; draw(); onChanged(v); }
     });
+    // "The check-out was after midnight" is offered only when the typed check-out is at or before the check-in.
+    const syncOvernight = () => {
+      const inNow = q('#vs-fix-in').value || (v.check_in ? localHm(v.check_in.at, TZ) : '');
+      const out = q('#vs-fix-out').value;
+      const show = !!(inNow && out && out <= inNow);
+      q('#vs-overnight-row').hidden = !show;
+      if (!show) q('#vs-fix-overnight').checked = false;
+    };
+    q('#vs-fix-in').addEventListener('input', syncOvernight);
+    q('#vs-fix-out').addEventListener('input', syncOvernight);
+    syncOvernight();
     q('#vs-cancel')?.addEventListener('click', async () => {
       const r = await office('POST', `/api/office/visits/${v.id}/cancel`, { reason: q('#vs-reason').value, version: v.version });
       if (await done(r)) { draw(); onChanged(v); }
