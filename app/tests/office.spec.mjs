@@ -1,6 +1,6 @@
 // The office: sign-in refusals and sign-out, adding a client with the map pin (its visits on Alex B.'s row), the medication
 // wording guard, adding a worker with ticked availability, and a deactivated worker who stays reachable (clarification 15).
-import { test, expect, tap, tapAt, typeInto, mapPoint, tab, signIn, setNow, api, officeToken, oneOffVisit, byName, NOW, DAY, addDays } from './helpers.mjs';
+import { test, expect, tap, tapAt, typeInto, mapPoint, hitTest, intoView, tab, signIn, setNow, api, officeToken, oneOffVisit, byName, NOW, DAY, addDays } from './helpers.mjs';
 
 test('a wrong PIN says "That PIN is not right." and the sign-in answers 401', async ({ page, context }) => {
   await setNow(page, context, NOW);
@@ -38,7 +38,7 @@ test('Sign out after the session already ended at the office says "Signed out."'
 
 async function newClient(page, name, { task }) {
   await tab(page, 'Clients');
-  await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
+  await expect(page.locator('.leaflet-control-attribution')).toHaveText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap');
   await expect(page.locator('.leaflet-control-attribution')).toBeVisible();
   await expect(page.locator('#client-list .entity'), 'the client list has loaded').toHaveCount(12);
   await tap(page, page.getByRole('button', { name: 'Add client' }), 'Add client');
@@ -89,6 +89,41 @@ test('add a client by typing and clicking the map, with a task and a Mon/Wed pat
       await expect(page.locator(`.wgroup[data-worker-id="${alex.id}"] .vcard`, { hasText: name }), `a visit under Alex B. on ${date}`).toHaveCount(1);
     }
   }
+});
+
+test('the Clients map: the OpenFreeMap attribution and its three links, a pin placed by clicking, only the routed tiles leave 127.0.0.1', async ({ page, context, guarded }, testInfo) => {
+  await setNow(page, context, NOW);
+  await signIn(page);
+  await tab(page, 'Clients');
+  const map = page.locator('#cl-map');
+  await expect(map).toHaveAttribute('data-base', /^(maplibre|plain)$/);
+  const base = await map.getAttribute('data-base');
+  console.log(`[map] ${testInfo.project.name}: ${base === 'maplibre' ? 'MapLibre with WebGL' : 'the plain background (no WebGL)'}`);
+  testInfo.annotations.push({ type: 'map base', description: base });
+  if (base === 'maplibre') {
+    await expect(map.locator('canvas.maplibregl-canvas')).toBeAttached();
+    await expect.poll(() => [...new Set(guarded.tiles)].filter(t => !t.endsWith('.pbf')).sort(), { message: 'the style and its TileJSON came from the routed fixtures' })
+      .toEqual(['/planet', '/styles/liberty']);
+  }
+
+  const attribution = map.locator('.leaflet-control-attribution');
+  await expect(attribution).toHaveText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap');
+  for (const [name, href] of [['OpenFreeMap', 'https://openfreemap.org'], ['© OpenMapTiles', 'https://www.openmaptiles.org/'], ['OpenStreetMap', 'https://www.openstreetmap.org/copyright']]) {
+    const link = attribution.getByRole('link', { name, exact: true });
+    await expect(link, `${name}: visible`).toBeVisible();
+    await expect(link).toHaveAttribute('href', href);
+    await intoView(page, link);
+    const { x, y, hit } = await hitTest(link);
+    expect(hit, `${name} hit-test at ${Math.round(x)},${Math.round(y)}: the link is on top`).toBe('');
+  }
+
+  await expect(page.locator('#client-list .entity'), 'the client list has loaded').toHaveCount(12);
+  await tap(page, page.getByRole('button', { name: 'Add client' }), 'Add client');
+  const { fx, fy } = await mapPoint(page, map); // not within 16 px of a Leaflet control, not on a pin
+  await tapAt(page, map, fx, fy, 'the map');
+  await expect(page.locator('#cf-pin')).toHaveText(/^Pin at 4\d\.\d{5}, -5\d\.\d{5}\. /);
+  await expect(map.locator('.pin-new')).toBeVisible();
+  expect(guarded.outside, 'nothing but tiles.openfreemap.org (routed) left 127.0.0.1').toEqual([]);
 });
 
 test('a task "Give her pills" shows the medication message by the tasks field', async ({ page, context }) => {

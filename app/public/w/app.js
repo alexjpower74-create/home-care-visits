@@ -10,10 +10,15 @@ const DRAFT_PREFIX = 'hcv:draft:';
 const NOTICE_PREFIX = 'hcv:notice:';
 const DISMISSED_KEY = 'hcv:dismissed'; // seqs of refused check-ins whose history notice was dismissed (clarification 18)
 const LOAD_TIMEOUT_MS = 8000; // a visits load that takes longer is a failed load (clarification 18)
+// A page that is leaving cancels its own visits requests (DECISIONS 49); a page restored from the back-forward cache gets a new one.
+let leaving = new AbortController();
+addEventListener('pagehide', () => leaving.abort());
+addEventListener('pageshow', e => { if (e.persisted) leaving = new AbortController(); });
 const loadSignal = () => {
-  if (AbortSignal.timeout) return AbortSignal.timeout(LOAD_TIMEOUT_MS);
   const c = new AbortController();
-  setTimeout(() => c.abort(), LOAD_TIMEOUT_MS);
+  const stop = () => c.abort();
+  if (leaving.signal.aborted) stop(); else leaving.signal.addEventListener('abort', stop, { once: true });
+  setTimeout(stop, LOAD_TIMEOUT_MS);
   return c.signal;
 };
 const EARLIER_DAYS = 7; // the Worker's original-time window and its visits date range (clarification 16)

@@ -2,7 +2,7 @@
 // check-out 47 minutes later, with the office's day API showing what the phone sent; a check-in with location denied; the note
 // rules while typing; a note refused on its way out; a visit still open after midnight. Each test sets its geolocation
 // permission before the page loads: WebKit keeps a page's first answer, and clearing a grant mid-page does not deny in Chromium.
-import { test, expect, tap, typeInto, api, officeToken, officeVisit, oneOffVisit, byName, pathOf, setNow, waitEvent, iso,
+import { test, expect, settledOnPhone, tap, typeInto, api, officeToken, officeVisit, oneOffVisit, byName, pathOf, setNow, waitEvent, iso,
   addDays, localToUtcMs, randomUUID, NOW, DAY, MIN, OFFICE_PHONE } from './helpers.mjs';
 
 const NOTE = 'Swept the porch. Bill was in good spirits. (SAMPLE)';
@@ -294,7 +294,7 @@ test.describe('with the service worker blocked', () => {
     const again = waitEvent(page, 'check_in', { status: 201 });
     await tap(page, card.getByRole('button', { name: 'Check in again' }), 'Check in again');
     expect((await again).status()).toBe(201);
-    await expect(card.locator('.visit-status')).toHaveText('Checked in 10:35 AM · Within 250 m of the client');
+    await settledOnPhone(page, card, 'Checked in 10:35 AM · Within 250 m of the client');
     await expect(card.locator('.visit-notice')).toContainText("An earlier check-in at 10:30 AM wasn't accepted by the office.");
     await tap(page, card.locator('.visit-notice').getByRole('button', { name: 'Dismiss' }), 'Dismiss');
     await expect(card.locator('.visit-notice')).toHaveCount(0);

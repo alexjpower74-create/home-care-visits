@@ -1,7 +1,7 @@
 // The offline queue against the real Worker. The phone's clock is page.clock; the Worker's clock is X-Test-Now on the page's
 // requests. A check-in tapped at T and a check-out tapped at T + 1:32:10 with no signal must reach the database with exactly
 // those times when signal comes back 40 minutes later.
-import { test, expect, tap, typeInto, api, officeToken, officeVisit, oneOffVisit, testEvents, byName, pathOf, setNow, waitEvent, randomUUID, iso,
+import { test, expect, settledOnPhone, tap, typeInto, api, officeToken, officeVisit, oneOffVisit, testEvents, byName, pathOf, setNow, waitEvent, randomUUID, iso,
   localToUtcMs, addDays, pageNow, NOW, DAY, MIN, OFFICE_PHONE } from './helpers.mjs';
 
 // The queue's retry schedule (API.md, the offline queue; clarification 17: retries are measured, not only awaited).
@@ -51,7 +51,7 @@ test('with no signal after midnight, a reload still shows yesterday\'s open visi
   const inR = waitEvent(page, 'check_in');
   await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in 11:20 PM');
   expect((await inR).status()).toBe(201);
-  await expect(card.locator('.visit-status')).toHaveText('Checked in 11:20 PM · Within 250 m of the client');
+  await settledOnPhone(page, card, 'Checked in 11:20 PM · Within 250 m of the client');
 
   // 12:20 AM, no signal, the page is opened again.
   await context.setOffline(true);
@@ -408,6 +408,7 @@ test.describe('with the service worker blocked', () => {
       const sent = waitEvent(page, 'check_in');
       await tap(page, card.getByRole('button', { name: 'Check in' }), `Check in (${worker.name})`);
       expect((await sent).status()).toBe(201);
+      await settledOnPhone(page, card, /^Checked in \d{1,2}:\d\d [AP]M · (?!saved on this phone$)/);
       await typeInto(page, card.locator('textarea'), note, 'note');
     };
     await draftUnder(jo, joVisit, "Jo's half-written note (SAMPLE)");

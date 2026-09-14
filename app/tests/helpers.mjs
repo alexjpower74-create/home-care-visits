@@ -1,14 +1,14 @@
 // Shared fixture and helpers for the e2e suite (against the real Worker).
 // - Every test starts with POST /api/test/reset (auto fixture `seed`, which also hands the test the keys and links).
-// - Map tiles (https://tile.openstreetmap.org/**) get a local placeholder PNG; any other request to a host that is not
-//   127.0.0.1 is aborted and fails the test (auto fixture `guarded`).
+// - The map background (https://tiles.openfreemap.org/**) gets local fixtures: a background-only style, its TileJSON and empty
+//   tiles. Any other request to a host that is not 127.0.0.1 (tile.openstreetmap.org included) is aborted and fails the test
+//   (auto fixture `guarded`).
 // - REAL input only: tap() hit-tests the target's centre with elementFromPoint before a real touch or click; typing is
 //   page.keyboard (insertText on touch projects, then the value is asserted); drags are page.mouse. evaluate only reads
 //   (and scrolls a target into view, as a person would). Native <select> and date/time inputs use selectOption/fill.
 // - Time: the suite runs on a fixed Monday. NOW is sent as X-Test-Now (the Worker's clock, TEST_MODE only) and given to
 //   page.clock, so "today" on the server and on the page are the same day whenever the suite runs.
 import { test as base, expect } from '@playwright/test';
-import { deflateSync, crc32 } from 'node:zlib';
 import { randomUUID } from 'node:crypto';
 import { localDate, localToUtcMs, addDays, timeLabel } from '../public/time.js';
 
@@ -27,36 +27,47 @@ export function byName(list, name) {
   return found;
 }
 
-/* ---- a generated tile ---- */
-function png(width, height, paint) {
-  const raw = Buffer.alloc((width * 3 + 1) * height);
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) raw.set(paint(x, y), y * (width * 3 + 1) + 1 + x * 3);
-  const chunk = (type, data) => {
-    const len = Buffer.alloc(4);
-    len.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type), data]);
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(body));
-    return Buffer.concat([len, body, crc]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 2;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}
-export const TILE = png(256, 256, (x, y) => (((x >> 5) + (y >> 5)) % 2 ? [226, 232, 222] : [214, 224, 212]));
+/* ---- the map fixtures (clarification 20): no glyphs or sprites, since the style names none ---- */
+const OFM = 'https://tiles.openfreemap.org';
+export const MAP_STYLE = {
+  version: 8,
+  name: 'Test background (fixture)',
+  sources: { openmaptiles: { type: 'vector', url: `${OFM}/planet` } },
+  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dfe8da' } }],
+};
+// Carries an attribution like a real TileJSON, so a second attribution from the binding would show.
+export const MAP_TILEJSON = {
+  tilejson: '3.0.0', name: 'fixture', minzoom: 0, maxzoom: 14, bounds: [-180, -85.0511, 180, 85.0511], vector_layers: [],
+  attribution: '<a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  tiles: [`${OFM}/planet/fixture/{z}/{x}/{y}.pbf`],
+};
 
 /* ---- the network guard ---- */
+// A blob: URL (MapLibre's worker script) belongs to the page's own origin: WebKit sends it through the routes too.
+const hostOf = url => (url.protocol === 'blob:' ? new URL(url.pathname).hostname : url.hostname);
+const offHost = url => /^(https?|blob):$/.test(url.protocol) && !['127.0.0.1', 'tiles.openfreemap.org'].includes(hostOf(url));
+
 export async function guard(context) {
   const outside = [];
-  await context.route('https://tile.openstreetmap.org/**', route => route.fulfill({ status: 200, contentType: 'image/png', body: TILE }));
-  await context.route(url => url.hostname !== '127.0.0.1' && url.hostname !== 'tile.openstreetmap.org', route => {
+  const tiles = [];
+  await context.route(`${OFM}/**`, route => {
+    const { pathname } = new URL(route.request().url());
+    tiles.push(pathname);
+    if (pathname === '/styles/liberty') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MAP_STYLE) });
+    if (pathname === '/planet') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MAP_TILEJSON) });
+    if (/^\/planet\/fixture\/\d+\/\d+\/\d+\.pbf$/.test(pathname)) return route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) });
+    outside.push(`${route.request().url()} (not in the map fixtures)`);
+    return route.abort('blockedbyclient');
+  });
+  await context.route(offHost, route => {
     outside.push(route.request().url());
     return route.abort('blockedbyclient');
   });
-  return { outside };
+  // Requests no route sees (a worker's own fetch) still show up here.
+  context.on('request', r => {
+    if (offHost(new URL(r.url()))) outside.push(`${r.url()} (seen)`);
+  });
+  return { outside, tiles };
 }
 
 export const test = base.extend({
@@ -65,7 +76,7 @@ export const test = base.extend({
     const pageErrors = [];
     context.on('page', p => p.on('pageerror', e => pageErrors.push(`${p.url()}: ${e.message}`)));
     await use(g);
-    expect(g.outside, 'every request stays on 127.0.0.1 (map tiles go to the local placeholder)').toEqual([]);
+    expect(g.outside, 'every request stays on 127.0.0.1 (the map background goes to the local fixtures)').toEqual([]);
     expect(pageErrors, 'no uncaught errors in the pages').toEqual([]);
   }, { auto: true }],
   seed: [async ({ request }, use) => {
@@ -270,6 +281,13 @@ export function waitEvent(page, kind, { mode = 'fixed', status, timeout = 115_00
     && r.request().postDataJSON()?.kind === kind && (status == null || r.status() === status), { timeout });
   promise.catch(() => {});
   return { then: (resolve, reject) => untilAnswer(page, promise, { mode }).then(resolve, reject) };
+}
+
+/** Before a spec leaves /w/ after a send: nothing waits in the queue and the card shows the server's own record, so the refresh
+ *  the send started has answered and no visits request is still loading when the page unloads (DECISIONS 49). */
+export async function settledOnPhone(page, card, status) {
+  await expect(page.locator('#strip-text'), 'settled: nothing waits to send').toHaveText(/^All sent(\. \d+ not accepted by the office\.)?$/);
+  await expect(card.locator('.visit-status'), "settled: the card shows the server's record").toHaveText(status);
 }
 
 export async function signIn(page, pin = PIN) {

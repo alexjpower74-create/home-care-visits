@@ -767,3 +767,104 @@ everything. The entries from 16:38Z on are the ones that count.
 
 Servers: the suite's Worker (7903/7913) and the controls' Worker (7906/7916) were stopped by their runners, and all four ports
 are free.
+
+## M3e: the webkit page error on navigation, and maps on OpenFreeMap (2026-09-14)
+
+Rebased on main at 15a6801 (API.md clarification 20, DECISIONS 49-50, the map rule in AGENTS.md).
+
+### A. The WebKit page error when a spec leaves `/w/` (DECISIONS 49)
+hc1 traced the failure: the spec navigated while the page's refresh after a send was still loading. WebKit logs its own
+"Fetch API cannot load … due to access control checks" line during unload, and Playwright's WebKit backend reports that as a
+`pageerror`.
+- **Spec fix, not the fixture.** New helper `settledOnPhone(page, card, status)`: `#strip-text` reads "All sent" (with any
+  "N not accepted by the office"), and the card's status is the server's record, not "· saved on this phone". So the refresh
+  that the send started has answered.
+- **Audit.** I scanned every spec for a `goto`, `reload` or `signIn` after a send. Sends that were dropped on purpose (offline,
+  routed aborts) were set aside, since a dropped request never produces the error. That leaves seven places, all of which now
+  wait:
+  - `targets.spec`: the 4.5 : 1 test, before `signIn`.
+  - `family.spec`: before the family page.
+  - `reports.spec`: `checkInOnPhone`, and after Bill S.'s check-out.
+  - `offline.spec`: the midnight test before its offline reload, and `draftUnder` in "two links on one phone".
+  - `worker.spec`: "Check in again", before its reload.
+- **Found by the new wait.** On WebKit the 4.5 : 1 test never set a position, so its check-in was refused by the office ("The
+  location didn't come through"). The old spec only measured the Check out button before that refusal came back. The test now
+  sets the position at Bill S.'s map point, as the other targets test does.
+- WebKit keeps the last position across `setGeolocation`, so the wait matches the server's record, not its location words.
+- **Hardening** (`w/app.js`): one `AbortController` is aborted on `pagehide` and renewed on a back-forward-cache `pageshow`.
+  Every visits GET's signal combines it with the 8 s timeout.
+
+### B. Maps on OpenFreeMap (API.md clarification 20, DECISIONS 50)
+1. **Vendored and pinned.** In `app/`, `npm install --save-exact maplibre-gl@5.24.0 @maplibre/maplibre-gl-leaflet@0.1.4`.
+   - Copied to `app/public/vendor/maplibre-gl/`: `maplibre-gl.js`, `maplibre-gl.css`, `LICENSE.txt`.
+   - Copied to `app/public/vendor/maplibre-gl-leaflet/`: `leaflet-maplibre-gl.js`, `LICENSE`.
+   - `office/index.html` loads them after Leaflet. The worker page's service worker is unchanged.
+2. **`app/public/map-config.js`** exports `MAP_STYLE_URL` (`https://tiles.openfreemap.org/styles/liberty`) and
+   `MAP_ATTRIBUTION`. The Clients map, the only map in the app, uses `L.maplibreGL({ style: MAP_STYLE_URL })` as its base
+   layer. Pins, clicks and the draft pin stay Leaflet.
+3. **Attribution** goes in Leaflet's attribution control, reading exactly "OpenFreeMap © OpenMapTiles Data from OpenStreetMap".
+   - It links `https://openfreemap.org`, `https://www.openmaptiles.org/` and `https://www.openstreetmap.org/copyright`, each opening
+     in a new tab. The old "© OpenStreetMap contributors" is gone.
+   - The layer gets `attributionControl: { customAttribution: '' }`, so the binding never adds a second attribution from the
+     TileJSON. The test fixture's TileJSON carries one, which proves it.
+4. **No WebGL.** `baseLayer()` first tries a WebGL context. Without one, or if adding the layer throws, the map keeps
+   Leaflet's plain background (`#e4ebe1`, also drawn under the canvas), its pins and the same attribution.
+   - MapLibre `error` events (a style or tile that fails to load) go to `console.warn`, never uncaught.
+   - `#cl-map[data-base]` says which base is in use: `maplibre` or `plain`.
+5. **Tests.**
+   - `helpers.mjs` routes `https://tiles.openfreemap.org/**` to local fixtures: a background-only style with the `openmaptiles`
+     vector source, its TileJSON at `/planet`, and empty `.pbf` tiles. There are no glyphs or sprites, since the style names none.
+   - Any other path on that host fails the test ("not in the map fixtures"). The catch-all guard now fails on every host but
+     127.0.0.1 and tiles.openfreemap.org, `tile.openstreetmap.org` included. A `context.on('request')` watcher catches anything
+     no route sees.
+   - WebKit sends MapLibre's `blob:http://127.0.0.1…` worker script through the routes. The guard reads a blob URL's host from its
+     origin; the first run showed this as 5 "outside" entries on WebKit.
+   - `office.spec` "add a client…" asserts the new exact attribution text.
+   - The new `office.spec` test, "the Clients map: the OpenFreeMap attribution and its three links, a pin placed by clicking, only
+     the routed tiles leave 127.0.0.1", runs in all four projects. With MapLibre, the canvas is attached and the style and
+     TileJSON came from the fixtures. The exact attribution text shows; each link is visible, has its href and hit-tests to itself.
+     "Add client" then places a pin by clicking the map (`mapPoint`: not within 16 px of a Leaflet control, not on a pin), and
+     `guarded.outside` is empty.
+   - **Negative control (m)**, `negative-attribution.mjs`: the copy drops the `addAttribution` line, and the new test must go red.
+   - **WebGL per project** (the test prints `[map] <project>: …`): chromium-390, chromium-1280, webkit-390 and webkit-1280 all ran
+     **MapLibre with WebGL**. No project used the fallback. The fallback path is written but was not exercised by a project here.
+6. **Screenshots** (`tests/shots-office.mjs`, all four projects, looked at).
+   - `office-clients-*` and `office-client-form-*` were retaken.
+   - The first client-form shot at chromium-1280 caught Leaflet's zoom to the client mid-animation, with pins on the map's edge.
+     The script now waits until the client's pin stands still inside the map.
+   - New `office-clients-map-chromium-390` and `office-clients-map-webkit-390` pictures show the phone-width map with the
+     attribution, which the 390 viewport shots never reached.
+   - The background in the pictures is the fixture's plain colour. Tests never fetch the real tiles.
+
+### The first full run, and its one fix
+The first full run alone (ending 17:22Z) had 212 passed, 2 failed and 4 skipped. The two failures were the 4.5 : 1 test on
+chromium-1280 and webkit-390, both `TypeError: Cannot read properties of null (reading 'slice')` in `rgb()`.
+- **Cause.** Once the test set a real position, the check-in was accepted, and the refresh after it redrew the card while
+  `ratio(Check out)` read the button's colours. A detached element's computed colour is empty.
+- **Fix.** `settledOnPhone` now comes before the Check out measurement, not after it. The same new wait exposed both races.
+- No control or proof runs `targets.spec`, so the `npm run negative` results below still stand.
+
+### Negative controls (a)–(m) and all 18 proofs (`npm run negative`, run alone after the first suite run, 17:22Z–17:37Z)
+`npm run negative` exited 0 with "All 14 negative-control scripts went red as required". Each script passed on its unbroken copy
+first, then went red. (a)–(l) and the 18 proofs went red at the same assertions as in M3d. `app/tests/negative-control.log` holds no
+machine paths.
+
+| check | break (copy only) | red with |
+|---|---|---|
+| **(m) attribution** (new) | `clients.js` drops `map.attributionControl.addAttribution(MAP_ATTRIBUTION)` | the attribution expected "OpenFreeMap © OpenMapTiles Data from OpenStreetMap", received "" |
+
+### Results (full suite run alone after the fix, ending 17:46Z)
+The fixed 4.5 : 1 test first passed 12/12 (3 runs on each project). Then the full suite, run alone:
+
+| project | passed | failed | skipped |
+|---|---|---|---|
+| chromium-390 | 55 | 0 | 0 |
+| chromium-1280 | 54 | 0 | 0 |
+| webkit-390 | 53 | 0 | 2 |
+| webkit-1280 | 52 | 0 | 2 |
+| **total** | **214** | **0** | **4** |
+
+The 4 skipped are unchanged, each with its written WebKit reason. All four projects printed "MapLibre with WebGL".
+
+Servers: the suite's Worker (7903/7913) and the controls' Worker (7906/7916) were stopped by their runners, and all four ports are
+free.
