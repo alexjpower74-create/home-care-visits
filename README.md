@@ -26,7 +26,7 @@ week dated around the real date and time, so the Today board always has a late a
 | Family link: today's and this week's visits | `/f/?k=…` | family members the office gives the link to |
 
 ## What it does
-- **Office.** Clients with a map pin (Leaflet + OpenStreetMap), entry/key-safe notes, care tasks (medication **reminder** only),
+- **Office.** Clients with a map pin (Leaflet with OpenFreeMap tiles via MapLibre), entry/key-safe notes, care tasks (medication **reminder** only),
   repeating visit times and family contacts. Workers with availability, travel zones and weekly hours. A **week planner** where
   visits are dragged onto workers and conflicts show up: double-booked, travel gap too short (straight-line distance × 1.3 at 60
   km/h), over weekly hours, outside availability, outside travel zone. A **Today board** where a visit not checked in 15 minutes

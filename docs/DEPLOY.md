@@ -21,8 +21,10 @@ needs, for Alexander to decide on. One deployment serves one agency.
    migration (they are fixed by the seed in v1; there is no screen for them).
 4. **Never set `TEST_MODE`** on a deployed Worker. With it, anyone can reset the database (`/api/test/reset`) and fake the
    clock with a header. `wrangler.toml` must not have it in `[vars]`; the demo sets it on the command line only.
-5. **Map tiles.** The office maps use OpenStreetMap's standard tiles, which are fine for one office's light use under the
-   OSM tile usage policy. A product sold to many agencies should use a tile provider with its own terms.
+5. **Map tiles.** The office map draws OpenFreeMap vector tiles (free, commercial use allowed, no key, no usage limits, no SLA)
+   through MapLibre inside Leaflet, never the OSM standard tile server. The style URL is one value in `app/public/map-config.js`;
+   if an SLA is ever needed, point it at a paid provider's style or a self-hosted OpenFreeMap. Keep the attribution
+   "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" visible.
 
 ## What a real deployment needs outside the code (home care is health information)
 - **PHIA review.** In Newfoundland and Labrador, visit records, care tasks and notes about a client are personal health

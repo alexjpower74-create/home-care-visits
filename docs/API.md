@@ -561,3 +561,20 @@ FamilyVisit: `{ "time_label": "9:00 AM – 10:30 AM", "worker_first_name": "Sam"
     - So an 11:00-11:55 PM visit checked in at 12:10 AM the next day gets its 12:50 AM check-out fixed on the right day.
     - Smaller: switching report tabs uses the dates typed in From and To (never silently puts back the old ones); the billing spec
       includes three 20-minute clients so printing `scheduled_hours` (0.33, 0.33, 0.33, total 1.00) is told apart from computing it.
+20. **(Alexander's rule, LEAD-RULES §4, 13:10) The map background is OpenFreeMap, drawn by MapLibre inside Leaflet.** Supersedes
+    the tile lines in "Pages" above.
+    - Never the OSM standard tile server (its policy lets it withdraw commercial access). One config value:
+      `app/public/map-config.js` exports `MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'`.
+    - Vendored and pinned in `app/public/vendor/`, no CDN: `maplibre-gl@5.24.0` (`dist/maplibre-gl.js`, `dist/maplibre-gl.css`,
+      LICENSE) and `@maplibre/maplibre-gl-leaflet@0.1.4` (`leaflet-maplibre-gl.js`, LICENSE), loaded after Leaflet. Pins, clicks and
+      drags stay Leaflet (`L.maplibreGL({ style: MAP_STYLE_URL })` as the base layer).
+    - **Attribution, always visible** in Leaflet's attribution control, exactly `OpenFreeMap © OpenMapTiles Data from OpenStreetMap`,
+      with the links OpenFreeMap → `https://openfreemap.org`, © OpenMapTiles → `https://www.openmaptiles.org/`, OpenStreetMap →
+      `https://www.openstreetmap.org/copyright`. Source: openfreemap.org, "Attribution is required. … you must add the following
+      attribution: OpenFreeMap © OpenMapTiles Data from OpenStreetMap" (fetched 2026-09-14, `data/sources/openfreemap-home-2026-09-14.html`).
+    - **No WebGL** (an old phone, a locked-down browser, a headless engine): the map still works with a plain background, its pins
+      and the same attribution, and nothing is thrown uncaught.
+    - **Tests** route `https://tiles.openfreemap.org/**` to local fixtures (a minimal style, its TileJSON, empty tiles, and glyphs or
+      sprites only if the fixture style names them). The network guard fails on any other host, `tile.openstreetmap.org` included. A
+      spec asserts the attribution text and its three links are visible and hit-test to themselves on the Clients map at 390 and 1280
+      in both engines. Negative control (m) `negative-attribution.mjs`: a copy without the attribution goes red.

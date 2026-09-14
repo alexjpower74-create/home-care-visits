@@ -186,3 +186,13 @@ Calls made without Alexander, newest at the bottom. Each says what and why.
     and the server's check-in) before leaving `/w/`; filtering the text in the fixture would hide a real uncaught error with a
     similar message. The page also aborts its visits requests on `pagehide` (hc1's optional hardening), so an unloading page cancels
     its own fetch. This is hc2's M3e, then the final QA.
+
+## 2026-09-14, lead (new sprint rule on maps, relayed from Onyx, 13:52)
+
+50. **Maps move to OpenFreeMap through MapLibre inside Leaflet** (LEAD-RULES §4, Alexander's call 13:10; API.md clarification 20).
+    The rule was checked in LEAD-RULES.md before acting on the relayed message. The attribution wording comes from openfreemap.org
+    itself ("Attribution is required … OpenFreeMap © OpenMapTiles Data from OpenStreetMap"), because the live Liberty style carries
+    no attribution field and the Leaflet binding does not add one. `maplibre-gl` is pinned at 5.24.0, the newest 5.x, because
+    OpenFreeMap's quick start loads MapLibre 5; `@maplibre/maplibre-gl-leaflet` 0.1.4 supports it. A browser without WebGL keeps a
+    working map with pins and attribution, since a coordinator's old office PC must still be able to place a pin. It goes to hc2 with
+    M3e; the lead updates AGENTS.md, README.md and docs/DEPLOY.md.

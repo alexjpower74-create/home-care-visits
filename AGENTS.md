@@ -32,7 +32,9 @@ Read PLAN.md first (the Rig contract), then docs/API.md (the contract between sl
   time it synced. Payroll seconds are summed exactly and rounded once, on the total.
 - **Location never blocks a visit.** "Within 250 m of the client", "More than 250 m from the client", or "Location not shared".
 - **Distances are straight-line**, and every screen that uses one says so.
-- **Map tiles:** Leaflet + OpenStreetMap tiles, attribution always visible. Tests never fetch real tiles.
+- **Map background:** OpenFreeMap vector tiles (style URL in `app/public/map-config.js`) drawn inside Leaflet through MapLibre GL
+  JS + `@maplibre/maplibre-gl-leaflet`, vendored and pinned; never the OSM standard tile server (Alexander, 2026-09-14). Attribution
+  "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" always visible. Tests never fetch real tiles (API.md clarification 20).
 - Worker-phone tap targets are at least 48 px (56 px for Check in / Check out).
 - Own only your slice's paths; `rig guard` enforces it. Verify → commit (own paths) → report.
 - Every important check has a negative control: break a copy, watch it go red, restore, record it.
