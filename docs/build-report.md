@@ -19,6 +19,7 @@ port 7909 (`rig qa --ref <sha>`), never from a slice's tree. The slices' own rep
 | 12:25 | `6e6fa1c` (hc1 M5) | Worker `npm test` | unit 23/0/0 · API 68/0/0 |
 | 12:58 | `5883591` (main: + hc1 M5 + hc2 M3b) | Playwright, 4 projects | **166 passed / 0 failed / 4 skipped** (7.8 min) |
 | 13:02 | `bbf034b` (hc1 M6) | Worker `npm test` | unit 23/0/0 · API 69/0/0 |
+| 13:30 | `6cb9e81` (main: + hc1 M6 + hc2 M3c) | Playwright, 4 projects | **189 passed / 1 failed / 4 skipped**: `targets.spec` on webkit-390 failed the fixture's no-uncaught-page-errors check, not contrast. The worker page's `GET /api/worker/visits` was still in flight when the test navigated to the office, and WebKit reported the aborted fetch as an uncaught rejection. A real defect: a dropped visits request must never surface uncaught. Sent to hc2 with M3d (API.md 18). |
 
 ### The two failures at `866ee71`, and why they are spec defects, not flakes to re-run
 1. `board.spec.mjs` on webkit-390: at "09:29:59" the row was already `missed`. The spec calls `page.clock.install({ time })`,
