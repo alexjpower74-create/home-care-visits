@@ -409,17 +409,22 @@ test.describe('with the service worker blocked', () => {
       ? route.continue()
       : route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' }) })));
     await setNow(page, context, NOW);
+    // The page draws Saturday from this phone first, then again when Saturday's list answers: tap after that.
+    const satList = page.waitForResponse(r => new URL(r.url()).pathname === '/api/worker/visits' && new URL(r.url()).searchParams.get('date') === sat);
     await page.reload();
+    expect((await satList).status()).toBe(200);
     const section = page.locator('.still-open');
     await expect(section.getByRole('heading', { name: 'Still open from Sat Sep 12' })).toBeVisible();
     await expect(page.getByText("No saved list on this phone yet. Find signal once to load today's visits.")).toBeVisible();
     const open = section.locator(`.visit[data-visit="${george.id}"]`);
     await expect(open.locator('.visit-status')).toHaveText('Checked in 9:05 AM · saved on this phone');
 
-    const sentIn = waitEvent(page, 'check_in');
-    signal = true;
+    await expect(open.getByRole('button', { name: 'Check out' })).toBeVisible();
     await tap(page, open.getByRole('button', { name: 'Check out' }), 'Check out Monday');
+    // Signal returns only now, so the queued check-in's send does not redraw the card under the tap.
+    const sentIn = waitEvent(page, 'check_in');
     const sentOut = waitEvent(page, 'check_out');
+    signal = true;
     await tap(page, page.getByRole('dialog').getByRole('button', { name: 'Yes, check out' }), 'Yes, check out');
     expect((await sentIn).status()).toBe(201);
     expect((await sentOut).status()).toBe(201);
