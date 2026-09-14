@@ -620,7 +620,7 @@ worktree was not opened and nothing in `app/**` was edited. Checked against docs
   - copies `app/public` and `worker`, runs the named spec on the unbroken copy (VOID if red), applies a `replaceOnce` break (an
     anchor that must match exactly once), runs again, and exits 0 only if red;
   - keeps each copy's Playwright output inside the copy, and scrubs repo roots and the home folder from the log;
-  - The committed log holds no machine paths (checked for a home folder and the user name). VOID entries in the log: 2.
+  - The committed log holds no machine paths (checked for a home folder and the user name). No run added by M2c is VOID. The word appears twice in the log, both in hc2's older notes (lines 186 and 366) about two earlier re-runs ("queue", "time") that went red for the wrong reason and were run again; those later runs are red at their intended assertions.
 - **Control (f) `negative-portal.mjs`.** Honest. The break removes exactly the clarification 6 check (`&& answeredFor(res,
   item)`). The unbroken copy passed. The broken run went red at the intended assertion, "the check-in is still saved on the
   phone": the strip said "All sent" after the login page's 200 (`offline.spec.mjs:181`). Not proven:
