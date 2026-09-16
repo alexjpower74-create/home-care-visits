@@ -11,7 +11,7 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'w', 'app.js'),
-        '    const named = openDates.includes(date);',
+        '    const named = openDates.includes(date)',
         '    const named = false; // NEGATIVE CONTROL (l)',
       ),
   }),

@@ -10,7 +10,7 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'office', 'clients.js'),
-        '  map.attributionControl.addAttribution(MAP_ATTRIBUTION);',
+        '  map.attributionControl.addAttribution(MAP_ATTRIBUTION)',
         '  // NEGATIVE CONTROL (m): no attribution',
       ),
   }),

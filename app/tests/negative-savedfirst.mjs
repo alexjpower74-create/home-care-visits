@@ -11,7 +11,7 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'w', 'app.js'),
-        'refreshQueue().then(showSaved).then(load);',
+        'refreshQueue().then(showSaved).then(load)',
         'refreshQueue().then(load); // NEGATIVE CONTROL (k): the network first',
       ),
   }),

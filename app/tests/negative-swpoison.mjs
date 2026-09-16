@@ -12,12 +12,12 @@ process.exit(
       const sw = path.join(copy, 'app', 'public', 'w', 'sw.js')
       replaceOnce(
         sw,
-        '  if (res.status !== 200 || res.redirected || !typeMatches(path, res)) return null;',
+        '  if (res.status !== 200 || res.redirected || !typeMatches(path, res)) return null',
         '  if (res.status !== 200) return null; // NEGATIVE CONTROL (h)',
       )
       replaceOnce(
         sw,
-        "  if (path === '/w/' && !new TextDecoder().decode(buf).includes(MARKER)) return null;",
+        "  if (path === '/w/' && !new TextDecoder().decode(buf).includes(MARKER)) return null",
         '  // NEGATIVE CONTROL (h): no page marker',
       )
     },

@@ -8204,3 +8204,38 @@ Running 1 test using 1 worker
     .negative/overlay/results/worker-Sam-R-visits-in-ord-77a4d--check-out-47-minutes-later-chromium-390/trace.zip
     Usage:
 
+== 2026-09-16T04:32:07.650Z portal: w/queue.js treats any 200/201 as sent, whatever the body (a Wi-Fi login page's 200 deletes the event)
+   spec: playwright test offline.spec.mjs --project chromium-390 -g not the Worker's answer on 7906 (inspector 7916), copy in app/.negative/portal
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:382:3 › with the service worker blocked › a 200 that is not the Worker's answer (a Wi-Fi login page) keeps the event queued; it then lands exactly once (926ms) |   1 passed (5.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:382:3 › with the service worker blocked › a 200 that is not the Worker's answer (a Wi-Fi login page) keeps the event queued; it then lands exactly once 
+
+    Error: the check-in is still saved on the phone
+
+    expect(locator).toHaveText(expected) failed
+
+    Locator: locator('#strip-text')
+    Expected pattern: /^1 saved on this phone\./
+    Received string:  "All sent"
+    Timeout: 10000ms
+
+    Call log:
+      - the check-in is still saved on the phone locator('#strip-text') with timeout 10000ms
+      - waiting for locator('#strip-text')
+        24 × locator resolved to <span id="strip-text">All sent</span>
+           - unexpected value "All sent"
+
+
+      406 |     await tap(page, card.getByRole('button', { name: 'Check in' }), 'Check in')
+      407 |     await expect.poll(() => portal, { message: 'the login page answered the first send' }).toBe(1)
+    > 408 |     await expect(page.locator('#strip-text'), 'the check-in is still saved on the phone').toHaveText(/^1 saved on this phone\./)
+          |                                                                                           ^
+      409 |     await expect(card.locator('.visit-status')).toHaveText(/ · saved on this phone$/)
+      410 |     expect(await testEvents(request, visit.id), 'the Worker has not seen it').toHaveLength(0)
+      411 |
+        at <repo>/app/tests/offline.spec.mjs:408:91
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .negative/portal/results/offline-with-the-service-w-eef1f--it-then-lands-exactly-once-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+

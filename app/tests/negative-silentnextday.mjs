@@ -11,7 +11,7 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'office', 'sheet.js'),
-        "      const outDate = q('#vs-fix-overnight').checked ? addDays(baseDate, 1) : baseDate;",
+        "      const outDate = q('#vs-fix-overnight').checked ? addDays(baseDate, 1) : baseDate",
         '      const outDate = outHm && inMs != null && localToUtcMs(baseDate, outHm, TZ) <= inMs ? addDays(baseDate, 1) : baseDate; // NEGATIVE CONTROL (i)',
       ),
   }),

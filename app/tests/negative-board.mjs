@@ -10,7 +10,7 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'rules.js'),
-        'export const LATE_AFTER_MS = 15 * 60000;',
+        'export const LATE_AFTER_MS = 15 * 60000',
         'export const LATE_AFTER_MS = 16 * 60000; // NEGATIVE CONTROL (c)',
       ),
   }),

@@ -11,8 +11,8 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'w', 'queue.js'),
-        'try { return await send(key, event, timeoutSignal(TIMEOUT_MS)); }',
-        'try { return await send(key, { ...event, at: new Date().toISOString() }, timeoutSignal(TIMEOUT_MS)); /* NEGATIVE CONTROL (b) */ }',
+        '      return await send(key, event, timeoutSignal(TIMEOUT_MS))',
+        '      return await send(key, { ...event, at: new Date().toISOString() }, timeoutSignal(TIMEOUT_MS)) // NEGATIVE CONTROL (b)',
       ),
   }),
 )

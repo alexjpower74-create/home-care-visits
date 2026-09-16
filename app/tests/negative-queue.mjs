@@ -11,8 +11,8 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'w', 'queue.js'),
-        '      const res = await post(key, item.event);\n',
-        '      await confirmSent(item.seq); // NEGATIVE CONTROL (a): removed before the server answers\n      const res = await post(key, item.event);\n',
+        '      const res = await post(key, item.event)\n',
+        '      await confirmSent(item.seq); // NEGATIVE CONTROL (a): removed before the server answers\n      const res = await post(key, item.event)\n',
       ),
   }),
 )

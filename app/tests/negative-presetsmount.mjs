@@ -12,13 +12,13 @@ process.exit(
       const file = path.join(copy, 'app', 'public', 'office', 'reports.js')
       replaceOnce(
         file,
-        "  let [from, to] = presetRange('this-week');",
+        "  let [from, to] = presetRange('this-week')",
         "  const MOUNT_PRESETS = Object.fromEntries(['this-week', 'last-week', 'last-14'].map(n => [n, presetRange(n)])); // NEGATIVE CONTROL (j)\n  let [from, to] = presetRange('this-week');",
       )
       replaceOnce(
         file,
-        '      [from, to] = presetRange(b.dataset.preset);',
-        '      [from, to] = MOUNT_PRESETS[b.dataset.preset]; // NEGATIVE CONTROL (j)',
+        '      ;[from, to] = presetRange(b.dataset.preset)',
+        '      ;[from, to] = MOUNT_PRESETS[b.dataset.preset] // NEGATIVE CONTROL (j)',
       )
     },
   }),

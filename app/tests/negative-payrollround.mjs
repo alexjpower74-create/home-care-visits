@@ -11,7 +11,7 @@ process.exit(
     breakIt: (copy) =>
       replaceOnce(
         path.join(copy, 'app', 'public', 'office', 'reports.js'),
-        '  const totalHours = d.total.hours;',
+        '  const totalHours = d.total.hours',
         '  const totalHours = d.rows.reduce((sum, w) => sum + Number(w.hours), 0).toFixed(2); // NEGATIVE CONTROL (g)',
       ),
   }),
