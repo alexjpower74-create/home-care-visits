@@ -4,9 +4,11 @@ The visit schedule for a small Newfoundland home support agency: workers check i
 phones (even with no signal), families see that today's visits happened, and the office gets exact hours for payroll and for
 billing each funder.
 
-**Local build, not deployed.** Everything here runs on this computer with SAMPLE people only.
+**Live (SAMPLE people only):** <https://home-care-visits.alexjpower74.workers.dev> — office PIN **4826**. Deployed 2026-09-15 on
+Alexander's say-so; one Cloudflare Worker (`home-care-visits`) with a D1 database. Every screen carries a SAMPLE badge; the
+worker and family links are on the office Clients and Workers screens. Source is public.
 
-## Open it
+## Run it on your own computer
 
 ```sh
 cd ~/Projects/"Home Care Visits" && npm run demo
@@ -66,10 +68,10 @@ cd app && npx playwright test  # chromium + webkit, 390 and 1280, real taps, aga
 cd app && npm run negative     # app negative controls and proofs
 ```
 
-## What deploying needs (Alexander's call; details in `docs/DEPLOY.md`)
-- Cloudflare: Worker `home-care-visits`, D1 database `home-care-visits` (create it, put its id in `worker/wrangler.toml`, then
-  `wrangler d1 migrations apply home-care-visits --remote`: a deploy does not migrate). No secrets, no cron. HTTPS domain of his
-  choice (the offline mode and location check need HTTPS).
+## Deployment (done 2026-09-15; details in `docs/DEPLOY.md`)
+- Cloudflare: Worker `home-care-visits` serving the API and the app, D1 database `home-care-visits` (migrations applied with
+  `wrangler d1 migrations apply home-care-visits --remote`: a deploy does not migrate). No secrets, no cron, no `TEST_MODE`.
+  The `workers.dev` address is HTTPS, which the offline mode and location check need.
 - Before a real agency uses it: change PIN 4826, rename the agency, start without the SAMPLE people, **never set `TEST_MODE`**.
   The map uses OpenFreeMap (free, commercial use allowed, no SLA); keep its attribution, and if an SLA is ever needed point the one
   style URL in `app/public/map-config.js` at a paid provider.

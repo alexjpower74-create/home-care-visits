@@ -1,7 +1,13 @@
-# Deploying Home Care Visits (not done tonight)
+# Deploying Home Care Visits
 
-Nothing has been deployed. Everything so far ran locally with `wrangler dev --local`. This page lists what a real deployment
-needs, for Alexander to decide on. One deployment serves one agency.
+**Deployed 2026-09-15** (Alexander's go) as a SAMPLE demo:
+- App and API: <https://home-care-visits.alexjpower74.workers.dev> (Worker `home-care-visits`, `workers.dev` route, no custom domain).
+- D1 database `home-care-visits`, id `c953b098-c785-4643-b6f1-ede37553d4fd`, migrations 0001–0004 applied `--remote`.
+- No secrets, no cron, no `TEST_MODE`. The SAMPLE fortnight was seeded once by deploying with `--var TEST_MODE:1`, calling
+  `POST /api/test/seed {"scenario":"demo"}`, then redeploying without the var (the test routes now answer 404). To reseed, repeat
+  those three steps; the demo dates itself relative to the seed time, and later days are generated lazily from the patterns.
+
+The rest of this page is the checklist for a real agency. One deployment serves one agency.
 
 ## Cloudflare pieces
 | Piece | Name | Notes |

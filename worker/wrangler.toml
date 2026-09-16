@@ -10,8 +10,8 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "home-care-visits"
-# Placeholder for local dev. A real deploy replaces this with the id from `wrangler d1 create` (see docs/DEPLOY.md).
-database_id = "00000000-0000-0000-0000-000000000000"
+# Live D1 id (created 2026-09-15). Local dev uses its own copy under --persist-to.
+database_id = "c953b098-c785-4643-b6f1-ede37553d4fd"
 migrations_dir = "migrations"
 
 # No TEST_MODE here, ever. Tests pass it on the command line: --var TEST_MODE:1

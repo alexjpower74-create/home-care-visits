@@ -20,7 +20,9 @@ Read PLAN.md first (the Rig contract), then docs/API.md (the contract between sl
 
 ## Rules that bite here
 
-- **Local only.** `wrangler dev --local`. No `wrangler deploy`, `secret put`, `d1 create`, `--remote`, Pages or DNS.
+- **Deploys only when Alexander says so (he did on 2026-09-15).** Live: <https://home-care-visits.alexjpower74.workers.dev>, one
+  Worker + D1 `home-care-visits`. Day to day use `wrangler dev --local`. Never `--var TEST_MODE:1` on a deploy that stays up.
+- **Public repo.** `check-no-personal-data .` must print clean before every push.
 - **Nothing is sent.** No SMS or email. Family links and messages are "Copy link" / "Copy text" buttons only.
 - **SAMPLE only, labelled on every screen.** Agency "SAMPLE Exploits Home Support (demo)". Clients and workers are SAMPLE
   people with initials avatars, SAMPLE phone numbers in the fictional 709-555-01xx range, and no street addresses: pins sit
