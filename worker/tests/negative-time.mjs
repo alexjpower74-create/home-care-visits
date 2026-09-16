@@ -6,5 +6,5 @@ await runControl({
   tests: ['events: original time kept'],
   api: true,
   breaks: [{ file: 'src/rules.js', find: 'return { atMs: at, adjusted: false }', replace: 'return { atMs: now, adjusted: false }' }],
-  describe: 'the Worker stores the time the event arrived instead of the time the worker tapped'
+  describe: 'the Worker stores the time the event arrived instead of the time the worker tapped',
 })

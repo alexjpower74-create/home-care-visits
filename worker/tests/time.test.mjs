@@ -2,8 +2,23 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  addDays, dateLabel, dayLabel, decimalHours, fullLabel, hmDuration, hmLabel, hoursText, isDate, isoSecond, isoWeekday, localToUtc,
-  mondayOf, nlDate, nlHm, rangeLabel, timeLabel
+  addDays,
+  dateLabel,
+  dayLabel,
+  decimalHours,
+  fullLabel,
+  hmDuration,
+  hmLabel,
+  hoursText,
+  isDate,
+  isoSecond,
+  isoWeekday,
+  localToUtc,
+  mondayOf,
+  nlDate,
+  nlHm,
+  rangeLabel,
+  timeLabel,
 } from '../src/time.js'
 
 test('time: 2026-07-14 09:00 NDT is 2026-07-14T11:30:00.000Z, both ways', () => {
@@ -70,7 +85,7 @@ test('time: the Monday of a week, across a month end and a year end', () => {
 
 test('time: hours and durations are rounded once, from whole seconds or minutes', () => {
   assert.equal(decimalHours(14160), '3.93')
-  assert.equal(decimalHours(3620) , '1.01')
+  assert.equal(decimalHours(3620), '1.01')
   assert.equal(decimalHours(1800 + 18), '0.51') // 0.505 h rounds half up
   assert.equal(hmDuration(14160), '3 h 56 min')
   assert.equal(hmDuration(2720), '0 h 45 min')

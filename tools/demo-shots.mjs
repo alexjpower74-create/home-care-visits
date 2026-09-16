@@ -15,33 +15,49 @@ mkdirSync(OUT, { recursive: true })
 
 const links = readFileSync(path.join(ROOT, '.logs', 'demo-links.txt'), 'utf8')
 const office = links.match(/^Office:\s+(\S+)\s+PIN (\d+)/m)
-const workers = [...links.matchAll(/^Worker:\s+(\S+)\s+\((.+)\)$/gm)].map(m => ({ url: m[1], name: m[2] }))
-const families = [...links.matchAll(/^Family:\s+(\S+)\s+\((.+)\)$/gm)].map(m => ({ url: m[1], name: m[2] }))
+const workers = [...links.matchAll(/^Worker:\s+(\S+)\s+\((.+)\)$/gm)].map((m) => ({ url: m[1], name: m[2] }))
+const families = [...links.matchAll(/^Family:\s+(\S+)\s+\((.+)\)$/gm)].map((m) => ({ url: m[1], name: m[2] }))
 if (!office || !workers.length || !families.length) throw new Error('demo-links.txt is missing the office, worker or family links')
-const worker = workers.find(w => w.name.startsWith('Sam R.')) || workers[0]
+const worker = workers.find((w) => w.name.startsWith('Sam R.')) || workers[0]
 const family = families[0]
 
 const projects = [
-  { name: 'chromium-390', engine: chromium, use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true } },
+  {
+    name: 'chromium-390',
+    engine: chromium,
+    use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  },
   { name: 'chromium-1280', engine: chromium, use: { viewport: { width: 1280, height: 800 } } },
   { name: 'webkit-390', engine: webkit, use: { ...devices['iPhone 14'] } },
   { name: 'webkit-1280', engine: webkit, use: { viewport: { width: 1280, height: 800 } } },
 ]
 
 const shot = (page, screen, project) => page.screenshot({ path: path.join(OUT, `${screen}-${project}.png`) })
-const notLoading = (page, sel, text) => page.waitForFunction(([s, t]) => {
-  const el = document.querySelector(s)
-  return el && !el.textContent.includes(t)
-}, [sel, text], { timeout: 20000 })
+const notLoading = (page, sel, text) =>
+  page.waitForFunction(
+    ([s, t]) => {
+      const el = document.querySelector(s)
+      return el && !el.textContent.includes(t)
+    },
+    [sel, text],
+    { timeout: 20000 },
+  )
 
-async function tapOrClick (page, locator, touch) {
+async function tapOrClick(page, locator, touch) {
   await locator.scrollIntoViewIfNeeded()
   const b = await locator.boundingBox()
   const x = b.x + b.width / 2
   const y = b.y + b.height / 2
-  const hit = await locator.evaluate((el, [px, py]) => { const t = document.elementFromPoint(px, py); return t === el || el.contains(t) }, [x, y])
+  const hit = await locator.evaluate(
+    (el, [px, py]) => {
+      const t = document.elementFromPoint(px, py)
+      return t === el || el.contains(t)
+    },
+    [x, y],
+  )
   if (!hit) throw new Error(`something covers ${locator}`)
-  if (touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y)
+  if (touch) await page.touchscreen.tap(x, y)
+  else await page.mouse.click(x, y)
 }
 
 const errors = []
@@ -49,7 +65,7 @@ for (const p of projects) {
   const browser = await p.engine.launch()
   const context = await browser.newContext(p.use)
   const page = await context.newPage()
-  page.on('pageerror', e => errors.push(`${p.name} ${page.url()}: ${e.message}`))
+  page.on('pageerror', (e) => errors.push(`${p.name} ${page.url()}: ${e.message}`))
   const touch = !!p.use.hasTouch
 
   // Worker phone and family link first (no sign-in).
@@ -65,7 +81,8 @@ for (const p of projects) {
   await page.goto(office[1])
   await page.locator('#pin').waitFor()
   await tapOrClick(page, page.locator('#pin'), touch)
-  if (touch) await page.keyboard.insertText(office[2]); else await page.keyboard.type(office[2])
+  if (touch) await page.keyboard.insertText(office[2])
+  else await page.keyboard.type(office[2])
   if ((await page.locator('#pin').inputValue()) !== office[2]) throw new Error(`${p.name}: the PIN did not go in`)
   await tapOrClick(page, page.locator('#signin-btn'), touch)
   await page.locator('#tabs').waitFor({ state: 'visible' })
@@ -79,5 +96,8 @@ for (const p of projects) {
   await browser.close()
   console.log(`${p.name}: 6 screens`)
 }
-if (errors.length) { console.error('Page errors:\n' + errors.join('\n')); process.exit(1) }
+if (errors.length) {
+  console.error('Page errors:\n' + errors.join('\n'))
+  process.exit(1)
+}
 console.log(`Screenshots in ${path.relative(ROOT, OUT)}/`)

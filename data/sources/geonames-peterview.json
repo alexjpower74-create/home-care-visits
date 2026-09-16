@@ -1,88 +1,89 @@
 {
-"links": {
+  "links": {
     "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames?q=Peterview&province=10" },
-    "alternate": [ 
-         { "mediatype": "application/json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.json?q=Peterview&province=10" },
-         { "mediatype": "text/html", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.html?q=Peterview&province=10" },
-         { "mediatype": "text/csv", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.csv?q=Peterview&province=10" }, 
-         { "mediatype": "application/vnd.google-earth.kml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.kml?q=Peterview&province=10" },
-         { "mediatype": "application/gml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.gml?q=Peterview&province=10" },
-         { "mediatype": "application/vnd.geo+json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.geojson?q=Peterview&province=10" }
-         
-     ]
-},
-"items": [
+    "alternate": [
+      { "mediatype": "application/json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.json?q=Peterview&province=10" },
+      { "mediatype": "text/html", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.html?q=Peterview&province=10" },
+      { "mediatype": "text/csv", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.csv?q=Peterview&province=10" },
+      {
+        "mediatype": "application/vnd.google-earth.kml+xml",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.kml?q=Peterview&province=10"
+      },
+      { "mediatype": "application/gml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.gml?q=Peterview&province=10" },
+      {
+        "mediatype": "application/vnd.geo+json",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.geojson?q=Peterview&province=10"
+      }
+    ]
+  },
+  "items": [
+    {
+      "id": "AAQYM",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAQYM" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/de0f09c1d05311d892e2080020a0f4c9" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Peterview",
 
-    {   
-        "id": "AAQYM",
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAQYM" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/de0f09c1d05311d892e2080020a0f4c9" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Peterview",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "de0f09c1d05311d892e2080020a0f4c9",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/de0f09c1d05311d892e2080020a0f4c9" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "TOWN",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" }
-            } 
-        },
-        "generic": {
-            "code": "2",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.1074583,
-        "longitude": -55.3388167,
-        "map": ["002E03"],
-        "relevance": 250000,
-        "bbox": [
-            -55.3731557,
-            49.0750526,
-            -55.3011944,
-            49.1457923
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.3388167,49.1074583]},
-        
-        "decision": "1996-04-26"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "de0f09c1d05311d892e2080020a0f4c9",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/de0f09c1d05311d892e2080020a0f4c9" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "TOWN",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" }
+        }
+      },
+      "generic": {
+        "code": "2",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.1074583,
+      "longitude": -55.3388167,
+      "map": ["002E03"],
+      "relevance": 250000,
+      "bbox": [-55.3731557, 49.0750526, -55.3011944, 49.1457923],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.3388167, 49.1074583] },
+
+      "decision": "1996-04-26"
     }
-]}
+  ]
+}

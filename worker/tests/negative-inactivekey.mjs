@@ -6,6 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['worker key: deactivating a worker keeps their link'],
   api: true,
-  breaks: [{ file: 'src/index.js', find: "'SELECT * FROM workers WHERE worker_key = ?1'", replace: "'SELECT * FROM workers WHERE worker_key = ?1 AND active = 1'" }],
-  describe: 'an inactive worker\'s link stops working before anyone makes a new one'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: "'SELECT * FROM workers WHERE worker_key = ?1'",
+      replace: "'SELECT * FROM workers WHERE worker_key = ?1 AND active = 1'",
+    },
+  ],
+  describe: "an inactive worker's link stops working before anyone makes a new one",
 })

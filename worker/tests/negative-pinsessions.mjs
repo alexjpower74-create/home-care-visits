@@ -6,6 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['office PIN: a successful change ends every other session'],
   api: true,
-  breaks: [{ file: 'src/index.js', find: ",\n    db.prepare('DELETE FROM sessions WHERE token_hash <> ?1').bind(ctx.tokenHash)\n  ])", replace: '\n  ])' }],
-  describe: 'a PIN change leaves other signed-in browsers working'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: ",\n    db.prepare('DELETE FROM sessions WHERE token_hash <> ?1').bind(ctx.tokenHash),\n  ])",
+      replace: ',\n  ])',
+    },
+  ],
+  describe: 'a PIN change leaves other signed-in browsers working',
 })

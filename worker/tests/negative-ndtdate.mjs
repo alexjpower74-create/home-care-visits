@@ -6,5 +6,5 @@ await runControl({
   tests: ['reports: payroll period uses the NL date of the check-in'],
   api: true,
   breaks: [{ file: 'src/reports.js', find: '  const date = nlDate(atIso)\n', replace: '  const date = atIso.slice(0, 10)\n' }],
-  describe: 'the period uses the UTC date of the check-in'
+  describe: 'the period uses the UTC date of the check-in',
 })

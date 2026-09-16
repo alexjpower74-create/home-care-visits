@@ -11,7 +11,7 @@ import { daysLabel, firstName, initials, normalizePhone } from '../src/labels.js
 import { SAMPLE_PIN, SAMPLE_PIN_HASH } from '../src/sample.js'
 import { render, sampleData } from '../tools/build-sample-data.mjs'
 
-const file = rel => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+const file = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
 
 // ---------------------------------------------------------------- the late / missed rule
 
@@ -57,7 +57,7 @@ test('haversine: matches the formula written out, rounded half up to whole metre
   // Grand Falls-Windsor and Botwood community points (NRCan).
   const [lat1, lng1, lat2, lng2] = [48.9640028, -55.6644417, 49.1356472, -55.3731528]
   const R = 6371008.8
-  const toRad = d => d * Math.PI / 180
+  const toRad = (d) => (d * Math.PI) / 180
   const h = Math.sin(toRad(lat2 - lat1) / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(toRad(lng2 - lng1) / 2) ** 2
   const expected = Math.floor(2 * R * Math.asin(Math.sqrt(h)) + 0.5)
   assert.equal(distanceM(lat1, lng1, lat2, lng2), expected)
@@ -89,10 +89,31 @@ test('privacy: health card numbers (12+ digits, spaces or dashes between) are re
 })
 
 test('privacy: the medication wording table', () => {
-  const refused = ['Give her pills', '5 mg', 'insulin', 'Administer eye drops', 'Check the dosage', 'Gave his meds', 'Injection at noon',
-    '10ml syrup', 'giving tablets', 'Two doses at supper', 'Give medication with breakfast', '250 mcg']
-  const allowed = ['Morning pills from the blister pack', 'Help with bath', 'give him a minute', 'Remind her to take her pills',
-    'Noon pills, remind only', 'Pick up the prescription', 'Give the dog a walk', 'Medication reminder', 'Pharmacy pick-up on Fridays']
+  const refused = [
+    'Give her pills',
+    '5 mg',
+    'insulin',
+    'Administer eye drops',
+    'Check the dosage',
+    'Gave his meds',
+    'Injection at noon',
+    '10ml syrup',
+    'giving tablets',
+    'Two doses at supper',
+    'Give medication with breakfast',
+    '250 mcg',
+  ]
+  const allowed = [
+    'Morning pills from the blister pack',
+    'Help with bath',
+    'give him a minute',
+    'Remind her to take her pills',
+    'Noon pills, remind only',
+    'Pick up the prescription',
+    'Give the dog a walk',
+    'Medication reminder',
+    'Pharmacy pick-up on Fridays',
+  ]
   for (const s of refused) assert.equal(recordsMedicationGiven(s), true, `should refuse: ${s}`)
   for (const s of allowed) assert.equal(recordsMedicationGiven(s), false, `should allow: ${s}`)
 })
@@ -114,7 +135,10 @@ test('labels: initials, first names, days, phones, availability', () => {
   assert.equal(availabilityLabel({ 1: window, 2: window, 3: window, 4: window, 5: window, 6: null, 7: null }), 'Mon–Fri 8:00 AM – 4:00 PM')
   assert.equal(availabilityLabel({ 1: { start: '07:30', end: '15:30' }, 2: { start: '07:30', end: '15:30' } }), 'Mon–Tue 7:30 AM – 3:30 PM')
   // Groups in weekday order of each group's first day (docs/API.md rule; its example lists Sat–Sun first, the rule wins).
-  assert.equal(availabilityLabel({ 5: { start: '12:00', end: '20:00' }, 6: window, 7: window }), 'Fri 12:00 PM – 8:00 PM, Sat–Sun 8:00 AM – 4:00 PM')
+  assert.equal(
+    availabilityLabel({ 5: { start: '12:00', end: '20:00' }, 6: window, 7: window }),
+    'Fri 12:00 PM – 8:00 PM, Sat–Sun 8:00 AM – 4:00 PM',
+  )
   assert.equal(availabilityLabel({ 1: window, 2: null, 3: window }), 'Mon 8:00 AM – 4:00 PM, Wed 8:00 AM – 4:00 PM')
   assert.equal(availabilityLabel({}), 'Not available')
 })
@@ -128,9 +152,13 @@ test('seed: src/sample-data.js is exactly what tools/build-sample-data.mjs write
 test('seed: the PIN hash in 0002_agency.sql and src/sample.js agree and really is PBKDF2 of 4826', async () => {
   const sql = file('migrations/0002_agency.sql')
   assert.ok(sql.includes(`'${SAMPLE_PIN_HASH.hash}'`) && sql.includes(`'${SAMPLE_PIN_HASH.salt}'`))
-  const derive = async pin => {
+  const derive = async (pin) => {
     const key = await webcrypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits'])
-    const bits = await webcrypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: Buffer.from(SAMPLE_PIN_HASH.salt, 'base64'), iterations: SAMPLE_PIN_HASH.iterations }, key, 256)
+    const bits = await webcrypto.subtle.deriveBits(
+      { name: 'PBKDF2', hash: 'SHA-256', salt: Buffer.from(SAMPLE_PIN_HASH.salt, 'base64'), iterations: SAMPLE_PIN_HASH.iterations },
+      key,
+      256,
+    )
     return Buffer.from(bits).toString('base64')
   }
   assert.equal(SAMPLE_PIN, '4826')
@@ -140,7 +168,10 @@ test('seed: the PIN hash in 0002_agency.sql and src/sample.js agree and really i
 })
 
 test('seed: wrangler.toml never sets TEST_MODE', () => {
-  const toml = file('wrangler.toml').split('\n').filter(l => !l.trim().startsWith('#')).join('\n')
+  const toml = file('wrangler.toml')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('#'))
+    .join('\n')
   assert.ok(!/TEST_MODE/.test(toml), 'TEST_MODE must only be passed on the command line')
   assert.ok(/TEST_MODE/.test('[vars]\nTEST_MODE = "1"'), 'the check itself can see a TEST_MODE line')
 })

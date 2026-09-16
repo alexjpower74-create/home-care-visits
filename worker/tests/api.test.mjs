@@ -24,7 +24,7 @@ const AGENCY = 'SAMPLE Exploits Home Support (demo)'
 const HEALTH = "Don't put health card numbers in this app."
 const MEDICATION = 'This app records medication reminders only, not medication given. Reword this task.'
 
-async function api (method, path, { body, token, key, now = NOW, ip = '10.0.0.1', raw } = {}) {
+async function api(method, path, { body, token, key, now = NOW, ip = '10.0.0.1', raw } = {}) {
   const res = await fetch(BASE + path, {
     method,
     headers: {
@@ -32,17 +32,19 @@ async function api (method, path, { body, token, key, now = NOW, ip = '10.0.0.1'
       'X-Test-IP': ip,
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(key ? { 'X-Worker-Key': key } : {})
+      ...(key ? { 'X-Worker-Key': key } : {}),
     },
-    body: raw !== undefined ? raw : body !== undefined ? JSON.stringify(body) : undefined
+    body: raw !== undefined ? raw : body !== undefined ? JSON.stringify(body) : undefined,
   })
   const text = await res.text()
   let json
-  try { json = JSON.parse(text) } catch {}
+  try {
+    json = JSON.parse(text)
+  } catch {}
   return { status: res.status, body: json, text, headers: res.headers }
 }
 
-function expectError (r, status, code, field, error) {
+function expectError(r, status, code, field, error) {
   assert.equal(r.status, status, r.text)
   assert.equal(r.body.code, code, r.text)
   assert.equal(typeof r.body.error, 'string', r.text)
@@ -50,40 +52,40 @@ function expectError (r, status, code, field, error) {
   if (error !== undefined) assert.equal(r.body.error, error, r.text)
 }
 
-async function setup (now = NOW) {
+async function setup(now = NOW) {
   const r = await api('POST', '/api/test/reset', { now })
   assert.equal(r.status, 200, r.text)
   const seed = r.body
   const s = await api('POST', '/api/office/signin', { body: { pin: '4826' }, now })
   assert.equal(s.status, 200, s.text)
   const byPrefix = (list, prefix) => {
-    const found = list.find(x => x.name.startsWith(prefix))
+    const found = list.find((x) => x.name.startsWith(prefix))
     assert.ok(found, `no ${prefix} in the seed`)
     return found
   }
   return {
     seed,
     token: s.body.token,
-    keyOf: name => byPrefix(seed.workers, name).key,
-    workerId: name => byPrefix(seed.workers, name).id,
-    clientId: name => byPrefix(seed.clients, name).id,
-    familyKey: name => byPrefix(seed.clients, name).family_key
+    keyOf: (name) => byPrefix(seed.workers, name).key,
+    workerId: (name) => byPrefix(seed.workers, name).id,
+    clientId: (name) => byPrefix(seed.clients, name).id,
+    familyKey: (name) => byPrefix(seed.clients, name).family_key,
   }
 }
 
-async function dayVisits (token, date, now = NOW) {
+async function dayVisits(token, date, now = NOW) {
   const r = await api('GET', `/api/office/day?date=${date}`, { token, now })
   assert.equal(r.status, 200, r.text)
   return r.body.visits
 }
 
-async function visitOf (token, date, clientPrefix, now = NOW) {
-  const v = (await dayVisits(token, date, now)).find(x => x.client_name.startsWith(clientPrefix))
+async function visitOf(token, date, clientPrefix, now = NOW) {
+  const v = (await dayVisits(token, date, now)).find((x) => x.client_name.startsWith(clientPrefix))
   assert.ok(v, `no visit for ${clientPrefix} on ${date}`)
   return v
 }
 
-async function week (token, start = MON, now = NOW) {
+async function week(token, start = MON, now = NOW) {
   const r = await api('GET', `/api/office/week?start=${start}`, { token, now })
   assert.equal(r.status, 200, r.text)
   return r.body
@@ -95,14 +97,14 @@ const checkIn = (key, visitId, at, { now = at, location = null, id = randomUUID(
 const checkOut = (key, visitId, at, { now = at, tasks = [], note = '', id = randomUUID() } = {}) =>
   api('POST', '/api/worker/events', { key, now, body: { id, visit_id: visitId, kind: 'check_out', at, tasks, note } })
 
-async function storedEvents (visitId) {
+async function storedEvents(visitId) {
   const r = await api('GET', `/api/test/events${visitId === undefined ? '' : `?visit_id=${visitId}`}`)
   assert.equal(r.status, 200, r.text)
   return r.body.events
 }
 
-const pinOf = prefix => {
-  const c = SAMPLE.clients.find(x => x.name.startsWith(prefix))
+const pinOf = (prefix) => {
+  const c = SAMPLE.clients.find((x) => x.name.startsWith(prefix))
   return { lat: c.lat, lng: c.lng }
 }
 
@@ -115,7 +117,13 @@ test('agency shape and the headers on every /api answer', async () => {
   const r = await api('GET', '/api/agency')
   assert.equal(r.status, 200)
   assert.deepEqual(r.body, {
-    name: AGENCY, sample: true, timezone: 'America/St_Johns', office_phone: '709-555-0100', late_after_minutes: 15, missed_after_minutes: 30, near_metres: 250
+    name: AGENCY,
+    sample: true,
+    timezone: 'America/St_Johns',
+    office_phone: '709-555-0100',
+    late_after_minutes: 15,
+    missed_after_minutes: 30,
+    near_metres: 250,
   })
   for (const answer of [r, await api('GET', '/api/nothing-here'), await api('GET', '/api/office/clients')]) {
     assert.equal(answer.headers.get('cache-control'), 'no-store')
@@ -150,33 +158,48 @@ test('clients: 12 SAMPLE clients by name, with the office shape', async () => {
   const { token, clientId, workerId } = await setup()
   const r = await api('GET', '/api/office/clients', { token })
   assert.equal(r.status, 200)
-  const names = r.body.clients.map(c => c.name)
+  const names = r.body.clients.map((c) => c.name)
   assert.equal(names.length, 12)
-  assert.deepEqual(names, [...SAMPLE.clients.map(c => c.name)].sort((a, b) => a.localeCompare(b)))
-  assert.ok(names.every(n => n.endsWith('(SAMPLE)')))
-  const walter = r.body.clients.find(c => c.name === 'Walter G. (SAMPLE)')
-  assert.deepEqual({ ...walter, tasks: walter.tasks.map(({ id, ...t }) => t), patterns: walter.patterns.map(({ id, ...p }) => p), family_url: undefined }, {
-    id: clientId('Walter'),
-    name: 'Walter G. (SAMPLE)',
-    initials: 'WG',
-    address: 'Botwood, NL (SAMPLE: no street address)',
-    lat: 49.13924,
-    lng: -55.36972,
-    zone_id: 3,
-    zone_name: 'Botwood, Peterview & Northern Arm',
-    entry_notes: 'Key safe left of the back door, code 2718 (SAMPLE). Knock twice.',
-    funder_id: 3,
-    funder_name: 'SAMPLE Veterans program',
-    active: true,
-    tasks: [
-      { kind: 'personal_care', label: 'Personal care', detail: 'Wash and dress' },
-      { kind: 'meal_prep', label: 'Meal preparation', detail: 'Breakfast' },
-      { kind: 'medication_reminder', label: 'Medication reminder', detail: 'Morning pills, remind only' }
-    ],
-    patterns: [{ days: [1, 2, 3, 4, 5], start: '09:00', end: '10:00', worker_id: workerId('Alex'), days_label: 'Mon, Tue, Wed, Thu, Fri', time_label: '9:00 AM – 10:00 AM' }],
-    family_contacts: [{ name: 'Dave G. (SAMPLE)', relationship: 'Son', phone: '709-555-0158' }],
-    family_url: undefined
-  })
+  assert.deepEqual(
+    names,
+    [...SAMPLE.clients.map((c) => c.name)].sort((a, b) => a.localeCompare(b)),
+  )
+  assert.ok(names.every((n) => n.endsWith('(SAMPLE)')))
+  const walter = r.body.clients.find((c) => c.name === 'Walter G. (SAMPLE)')
+  assert.deepEqual(
+    { ...walter, tasks: walter.tasks.map(({ id, ...t }) => t), patterns: walter.patterns.map(({ id, ...p }) => p), family_url: undefined },
+    {
+      id: clientId('Walter'),
+      name: 'Walter G. (SAMPLE)',
+      initials: 'WG',
+      address: 'Botwood, NL (SAMPLE: no street address)',
+      lat: 49.13924,
+      lng: -55.36972,
+      zone_id: 3,
+      zone_name: 'Botwood, Peterview & Northern Arm',
+      entry_notes: 'Key safe left of the back door, code 2718 (SAMPLE). Knock twice.',
+      funder_id: 3,
+      funder_name: 'SAMPLE Veterans program',
+      active: true,
+      tasks: [
+        { kind: 'personal_care', label: 'Personal care', detail: 'Wash and dress' },
+        { kind: 'meal_prep', label: 'Meal preparation', detail: 'Breakfast' },
+        { kind: 'medication_reminder', label: 'Medication reminder', detail: 'Morning pills, remind only' },
+      ],
+      patterns: [
+        {
+          days: [1, 2, 3, 4, 5],
+          start: '09:00',
+          end: '10:00',
+          worker_id: workerId('Alex'),
+          days_label: 'Mon, Tue, Wed, Thu, Fri',
+          time_label: '9:00 AM – 10:00 AM',
+        },
+      ],
+      family_contacts: [{ name: 'Dave G. (SAMPLE)', relationship: 'Son', phone: '709-555-0158' }],
+      family_url: undefined,
+    },
+  )
   assert.match(walter.family_url, new RegExp(`^${BASE.replace(/[.]/g, '\\.')}/f/\\?k=[A-Za-z0-9_-]{24,}$`))
   const one = await api('GET', `/api/office/clients/${walter.id}`, { token })
   assert.deepEqual(one.body, walter)
@@ -194,7 +217,7 @@ const goodClient = (over = {}) => ({
   tasks: [{ kind: 'meal_prep', detail: 'Supper' }],
   patterns: [{ days: [1, 3], start: '14:00', end: '15:00', worker_id: null }],
   family_contacts: [{ name: 'Ada B. (SAMPLE)', relationship: 'Daughter', phone: '(709) 555-0170' }],
-  ...over
+  ...over,
 })
 
 const CLIENT_REFUSALS = [
@@ -211,15 +234,45 @@ const CLIENT_REFUSALS = [
   ['tasks', 'detail of 81 characters', { tasks: [{ kind: 'other', detail: 'd'.repeat(81) }] }, 'Keep each task under 80 characters.'],
   ['patterns', 'no days', { patterns: [{ days: [], start: '09:00', end: '10:00', worker_id: null }] }, 'Pick at least one day.'],
   ['patterns', 'a repeated day', { patterns: [{ days: [1, 1], start: '09:00', end: '10:00', worker_id: null }] }, 'Pick at least one day.'],
-  ['patterns', 'end before start', { patterns: [{ days: [1], start: '10:00', end: '09:00', worker_id: null }] }, 'The visit has to end after it starts.'],
-  ['patterns', '10 minutes', { patterns: [{ days: [1], start: '10:00', end: '10:10', worker_id: null }] }, 'A visit is between 15 minutes and 12 hours.'],
-  ['patterns', 'an unknown worker', { patterns: [{ days: [1], start: '10:00', end: '11:00', worker_id: 999 }] }, 'Pick one of your workers.'],
-  ['family_contacts', 'no name', { family_contacts: [{ name: '', relationship: 'Son', phone: '709-555-0170' }] }, 'Add a name for each family contact.'],
-  ['family_contacts', 'a 7-digit phone', { family_contacts: [{ name: 'Ada B. (SAMPLE)', relationship: 'Son', phone: '555-0170' }] }, 'Type a 10-digit phone number, like 709-555-0152.'],
+  [
+    'patterns',
+    'end before start',
+    { patterns: [{ days: [1], start: '10:00', end: '09:00', worker_id: null }] },
+    'The visit has to end after it starts.',
+  ],
+  [
+    'patterns',
+    '10 minutes',
+    { patterns: [{ days: [1], start: '10:00', end: '10:10', worker_id: null }] },
+    'A visit is between 15 minutes and 12 hours.',
+  ],
+  [
+    'patterns',
+    'an unknown worker',
+    { patterns: [{ days: [1], start: '10:00', end: '11:00', worker_id: 999 }] },
+    'Pick one of your workers.',
+  ],
+  [
+    'family_contacts',
+    'no name',
+    { family_contacts: [{ name: '', relationship: 'Son', phone: '709-555-0170' }] },
+    'Add a name for each family contact.',
+  ],
+  [
+    'family_contacts',
+    'a 7-digit phone',
+    { family_contacts: [{ name: 'Ada B. (SAMPLE)', relationship: 'Son', phone: '555-0170' }] },
+    'Type a 10-digit phone number, like 709-555-0152.',
+  ],
   ['active', 'not a boolean', { active: 'yes' }, 'Say whether this client is active.'],
   ['entry_notes', 'a health card number (privacy guard)', { entry_notes: 'MCP 1234 5678 9012' }, HEALTH],
-  ['family_contacts', 'a health card number in a relationship (privacy guard)', { family_contacts: [{ name: 'Ada B. (SAMPLE)', relationship: '1234-5678-9012', phone: '709-555-0170' }] }, HEALTH],
-  ['tasks', 'medication given (privacy guard)', { tasks: [{ kind: 'medication_reminder', detail: 'Give her pills' }] }, MEDICATION]
+  [
+    'family_contacts',
+    'a health card number in a relationship (privacy guard)',
+    { family_contacts: [{ name: 'Ada B. (SAMPLE)', relationship: '1234-5678-9012', phone: '709-555-0170' }] },
+    HEALTH,
+  ],
+  ['tasks', 'medication given (privacy guard)', { tasks: [{ kind: 'medication_reminder', detail: 'Give her pills' }] }, MEDICATION],
 ]
 
 for (const [field, why, over, message] of CLIENT_REFUSALS) {
@@ -230,11 +283,18 @@ for (const [field, why, over, message] of CLIENT_REFUSALS) {
   })
 }
 
-const clientInput = c => ({
-  name: c.name, address: c.address, lat: c.lat, lng: c.lng, zone_id: c.zone_id, entry_notes: c.entry_notes, funder_id: c.funder_id,
-  active: c.active, tasks: c.tasks.map(t => ({ id: t.id, kind: t.kind, detail: t.detail })),
-  patterns: c.patterns.map(p => ({ id: p.id, days: p.days, start: p.start, end: p.end, worker_id: p.worker_id })),
-  family_contacts: c.family_contacts
+const clientInput = (c) => ({
+  name: c.name,
+  address: c.address,
+  lat: c.lat,
+  lng: c.lng,
+  zone_id: c.zone_id,
+  entry_notes: c.entry_notes,
+  funder_id: c.funder_id,
+  active: c.active,
+  tasks: c.tasks.map((t) => ({ id: t.id, kind: t.kind, detail: t.detail })),
+  patterns: c.patterns.map((p) => ({ id: p.id, days: p.days, start: p.start, end: p.end, worker_id: p.worker_id })),
+  family_contacts: c.family_contacts,
 })
 
 test('clients: a good POST and a good PUT (task ids kept, unchanged pattern kept, PUT needs every field)', async () => {
@@ -278,7 +338,10 @@ test('pattern edits: reading a week twice gives the same visits', async () => {
   const first = await week(token)
   const second = await week(token)
   assert.equal(first.visits.length, 36)
-  assert.deepEqual(second.visits.map(v => v.id), first.visits.map(v => v.id))
+  assert.deepEqual(
+    second.visits.map((v) => v.id),
+    first.visits.map((v) => v.id),
+  )
   await dayVisits(token, WED)
   assert.equal((await week(token)).visits.length, 36)
 })
@@ -286,8 +349,17 @@ test('pattern edits: reading a week twice gives the same visits', async () => {
 test('pattern edits: a new time mid-week rebuilds only future visits with no events, and rebuilt_visits says how many', async () => {
   const now = nl(WED, '08:55')
   const { token, keyOf, clientId } = await setup(now)
-  const before = (await week(token, MON, now)).visits.filter(v => v.client_name.startsWith('Walter'))
-  assert.deepEqual(before.map(v => [v.date, v.start]), [[MON, '09:00'], [TUE, '09:00'], [WED, '09:00'], [THU, '09:00'], [FRI, '09:00']])
+  const before = (await week(token, MON, now)).visits.filter((v) => v.client_name.startsWith('Walter'))
+  assert.deepEqual(
+    before.map((v) => [v.date, v.start]),
+    [
+      [MON, '09:00'],
+      [TUE, '09:00'],
+      [WED, '09:00'],
+      [THU, '09:00'],
+      [FRI, '09:00'],
+    ],
+  )
   const wed = before[2]
   assert.equal((await checkIn(keyOf('Alex'), wed.id, now, { now })).status, 201) // started, though its start is still ahead
 
@@ -301,12 +373,25 @@ test('pattern edits: a new time mid-week rebuilds only future visits with no eve
   assert.notEqual(put.body.patterns[0].id, client.patterns[0].id)
   assert.equal(put.body.patterns[0].time_label, '10:00 AM – 11:00 AM')
 
-  const after = (await week(token, MON, now)).visits.filter(v => v.client_name.startsWith('Walter'))
-  assert.deepEqual(after.map(v => [v.date, v.start]),
-    [[MON, '09:00'], [TUE, '09:00'], [WED, '09:00'], [WED, '10:00'], [THU, '10:00'], [FRI, '10:00']])
-  assert.deepEqual(after.slice(0, 3).map(v => v.id), before.slice(0, 3).map(v => v.id), 'past and started visits are the same rows')
+  const after = (await week(token, MON, now)).visits.filter((v) => v.client_name.startsWith('Walter'))
+  assert.deepEqual(
+    after.map((v) => [v.date, v.start]),
+    [
+      [MON, '09:00'],
+      [TUE, '09:00'],
+      [WED, '09:00'],
+      [WED, '10:00'],
+      [THU, '10:00'],
+      [FRI, '10:00'],
+    ],
+  )
+  assert.deepEqual(
+    after.slice(0, 3).map((v) => v.id),
+    before.slice(0, 3).map((v) => v.id),
+    'past and started visits are the same rows',
+  )
   assert.equal(after[2].status, 'checked_in')
-  for (const v of after.slice(3)) assert.ok(!before.some(b => b.id === v.id), 'future visits are new rows')
+  for (const v of after.slice(3)) assert.ok(!before.some((b) => b.id === v.id), 'future visits are new rows')
   assert.equal((await week(token, MON, now)).visits.length, 37, 'reading again adds nothing')
 })
 
@@ -320,16 +405,22 @@ test('pattern edits: a pattern added on a Wednesday creates no Monday or Tuesday
   assert.equal(put.status, 200, put.text)
   assert.equal(put.body.rebuilt_visits, 0)
   const w = await week(token, MON, now)
-  const added = w.visits.filter(v => v.client_name.startsWith('Doris') && v.start === '16:00')
-  assert.deepEqual(added.map(v => v.date), [WED, THU, FRI])
-  assert.ok(added.every(v => v.status === 'unassigned'))
-  assert.deepEqual(w.visits.filter(v => v.client_name.startsWith('Doris') && v.start === '13:00').map(v => v.date), [TUE, THU])
+  const added = w.visits.filter((v) => v.client_name.startsWith('Doris') && v.start === '16:00')
+  assert.deepEqual(
+    added.map((v) => v.date),
+    [WED, THU, FRI],
+  )
+  assert.ok(added.every((v) => v.status === 'unassigned'))
+  assert.deepEqual(
+    w.visits.filter((v) => v.client_name.startsWith('Doris') && v.start === '13:00').map((v) => v.date),
+    [TUE, THU],
+  )
 })
 
 test('pattern edits: deactivating a client removes its future unstarted visits and no started one', async () => {
   const now = nl(WED, '08:55')
   const { token, keyOf, clientId } = await setup(now)
-  const before = (await week(token, MON, now)).visits.filter(v => v.client_name.startsWith('Walter'))
+  const before = (await week(token, MON, now)).visits.filter((v) => v.client_name.startsWith('Walter'))
   assert.equal((await checkIn(keyOf('Alex'), before[2].id, now, { now })).status, 201)
   const client = (await api('GET', `/api/office/clients/${clientId('Walter')}`, { token, now })).body
   const put = await api('PUT', `/api/office/clients/${client.id}`, { token, now, body: { ...clientInput(client), active: false } })
@@ -337,10 +428,13 @@ test('pattern edits: deactivating a client removes its future unstarted visits a
   assert.equal(put.body.active, false)
   assert.deepEqual(put.body.patterns, [])
   assert.equal(put.body.rebuilt_visits, 2)
-  const after = (await week(token, MON, now)).visits.filter(v => v.client_name.startsWith('Walter'))
-  assert.deepEqual(after.map(v => v.id), before.slice(0, 3).map(v => v.id))
-  assert.ok(!(await api('GET', '/api/office/clients', { token, now })).body.clients.some(c => c.id === client.id))
-  assert.ok((await api('GET', '/api/office/clients?all=1', { token, now })).body.clients.some(c => c.id === client.id))
+  const after = (await week(token, MON, now)).visits.filter((v) => v.client_name.startsWith('Walter'))
+  assert.deepEqual(
+    after.map((v) => v.id),
+    before.slice(0, 3).map((v) => v.id),
+  )
+  assert.ok(!(await api('GET', '/api/office/clients', { token, now })).body.clients.some((c) => c.id === client.id))
+  assert.ok((await api('GET', '/api/office/clients?all=1', { token, now })).body.clients.some((c) => c.id === client.id))
   const back = await api('PUT', `/api/office/clients/${client.id}`, { token, now, body: { ...clientInput(put.body), active: true } })
   assert.deepEqual(back.body.patterns, [], 'reactivating does not bring patterns back')
 })
@@ -351,8 +445,11 @@ test('workers: 5 SAMPLE workers with the office shape; POST, PUT and deactivatio
   const { token, workerId } = await setup()
   const r = await api('GET', '/api/office/workers', { token })
   assert.equal(r.status, 200)
-  assert.deepEqual(r.body.workers.map(w => w.name), ['Alex B. (SAMPLE)', 'Chris M. (SAMPLE)', 'Jo W. (SAMPLE)', 'Sam R. (SAMPLE)', 'Terry O. (SAMPLE)'])
-  const sam = r.body.workers.find(w => w.name.startsWith('Sam'))
+  assert.deepEqual(
+    r.body.workers.map((w) => w.name),
+    ['Alex B. (SAMPLE)', 'Chris M. (SAMPLE)', 'Jo W. (SAMPLE)', 'Sam R. (SAMPLE)', 'Terry O. (SAMPLE)'],
+  )
+  const sam = r.body.workers.find((w) => w.name.startsWith('Sam'))
   assert.equal(sam.initials, 'SR')
   assert.equal(sam.phone, '709-555-0132')
   assert.deepEqual(sam.zone_ids, [1, 2])
@@ -361,15 +458,48 @@ test('workers: 5 SAMPLE workers with the office shape; POST, PUT and deactivatio
   assert.deepEqual(sam.availability['6'], null)
   assert.equal(sam.max_week_label, '37.5 h')
   assert.match(sam.worker_url, /\/w\/\?k=[A-Za-z0-9_-]{24,}$/)
-  assert.equal(r.body.workers.find(w => w.name.startsWith('Chris')).max_week_label, '20 h')
-  assert.equal(r.body.workers.find(w => w.name.startsWith('Terry')).availability_label, 'Fri 12:00 PM – 8:00 PM, Sat–Sun 8:00 AM – 4:00 PM')
+  assert.equal(r.body.workers.find((w) => w.name.startsWith('Chris')).max_week_label, '20 h')
+  assert.equal(
+    r.body.workers.find((w) => w.name.startsWith('Terry')).availability_label,
+    'Fri 12:00 PM – 8:00 PM, Sat–Sun 8:00 AM – 4:00 PM',
+  )
 
-  const body = { name: 'Pat Q. (SAMPLE)', phone: '709 555 0139', zone_ids: [2], availability: { 1: { start: '09:00', end: '13:00' } }, max_week_minutes: 600 }
-  expectError(await api('POST', '/api/office/workers', { token, body: { ...body, name: '' } }), 400, 'bad_request', 'name', 'Give the worker a name.')
+  const body = {
+    name: 'Pat Q. (SAMPLE)',
+    phone: '709 555 0139',
+    zone_ids: [2],
+    availability: { 1: { start: '09:00', end: '13:00' } },
+    max_week_minutes: 600,
+  }
+  expectError(
+    await api('POST', '/api/office/workers', { token, body: { ...body, name: '' } }),
+    400,
+    'bad_request',
+    'name',
+    'Give the worker a name.',
+  )
   expectError(await api('POST', '/api/office/workers', { token, body: { ...body, phone: '5550139' } }), 400, 'bad_request', 'phone')
-  expectError(await api('POST', '/api/office/workers', { token, body: { ...body, zone_ids: [] } }), 400, 'bad_request', 'zone_ids', 'Pick at least one travel zone.')
-  expectError(await api('POST', '/api/office/workers', { token, body: { ...body, availability: { 1: { start: '13:00', end: '09:00' } } } }), 400, 'bad_request', 'availability', 'Availability has to end after it starts.')
-  expectError(await api('POST', '/api/office/workers', { token, body: { ...body, max_week_minutes: 59 } }), 400, 'bad_request', 'max_week_minutes', 'Weekly hours are between 1 and 80.')
+  expectError(
+    await api('POST', '/api/office/workers', { token, body: { ...body, zone_ids: [] } }),
+    400,
+    'bad_request',
+    'zone_ids',
+    'Pick at least one travel zone.',
+  )
+  expectError(
+    await api('POST', '/api/office/workers', { token, body: { ...body, availability: { 1: { start: '13:00', end: '09:00' } } } }),
+    400,
+    'bad_request',
+    'availability',
+    'Availability has to end after it starts.',
+  )
+  expectError(
+    await api('POST', '/api/office/workers', { token, body: { ...body, max_week_minutes: 59 } }),
+    400,
+    'bad_request',
+    'max_week_minutes',
+    'Weekly hours are between 1 and 80.',
+  )
   const made = await api('POST', '/api/office/workers', { token, body })
   assert.equal(made.status, 201, made.text)
   assert.equal(made.body.phone, '709-555-0139')
@@ -377,17 +507,17 @@ test('workers: 5 SAMPLE workers with the office shape; POST, PUT and deactivatio
   assert.equal(made.body.max_week_label, '10 h')
 
   // Deactivating Terry at Monday 7:30: his patterns lose him in place, his weekend visits become unassigned.
-  const terry = r.body.workers.find(w => w.name.startsWith('Terry'))
+  const terry = r.body.workers.find((w) => w.name.startsWith('Terry'))
   const { id, initials, zone_names, availability_label, max_week_label, worker_url, ...input } = terry
   const put = await api('PUT', `/api/office/workers/${terry.id}`, { token, body: { ...input, active: false } })
   assert.equal(put.status, 200, put.text)
   assert.equal(put.body.active, false)
-  assert.ok(!(await api('GET', '/api/office/workers', { token })).body.workers.some(w => w.id === terry.id))
+  assert.ok(!(await api('GET', '/api/office/workers', { token })).body.workers.some((w) => w.id === terry.id))
   const w = await week(token)
-  assert.equal(w.visits.filter(v => v.worker_id === workerId('Terry')).length, 0)
-  assert.equal(w.visits.filter(v => v.date === SAT && v.status === 'unassigned').length, 2)
+  assert.equal(w.visits.filter((v) => v.worker_id === workerId('Terry')).length, 0)
+  assert.equal(w.visits.filter((v) => v.date === SAT && v.status === 'unassigned').length, 2)
   assert.deepEqual(w.conflicts, [])
-  const george = (await api('GET', '/api/office/clients', { token })).body.clients.find(c => c.name.startsWith('George'))
+  const george = (await api('GET', '/api/office/clients', { token })).body.clients.find((c) => c.name.startsWith('George'))
   assert.equal(george.patterns[0].worker_id, null)
 })
 
@@ -398,24 +528,60 @@ test('week: 36 SAMPLE visits, 7 days, the base conflicts, and start must be a Mo
   const w = await week(token)
   assert.equal(w.week_start, MON)
   assert.equal(w.week_label, 'Week of Mon Sep 14')
-  assert.deepEqual(w.days.map(d => d.date_label), ['Mon Sep 14', 'Tue Sep 15', 'Wed Sep 16', 'Thu Sep 17', 'Fri Sep 18', 'Sat Sep 19', 'Sun Sep 20'])
+  assert.deepEqual(
+    w.days.map((d) => d.date_label),
+    ['Mon Sep 14', 'Tue Sep 15', 'Wed Sep 16', 'Thu Sep 17', 'Fri Sep 18', 'Sat Sep 19', 'Sun Sep 20'],
+  )
   assert.equal(w.visits.length, 36)
   const order = [...w.visits].sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.id - b.id)
-  assert.deepEqual(w.visits.map(v => v.id), order.map(v => v.id))
+  assert.deepEqual(
+    w.visits.map((v) => v.id),
+    order.map((v) => v.id),
+  )
   assert.equal(w.distance_note, 'Travel times use straight-line distance, not road time.')
-  assert.deepEqual(w.workers.map(x => [x.name, x.hours_label]), [
-    ['Alex B. (SAMPLE)', '8 h of 30 h'], ['Chris M. (SAMPLE)', '2 h of 20 h'], ['Jo W. (SAMPLE)', '17.3 h of 37.5 h'],
-    ['Sam R. (SAMPLE)', '9.5 h of 37.5 h'], ['Terry O. (SAMPLE)', '4 h of 16 h']
-  ])
-  assert.deepEqual(w.conflicts.map(c => [c.kind, c.worker_id, c.date, c.gap_minutes, c.needed_minutes, c.distance_m, c.message]), [
-    ['travel_gap', workerId('Terry'), SAT, 15, 38, 29194, 'Terry O. (SAMPLE) has 15 min between George N. (SAMPLE) and Mary D. (SAMPLE) on Sat Sep 19, but they are 29.2 km apart in a straight line (about 38 min of driving).'],
-    ['travel_gap', workerId('Terry'), '2026-09-20', 15, 38, 29194, 'Terry O. (SAMPLE) has 15 min between George N. (SAMPLE) and Mary D. (SAMPLE) on Sun Sep 20, but they are 29.2 km apart in a straight line (about 38 min of driving).']
-  ])
-  const flagged = w.visits.filter(v => v.conflict_kinds.length)
-  assert.deepEqual(flagged.map(v => [v.client_name, v.date, v.conflict_kinds]), [
-    ['George N. (SAMPLE)', SAT, ['travel_gap']], ['Mary D. (SAMPLE)', SAT, ['travel_gap']],
-    ['George N. (SAMPLE)', '2026-09-20', ['travel_gap']], ['Mary D. (SAMPLE)', '2026-09-20', ['travel_gap']]
-  ])
+  assert.deepEqual(
+    w.workers.map((x) => [x.name, x.hours_label]),
+    [
+      ['Alex B. (SAMPLE)', '8 h of 30 h'],
+      ['Chris M. (SAMPLE)', '2 h of 20 h'],
+      ['Jo W. (SAMPLE)', '17.3 h of 37.5 h'],
+      ['Sam R. (SAMPLE)', '9.5 h of 37.5 h'],
+      ['Terry O. (SAMPLE)', '4 h of 16 h'],
+    ],
+  )
+  assert.deepEqual(
+    w.conflicts.map((c) => [c.kind, c.worker_id, c.date, c.gap_minutes, c.needed_minutes, c.distance_m, c.message]),
+    [
+      [
+        'travel_gap',
+        workerId('Terry'),
+        SAT,
+        15,
+        38,
+        29194,
+        'Terry O. (SAMPLE) has 15 min between George N. (SAMPLE) and Mary D. (SAMPLE) on Sat Sep 19, but they are 29.2 km apart in a straight line (about 38 min of driving).',
+      ],
+      [
+        'travel_gap',
+        workerId('Terry'),
+        '2026-09-20',
+        15,
+        38,
+        29194,
+        'Terry O. (SAMPLE) has 15 min between George N. (SAMPLE) and Mary D. (SAMPLE) on Sun Sep 20, but they are 29.2 km apart in a straight line (about 38 min of driving).',
+      ],
+    ],
+  )
+  const flagged = w.visits.filter((v) => v.conflict_kinds.length)
+  assert.deepEqual(
+    flagged.map((v) => [v.client_name, v.date, v.conflict_kinds]),
+    [
+      ['George N. (SAMPLE)', SAT, ['travel_gap']],
+      ['Mary D. (SAMPLE)', SAT, ['travel_gap']],
+      ['George N. (SAMPLE)', '2026-09-20', ['travel_gap']],
+      ['Mary D. (SAMPLE)', '2026-09-20', ['travel_gap']],
+    ],
+  )
   expectError(await api('GET', `/api/office/week?start=${TUE}`, { token }), 400, 'bad_request', 'start', 'Pick a Monday.')
   expectError(await api('GET', '/api/office/week', { token }), 400, 'bad_request', 'start')
   expectError(await api('GET', '/api/office/week?start=2026-02-30', { token }), 400, 'bad_request', 'start')
@@ -424,30 +590,52 @@ test('week: 36 SAMPLE visits, 7 days, the base conflicts, and start must be a Mo
 test('week: moving a visit to another worker (the drag), and a double-booking made on purpose', async () => {
   const { token, workerId } = await setup()
   const w = await week(token)
-  const george = w.visits.find(v => v.date === SAT && v.client_name.startsWith('George'))
+  const george = w.visits.find((v) => v.date === SAT && v.client_name.startsWith('George'))
   const moved = await api('PUT', `/api/office/visits/${george.id}`, { token, body: moveBody(george, { worker_id: workerId('Jo') }) })
   assert.equal(moved.status, 200, moved.text)
   assert.equal(moved.body.version, george.version + 1)
   assert.equal(moved.body.worker_id, workerId('Jo'))
   assert.equal(moved.body.worker_name, 'Jo W. (SAMPLE)')
   const w2 = await week(token)
-  assert.ok(!w2.conflicts.some(c => c.kind === 'travel_gap' && c.date === SAT), 'the Saturday travel gap is gone')
-  assert.ok(w2.conflicts.some(c => c.kind === 'travel_gap' && c.date === '2026-09-20'), 'Sunday is untouched')
+  assert.ok(!w2.conflicts.some((c) => c.kind === 'travel_gap' && c.date === SAT), 'the Saturday travel gap is gone')
+  assert.ok(
+    w2.conflicts.some((c) => c.kind === 'travel_gap' && c.date === '2026-09-20'),
+    'Sunday is untouched',
+  )
   // Jo is not available on Saturdays and George is outside her zone: two warnings, no problem.
-  assert.deepEqual(w2.conflicts.filter(c => c.date === SAT).map(c => [c.kind, c.severity, c.worker_id, c.visit_ids]),
-    [['unavailable', 'warning', workerId('Jo'), [george.id]], ['outside_zone', 'warning', workerId('Jo'), [george.id]]])
+  assert.deepEqual(
+    w2.conflicts.filter((c) => c.date === SAT).map((c) => [c.kind, c.severity, c.worker_id, c.visit_ids]),
+    [
+      ['unavailable', 'warning', workerId('Jo'), [george.id]],
+      ['outside_zone', 'warning', workerId('Jo'), [george.id]],
+    ],
+  )
 
-  const bill = w2.visits.find(v => v.date === MON && v.client_name.startsWith('Bill'))
-  const margaret = w2.visits.find(v => v.date === MON && v.client_name.startsWith('Margaret'))
+  const bill = w2.visits.find((v) => v.date === MON && v.client_name.startsWith('Bill'))
+  const margaret = w2.visits.find((v) => v.date === MON && v.client_name.startsWith('Margaret'))
   const r = await api('PUT', `/api/office/visits/${bill.id}`, { token, body: moveBody(bill, { worker_id: workerId('Jo') }) })
   assert.equal(r.status, 200, r.text)
   const w3 = await week(token)
-  const doubles = w3.conflicts.filter(c => c.kind === 'double_booked')
-  assert.deepEqual(doubles.map(c => [c.worker_id, c.date, c.visit_ids, c.severity, c.message]), [
-    [workerId('Jo'), MON, [margaret.id, bill.id].sort((a, b) => a - b), 'problem', 'Jo W. (SAMPLE) is booked for Margaret P. (SAMPLE) and Bill S. (SAMPLE) at the same time on Mon Sep 14.']
-  ])
-  for (const id of [bill.id, margaret.id]) assert.ok(w3.visits.find(v => v.id === id).conflict_kinds.includes('double_booked'))
-  expectError(await api('PUT', `/api/office/visits/${bill.id}`, { token, body: moveBody(r.body, { worker_id: 999 }) }), 400, 'bad_request', 'worker_id')
+  const doubles = w3.conflicts.filter((c) => c.kind === 'double_booked')
+  assert.deepEqual(
+    doubles.map((c) => [c.worker_id, c.date, c.visit_ids, c.severity, c.message]),
+    [
+      [
+        workerId('Jo'),
+        MON,
+        [margaret.id, bill.id].sort((a, b) => a - b),
+        'problem',
+        'Jo W. (SAMPLE) is booked for Margaret P. (SAMPLE) and Bill S. (SAMPLE) at the same time on Mon Sep 14.',
+      ],
+    ],
+  )
+  for (const id of [bill.id, margaret.id]) assert.ok(w3.visits.find((v) => v.id === id).conflict_kinds.includes('double_booked'))
+  expectError(
+    await api('PUT', `/api/office/visits/${bill.id}`, { token, body: moveBody(r.body, { worker_id: 999 }) }),
+    400,
+    'bad_request',
+    'worker_id',
+  )
   expectError(await api('PUT', '/api/office/visits/99999', { token, body: moveBody(r.body) }), 404, 'not_found')
 })
 
@@ -458,39 +646,92 @@ test('week: a stale version is 409 stale, a visit with a check-in is 409 bad_sta
   assert.equal(later.status, 200, later.text)
   assert.equal(later.body.time_label, '9:15 AM – 10:15 AM')
   assert.equal(later.body.starts_at, '2026-09-14T11:45:00.000Z')
-  expectError(await api('PUT', `/api/office/visits/${bill.id}`, { token, body: moveBody(bill) }), 409, 'stale', undefined,
-    'This visit was changed on another screen. Reload and try again.')
+  expectError(
+    await api('PUT', `/api/office/visits/${bill.id}`, { token, body: moveBody(bill) }),
+    409,
+    'stale',
+    undefined,
+    'This visit was changed on another screen. Reload and try again.',
+  )
 
   const ruby = await visitOf(token, MON, 'Ruby')
-  expectError(await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: '', version: ruby.version } }), 400, 'bad_request', 'reason', 'Say why the visit is cancelled.')
-  expectError(await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'card 1234 5678 9012', version: ruby.version } }), 400, 'bad_request', 'reason', HEALTH)
-  expectError(await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'Ruby is away (SAMPLE)', version: ruby.version + 1 } }), 409, 'stale')
-  const cancelled = await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'Ruby is away (SAMPLE)', version: ruby.version } })
+  expectError(
+    await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: '', version: ruby.version } }),
+    400,
+    'bad_request',
+    'reason',
+    'Say why the visit is cancelled.',
+  )
+  expectError(
+    await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'card 1234 5678 9012', version: ruby.version } }),
+    400,
+    'bad_request',
+    'reason',
+    HEALTH,
+  )
+  expectError(
+    await api('POST', `/api/office/visits/${ruby.id}/cancel`, {
+      token,
+      body: { reason: 'Ruby is away (SAMPLE)', version: ruby.version + 1 },
+    }),
+    409,
+    'stale',
+  )
+  const cancelled = await api('POST', `/api/office/visits/${ruby.id}/cancel`, {
+    token,
+    body: { reason: 'Ruby is away (SAMPLE)', version: ruby.version },
+  })
   assert.equal(cancelled.status, 200, cancelled.text)
   assert.equal(cancelled.body.cancelled, true)
   assert.equal(cancelled.body.cancel_reason, 'Ruby is away (SAMPLE)')
   assert.equal(cancelled.body.status, 'cancelled')
   assert.equal(cancelled.body.status_label, 'Cancelled')
   assert.equal(cancelled.body.version, ruby.version + 1)
-  expectError(await api('PUT', `/api/office/visits/${ruby.id}`, { token, body: moveBody(cancelled.body) }), 409, 'bad_state', undefined, 'This visit is cancelled. Restore it first.')
+  expectError(
+    await api('PUT', `/api/office/visits/${ruby.id}`, { token, body: moveBody(cancelled.body) }),
+    409,
+    'bad_state',
+    undefined,
+    'This visit is cancelled. Restore it first.',
+  )
   const restored = await api('POST', `/api/office/visits/${ruby.id}/restore`, { token, body: { version: cancelled.body.version } })
   assert.equal(restored.status, 200, restored.text)
   assert.equal(restored.body.cancelled, false)
   assert.equal(restored.body.cancel_reason, null)
   assert.equal(restored.body.status, 'scheduled')
-  expectError(await api('POST', `/api/office/visits/${ruby.id}/restore`, { token, body: { version: cancelled.body.version } }), 409, 'stale')
+  expectError(
+    await api('POST', `/api/office/visits/${ruby.id}/restore`, { token, body: { version: cancelled.body.version } }),
+    409,
+    'stale',
+  )
 
   const at = nl(MON, '09:20')
   assert.equal((await checkIn(keyOf('Sam'), bill.id, at)).status, 201)
   const started = await visitOf(token, MON, 'Bill', at)
-  expectError(await api('PUT', `/api/office/visits/${bill.id}`, { token, now: at, body: moveBody(started, { start: '11:00', end: '12:00' }) }), 409, 'bad_state', undefined,
-    "This visit has started, so it can't be moved.")
-  expectError(await api('POST', `/api/office/visits/${bill.id}/cancel`, { token, now: at, body: { reason: 'Too late (SAMPLE)', version: started.version } }), 409, 'bad_state')
+  expectError(
+    await api('PUT', `/api/office/visits/${bill.id}`, { token, now: at, body: moveBody(started, { start: '11:00', end: '12:00' }) }),
+    409,
+    'bad_state',
+    undefined,
+    "This visit has started, so it can't be moved.",
+  )
+  expectError(
+    await api('POST', `/api/office/visits/${bill.id}/cancel`, {
+      token,
+      now: at,
+      body: { reason: 'Too late (SAMPLE)', version: started.version },
+    }),
+    409,
+    'bad_state',
+  )
 })
 
 test('visits: POST a one-off visit, its refusals, and the spring-forward gap', async () => {
   const { token, clientId, workerId } = await setup()
-  const r = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Walter'), worker_id: workerId('Sam'), date: MON, start: '14:00', end: '14:45' } })
+  const r = await api('POST', '/api/office/visits', {
+    token,
+    body: { client_id: clientId('Walter'), worker_id: workerId('Sam'), date: MON, start: '14:00', end: '14:45' },
+  })
   assert.equal(r.status, 201, r.text)
   assert.equal(r.body.pattern_id, null)
   assert.equal(r.body.scheduled_minutes, 45)
@@ -498,18 +739,31 @@ test('visits: POST a one-off visit, its refusals, and the spring-forward gap', a
   assert.equal(r.body.date_label, 'Mon Sep 14')
   assert.equal(r.body.starts_at, '2026-09-14T16:30:00.000Z')
   assert.equal(r.body.worker_phone, '709-555-0132')
-  assert.equal((await dayVisits(token, MON)).filter(v => v.id === r.body.id).length, 1)
-  const unassigned = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '15:00', end: '16:00' } })
+  assert.equal((await dayVisits(token, MON)).filter((v) => v.id === r.body.id).length, 1)
+  const unassigned = await api('POST', '/api/office/visits', {
+    token,
+    body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '15:00', end: '16:00' },
+  })
   assert.equal(unassigned.body.status, 'unassigned')
   assert.equal(unassigned.body.status_label, 'No worker assigned')
-  const post = over => api('POST', '/api/office/visits', { token, body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '14:00', end: '15:00', ...over } })
+  const post = (over) =>
+    api('POST', '/api/office/visits', {
+      token,
+      body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '14:00', end: '15:00', ...over },
+    })
   expectError(await post({ client_id: 9999 }), 400, 'bad_request', 'client_id', 'Pick a client.')
   expectError(await post({ worker_id: 9999 }), 400, 'bad_request', 'worker_id')
   expectError(await post({ date: '14/09/2026' }), 400, 'bad_request', 'date', 'Pick a date.')
   expectError(await post({ start: '9am' }), 400, 'bad_request', 'start')
   expectError(await post({ end: '13:00' }), 400, 'bad_request', 'end', 'The visit has to end after it starts.')
   expectError(await post({ end: '14:10' }), 400, 'bad_request', 'end', 'A visit is between 15 minutes and 12 hours.')
-  expectError(await post({ date: '2026-03-08', start: '02:30', end: '03:30' }), 400, 'bad_request', 'start', "That time doesn't exist on the day the clocks change.")
+  expectError(
+    await post({ date: '2026-03-08', start: '02:30', end: '03:30' }),
+    400,
+    'bad_request',
+    'start',
+    "That time doesn't exist on the day the clocks change.",
+  )
 })
 
 // ---------------------------------------------------------------- day board
@@ -517,7 +771,7 @@ test('visits: POST a one-off visit, its refusals, and the spring-forward gap', a
 test('day: the board alert from X-Test-Now, late at start + 15 min and missed at start + 30 min', async () => {
   const { token, keyOf } = await setup()
   const start = nl(MON, '09:00')
-  const bill = async now => (await dayVisits(token, MON, now)).find(v => v.client_name.startsWith('Bill'))
+  const bill = async (now) => (await dayVisits(token, MON, now)).find((v) => v.client_name.startsWith('Bill'))
   const at1459 = await bill(plusMs(start, 15 * 60000 - 1))
   assert.equal(at1459.alert, 'none')
   assert.equal(at1459.worker_phone, '709-555-0132')
@@ -531,8 +785,10 @@ test('day: the board alert from X-Test-Now, late at start + 15 min and missed at
   const day = await api('GET', `/api/office/day?date=${MON}`, { token, now: plus(start, 30) })
   assert.equal(day.body.date_label, 'Mon Sep 14')
   assert.equal(day.body.server_now, plus(start, 30))
-  assert.deepEqual(day.body.visits.map(v => v.client_name),
-    ['Margaret P. (SAMPLE)', 'Bill S. (SAMPLE)', 'Walter G. (SAMPLE)', 'Ron K. (SAMPLE)', 'Ruby T. (SAMPLE)', 'Gladys W. (SAMPLE)'])
+  assert.deepEqual(
+    day.body.visits.map((v) => v.client_name),
+    ['Margaret P. (SAMPLE)', 'Bill S. (SAMPLE)', 'Walter G. (SAMPLE)', 'Ron K. (SAMPLE)', 'Ruby T. (SAMPLE)', 'Gladys W. (SAMPLE)'],
+  )
 
   const ruby = await visitOf(token, MON, 'Ruby')
   await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'Away (SAMPLE)', version: ruby.version } })
@@ -598,7 +854,7 @@ test('events: the same id again answers 200 duplicate and the database still hol
   // A phone bug sending the same id for another visit is still only a resend.
   const elsewhere = await checkIn(keyOf('Sam'), ruby.id, nl(MON, '10:32'), { id, now: nl(MON, '10:32') })
   // What the database holds is checked first, so a broken Worker shows the extra row, not only a wrong status.
-  const rows = (await storedEvents()).filter(e => e.id === id)
+  const rows = (await storedEvents()).filter((e) => e.id === id)
   assert.equal(rows.length, 1, `rows stored with this id: ${JSON.stringify(rows)}`)
   assert.equal((await storedEvents(bill.id)).length, 1)
   assert.equal((await storedEvents(ruby.id)).length, 0)
@@ -628,7 +884,7 @@ test('events: check-out before check-in is 409 bad_state; check-out is 201 with 
   const key = keyOf('Sam')
   const tasks = [
     { task_id: 12, kind: 'personal_care', label: 'Personal care', done: true },
-    { task_id: 13, kind: 'housekeeping', label: 'Light housekeeping', done: false }
+    { task_id: 13, kind: 'housekeeping', label: 'Light housekeeping', done: false },
   ]
   const T = '2026-09-14T11:34:12.000Z'
   expectError(await checkOut(key, bill.id, T, { tasks }), 409, 'bad_state', undefined, 'Check in before you check out.')
@@ -697,7 +953,7 @@ test('events: a check-out earlier than its check-in is stored at the check-in ti
   assert.equal(v.worked_seconds, 0)
 })
 
-test('events: a reassigned visit still accepts the first worker\'s check-in, and only that worker checks out', async () => {
+test("events: a reassigned visit still accepts the first worker's check-in, and only that worker checks out", async () => {
   const { token, keyOf, workerId } = await setup()
   const bill = await visitOf(token, MON, 'Bill')
   const moved = await api('PUT', `/api/office/visits/${bill.id}`, { token, body: moveBody(bill, { worker_id: workerId('Jo') }) })
@@ -708,17 +964,26 @@ test('events: a reassigned visit still accepts the first worker\'s check-in, and
   const v = await visitOf(token, MON, 'Bill', at)
   assert.equal(v.worker_id, workerId('Jo'))
   assert.equal(v.check_in.worker_id, workerId('Sam'))
-  expectError(await checkOut(keyOf('Jo'), bill.id, nl(MON, '09:50')), 409, 'bad_state', undefined, 'Another worker checked in to this visit.')
+  expectError(
+    await checkOut(keyOf('Jo'), bill.id, nl(MON, '09:50')),
+    409,
+    'bad_state',
+    undefined,
+    'Another worker checked in to this visit.',
+  )
   assert.equal((await checkOut(keyOf('Sam'), bill.id, nl(MON, '09:55'))).status, 201)
   // Clarification 21: Sam holds the check-in, so the visit stays on Sam's list, marked reassigned.
   const samList = await api('GET', `/api/worker/visits?date=${MON}`, { key: keyOf('Sam') })
-  assert.equal(samList.body.visits.find(x => x.id === bill.id)?.reassigned, true, "Sam's check-in keeps the card on Sam's list")
+  assert.equal(samList.body.visits.find((x) => x.id === bill.id)?.reassigned, true, "Sam's check-in keeps the card on Sam's list")
 })
 
 test('events: a cancelled visit accepts events and the office sees visited_after_cancel', async () => {
   const { token, keyOf } = await setup()
   const bill = await visitOf(token, MON, 'Bill')
-  const c = await api('POST', `/api/office/visits/${bill.id}/cancel`, { token, body: { reason: 'Family visiting (SAMPLE)', version: bill.version } })
+  const c = await api('POST', `/api/office/visits/${bill.id}/cancel`, {
+    token,
+    body: { reason: 'Family visiting (SAMPLE)', version: bill.version },
+  })
   assert.equal(c.status, 200)
   assert.equal(c.body.visited_after_cancel, false)
   const r = await checkIn(keyOf('Sam'), bill.id, nl(MON, '09:02'))
@@ -736,13 +1001,24 @@ test('events: a stranger worker is 404, a bad key 401, and the input refusals', 
   const at = nl(MON, '09:02')
   expectError(await checkIn(keyOf('Jo'), bill.id, at), 404, 'not_found', undefined, "That visit isn't on your list.")
   expectError(await checkIn(keyOf('Jo'), 99999, at), 404, 'not_found')
-  expectError(await checkIn('not-a-key', bill.id, at), 401, 'unauthorized', undefined, "This link doesn't work any more. Ask the office for a new one.")
-  const post = body => api('POST', '/api/worker/events', { key: keyOf('Sam'), now: at, body: { id: randomUUID(), visit_id: bill.id, kind: 'check_in', at, ...body } })
+  expectError(
+    await checkIn('not-a-key', bill.id, at),
+    401,
+    'unauthorized',
+    undefined,
+    "This link doesn't work any more. Ask the office for a new one.",
+  )
+  const post = (body) =>
+    api('POST', '/api/worker/events', {
+      key: keyOf('Sam'),
+      now: at,
+      body: { id: randomUUID(), visit_id: bill.id, kind: 'check_in', at, ...body },
+    })
   expectError(await post({ id: 'not-a-uuid' }), 400, 'bad_request', 'id')
   expectError(await post({ kind: 'arrived' }), 400, 'bad_request', 'kind')
   expectError(await post({ at: 'nine' }), 400, 'bad_request', 'at')
   assert.equal((await post({})).status, 201)
-  const out = body => post({ kind: 'check_out', tasks: [], note: '', ...body })
+  const out = (body) => post({ kind: 'check_out', tasks: [], note: '', ...body })
   // A bad note or task list never refuses a check-out (clarification 8; its own test below). A good two-line note is stored.
   const good = await out({ note: 'one\r\ntwo' })
   assert.equal(good.status, 201, good.text)
@@ -752,7 +1028,7 @@ test('events: a stranger worker is 404, a bad key 401, and the input refusals', 
 
 // ---------------------------------------------------------------- worker visits
 
-test('worker visits: only this worker\'s visits for the date, in order, with entry notes; never family phones or funders', async () => {
+test("worker visits: only this worker's visits for the date, in order, with entry notes; never family phones or funders", async () => {
   const { token, keyOf } = await setup()
   const key = keyOf('Sam')
   const r = await api('GET', '/api/worker/visits', { key })
@@ -761,18 +1037,27 @@ test('worker visits: only this worker\'s visits for the date, in order, with ent
   assert.deepEqual(r.body.agency, { name: AGENCY, sample: true, office_phone: '709-555-0100', timezone: 'America/St_Johns' })
   assert.equal(r.body.date, MON)
   assert.equal(r.body.date_label, 'Mon Sep 14')
-  assert.deepEqual(r.body.visits.map(v => [v.client_name, v.time_label]), [['Bill S. (SAMPLE)', '9:00 AM – 10:00 AM'], ['Ruby T. (SAMPLE)', '10:30 AM – 12:00 PM']])
+  assert.deepEqual(
+    r.body.visits.map((v) => [v.client_name, v.time_label]),
+    [
+      ['Bill S. (SAMPLE)', '9:00 AM – 10:00 AM'],
+      ['Ruby T. (SAMPLE)', '10:30 AM – 12:00 PM'],
+    ],
+  )
   const bill = r.body.visits[0]
   assert.equal(bill.entry_notes, 'Key safe by the shed, code 5530 (SAMPLE).')
   assert.equal(bill.client_initials, 'BS')
-  assert.deepEqual(bill.tasks.map(t => t.label), ['Personal care', 'Light housekeeping'])
+  assert.deepEqual(
+    bill.tasks.map((t) => t.label),
+    ['Personal care', 'Light housekeeping'],
+  )
   assert.equal(bill.check_in, null)
   assert.deepEqual(bill.tasks_done, [])
   assert.deepEqual(r.body.mileage, { metres: 0, km: '0.0', note: 'Straight-line distance between your check-ins today.' })
   for (const c of SAMPLE.clients) for (const f of c.family_contacts) assert.ok(!r.text.includes(f.phone), `family phone ${f.phone}`)
   for (const f of SAMPLE.funders) assert.ok(!r.text.includes(f.name), `funder ${f.name}`)
   assert.ok(!r.text.includes('distance_m'), 'no distances from the pin')
-  assert.ok(!r.text.includes('Jo W.') && !r.text.includes('Margaret'), 'no other worker\'s visits')
+  assert.ok(!r.text.includes('Jo W.') && !r.text.includes('Margaret'), "no other worker's visits")
 
   // Check in at Bill, then Ruby: mileage follows the check-ins.
   const ruby = r.body.visits[1]
@@ -784,15 +1069,34 @@ test('worker visits: only this worker\'s visits for the date, in order, with ent
   assert.equal(later.body.visits[0].check_in.location_label, 'Location not shared')
 
   const tue = await api('GET', `/api/worker/visits?date=${TUE}`, { key })
-  assert.deepEqual(tue.body.visits.map(v => v.client_name), ['Frank H. (SAMPLE)'])
+  assert.deepEqual(
+    tue.body.visits.map((v) => v.client_name),
+    ['Frank H. (SAMPLE)'],
+  )
   // Clarification 16: 7 days back to 6 days ahead.
   assert.equal((await api('GET', '/api/worker/visits?date=2026-09-13', { key })).status, 200, 'yesterday is allowed')
   const weekBack = await api('GET', '/api/worker/visits?date=2026-09-07', { key })
   assert.equal(weekBack.status, 200, '7 days back is allowed')
-  assert.deepEqual(weekBack.body.visits.map(v => v.client_name), ['Bill S. (SAMPLE)', 'Ruby T. (SAMPLE)'], "last Monday's visits")
+  assert.deepEqual(
+    weekBack.body.visits.map((v) => v.client_name),
+    ['Bill S. (SAMPLE)', 'Ruby T. (SAMPLE)'],
+    "last Monday's visits",
+  )
   assert.equal((await api('GET', '/api/worker/visits?date=2026-09-20', { key })).status, 200, '6 days ahead is allowed')
-  expectError(await api('GET', '/api/worker/visits?date=2026-09-06', { key }), 400, 'bad_request', 'date', 'Pick a day from last week to next week.')
-  expectError(await api('GET', '/api/worker/visits?date=2026-09-21', { key }), 400, 'bad_request', 'date', 'Pick a day from last week to next week.')
+  expectError(
+    await api('GET', '/api/worker/visits?date=2026-09-06', { key }),
+    400,
+    'bad_request',
+    'date',
+    'Pick a day from last week to next week.',
+  )
+  expectError(
+    await api('GET', '/api/worker/visits?date=2026-09-21', { key }),
+    400,
+    'bad_request',
+    'date',
+    'Pick a day from last week to next week.',
+  )
   expectError(await api('GET', '/api/worker/visits', {}), 401, 'unauthorized')
 
   assert.equal((await visitOf(token, MON, 'Ruby', nl(MON, '10:40'))).status, 'checked_in')
@@ -823,7 +1127,10 @@ test('worker visits: open_dates lists the earlier days this worker left a visit 
   // 7 days back (Monday Sep 7) is listed; 8 days back (Sunday Sep 6, a one-off) is not.
   const bill7 = await visitOf(token, MON7, 'Bill')
   assert.equal((await checkIn(sam, bill7.id, nl(MON7, '09:02'))).status, 201)
-  const sun = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Bill'), worker_id: workerId('Sam'), date: SUN6, start: '09:00', end: '10:00' } })
+  const sun = await api('POST', '/api/office/visits', {
+    token,
+    body: { client_id: clientId('Bill'), worker_id: workerId('Sam'), date: SUN6, start: '09:00', end: '10:00' },
+  })
   assert.equal(sun.status, 201, sun.text)
   assert.equal((await checkIn(sam, sun.body.id, nl(SUN6, '09:02'))).status, 201)
 
@@ -839,12 +1146,25 @@ test('worker visits: open_dates lists the earlier days this worker left a visit 
 
   // A voided check-in does not count: Sam's phone check-in on Tuesday is replaced by the office's for the visit's worker, Jo.
   const frank8 = await visitOf(token, TUE8, 'Frank', nl(TUE8, '07:00'))
-  assert.equal((await api('PUT', `/api/office/visits/${frank8.id}`, { token, now: nl(TUE8, '07:00'), body: moveBody(frank8, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.equal(
+    (
+      await api('PUT', `/api/office/visits/${frank8.id}`, {
+        token,
+        now: nl(TUE8, '07:00'),
+        body: moveBody(frank8, { worker_id: workerId('Jo') }),
+      })
+    ).status,
+    200,
+  )
   assert.equal((await checkIn(sam, frank8.id, nl(TUE8, '09:03'))).status, 201, 'the first worker may still check in')
   const f = await visitOf(token, TUE8, 'Frank', nl(TUE8, '12:00'))
-  const fix = await api('PUT', `/api/office/visits/${f.id}/times`, { token, now: nl(TUE8, '12:00'), body: { check_in_at: nl(TUE8, '09:00'), reason: 'Jo was there (SAMPLE)', version: f.version } })
+  const fix = await api('PUT', `/api/office/visits/${f.id}/times`, {
+    token,
+    now: nl(TUE8, '12:00'),
+    body: { check_in_at: nl(TUE8, '09:00'), reason: 'Jo was there (SAMPLE)', version: f.version },
+  })
   assert.equal(fix.status, 200, fix.text)
-  assert.equal((await storedEvents(f.id)).filter(e => e.voided_at).length, 1, "Sam's check-in is voided")
+  assert.equal((await storedEvents(f.id)).filter((e) => e.voided_at).length, 1, "Sam's check-in is voided")
 
   // Another worker's open check-in is not Sam's.
   const margaret10 = await visitOf(token, THU10, 'Margaret')
@@ -856,9 +1176,13 @@ test('worker visits: open_dates lists the earlier days this worker left a visit 
 
   const later = nl(MON, '10:00')
   assert.deepEqual(await openDates(sam, undefined, later), [MON7, WED9, FRI11])
-  assert.deepEqual(await openDates(jo, undefined, later), [TUE8, THU10], "Jo's own: the office's check-in on Tuesday, Thursday's phone check-in")
+  assert.deepEqual(
+    await openDates(jo, undefined, later),
+    [TUE8, THU10],
+    "Jo's own: the office's check-in on Tuesday, Thursday's phone check-in",
+  )
   for (const date of [MON, '2026-09-13', '2026-09-16', '2026-09-20', MON7]) {
-    const expected = [MON7, WED9, FRI11].filter(d => d !== date)
+    const expected = [MON7, WED9, FRI11].filter((d) => d !== date)
     assert.deepEqual(await openDates(sam, date, later), expected, `the same list for date=${date} (minus the requested date)`)
   }
 
@@ -879,42 +1203,89 @@ test('worker visits: a visit this worker checked in to stays on their list after
 
   // Sam is on the way with no signal; the office gives Bill S. to Jo at 8:50; Sam's check-in tapped at 9:02 lands afterwards.
   const bill = await visitOf(token, MON, 'Bill')
-  const moved = await api('PUT', `/api/office/visits/${bill.id}`, { token, now: nl(MON, '08:50'), body: moveBody(bill, { worker_id: workerId('Jo') }) })
+  const moved = await api('PUT', `/api/office/visits/${bill.id}`, {
+    token,
+    now: nl(MON, '08:50'),
+    body: moveBody(bill, { worker_id: workerId('Jo') }),
+  })
   assert.equal(moved.status, 200, moved.text)
   assert.equal((await checkIn(sam, bill.id, nl(MON, '09:02'))).status, 201)
   const after = nl(MON, '09:10')
   const samList = await listOf(sam, MON, after)
-  assert.deepEqual(samList.visits.map(v => [v.client_name, v.reassigned]), [['Bill S. (SAMPLE)', true], ['Ruby T. (SAMPLE)', false]], 'sorted by start, each marked')
+  assert.deepEqual(
+    samList.visits.map((v) => [v.client_name, v.reassigned]),
+    [
+      ['Bill S. (SAMPLE)', true],
+      ['Ruby T. (SAMPLE)', false],
+    ],
+    'sorted by start, each marked',
+  )
   assert.equal(samList.visits[0].check_in.at, nl(MON, '09:02'))
   const joList = await listOf(jo, MON, after)
-  const joBill = joList.visits.find(v => v.id === bill.id)
+  const joBill = joList.visits.find((v) => v.id === bill.id)
   assert.equal(joBill?.reassigned, false, "on Jo's list as Jo's own visit")
-  assert.ok(joList.visits.every(v => v.reassigned === false))
-  assert.equal((await checkOut(sam, bill.id, nl(MON, '09:58'), { now: nl(MON, '10:00') })).status, 201, 'the worker who checked in checks out')
-  const done = (await listOf(sam, MON, nl(MON, '10:01'))).visits.find(v => v.id === bill.id)
+  assert.ok(joList.visits.every((v) => v.reassigned === false))
+  assert.equal(
+    (await checkOut(sam, bill.id, nl(MON, '09:58'), { now: nl(MON, '10:00') })).status,
+    201,
+    'the worker who checked in checks out',
+  )
+  const done = (await listOf(sam, MON, nl(MON, '10:01'))).visits.find((v) => v.id === bill.id)
   assert.equal(done.reassigned, true)
   assert.equal(done.check_out.at, nl(MON, '09:58'), 'it keeps its check-out')
 
   // Given to no one before Sam's check-in lands: still Sam's card, reassigned true.
   const ruby = await visitOf(token, MON, 'Ruby')
-  assert.equal((await api('PUT', `/api/office/visits/${ruby.id}`, { token, now: nl(MON, '10:00'), body: moveBody(ruby, { worker_id: null }) })).status, 200)
+  assert.equal(
+    (await api('PUT', `/api/office/visits/${ruby.id}`, { token, now: nl(MON, '10:00'), body: moveBody(ruby, { worker_id: null }) })).status,
+    200,
+  )
   assert.equal((await checkIn(sam, ruby.id, nl(MON, '10:31'))).status, 201)
-  assert.deepEqual((await listOf(sam, MON, nl(MON, '10:40'))).visits.map(v => [v.client_name, v.reassigned]), [['Bill S. (SAMPLE)', true], ['Ruby T. (SAMPLE)', true]])
+  assert.deepEqual(
+    (await listOf(sam, MON, nl(MON, '10:40'))).visits.map((v) => [v.client_name, v.reassigned]),
+    [
+      ['Bill S. (SAMPLE)', true],
+      ['Ruby T. (SAMPLE)', true],
+    ],
+  )
 
   // Reassigned before anyone checked in: not on Sam's list.
   const frank = await visitOf(token, TUE, 'Frank')
-  assert.equal((await api('PUT', `/api/office/visits/${frank.id}`, { token, body: moveBody(frank, { worker_id: workerId('Jo') }) })).status, 200)
-  assert.deepEqual((await listOf(sam, TUE)).visits.map(v => v.client_name), [], "Tuesday's only visit went to Jo")
+  assert.equal(
+    (await api('PUT', `/api/office/visits/${frank.id}`, { token, body: moveBody(frank, { worker_id: workerId('Jo') }) })).status,
+    200,
+  )
+  assert.deepEqual(
+    (await listOf(sam, TUE)).visits.map((v) => v.client_name),
+    [],
+    "Tuesday's only visit went to Jo",
+  )
 
   // A voided check-in doesn't bring a visit back: Sam's check-in on Wednesday's Bill S. is replaced by the office's for Jo.
   const billWed = await visitOf(token, WED, 'Bill')
-  assert.equal((await api('PUT', `/api/office/visits/${billWed.id}`, { token, now: nl(WED, '08:00'), body: moveBody(billWed, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.equal(
+    (
+      await api('PUT', `/api/office/visits/${billWed.id}`, {
+        token,
+        now: nl(WED, '08:00'),
+        body: moveBody(billWed, { worker_id: workerId('Jo') }),
+      })
+    ).status,
+    200,
+  )
   assert.equal((await checkIn(sam, billWed.id, nl(WED, '09:03'))).status, 201)
-  assert.ok((await listOf(sam, WED, nl(WED, '09:10'))).visits.some(v => v.id === billWed.id), 'on the list while Sam holds the check-in')
+  assert.ok(
+    (await listOf(sam, WED, nl(WED, '09:10'))).visits.some((v) => v.id === billWed.id),
+    'on the list while Sam holds the check-in',
+  )
   const w = await visitOf(token, WED, 'Bill', nl(WED, '12:00'))
-  const fix = await api('PUT', `/api/office/visits/${w.id}/times`, { token, now: nl(WED, '12:00'), body: { check_in_at: nl(WED, '09:00'), reason: 'Jo was there (SAMPLE)', version: w.version } })
+  const fix = await api('PUT', `/api/office/visits/${w.id}/times`, {
+    token,
+    now: nl(WED, '12:00'),
+    body: { check_in_at: nl(WED, '09:00'), reason: 'Jo was there (SAMPLE)', version: w.version },
+  })
   assert.equal(fix.status, 200, fix.text)
-  assert.ok(!(await listOf(sam, WED, nl(WED, '12:01'))).visits.some(v => v.id === billWed.id), 'gone once the check-in is voided')
+  assert.ok(!(await listOf(sam, WED, nl(WED, '12:01'))).visits.some((v) => v.id === billWed.id), 'gone once the check-in is voided')
 })
 
 test('worker visits: the open_dates day of a reassigned visit has its card', async () => {
@@ -922,12 +1293,21 @@ test('worker visits: the open_dates day of a reassigned visit has its card', asy
   const sam = keyOf('Sam')
   const FRI11 = '2026-09-11'
   const bill = await visitOf(token, FRI11, 'Bill', nl(FRI11, '07:00'))
-  assert.equal((await api('PUT', `/api/office/visits/${bill.id}`, { token, now: nl(FRI11, '08:50'), body: moveBody(bill, { worker_id: workerId('Jo') }) })).status, 200)
+  assert.equal(
+    (
+      await api('PUT', `/api/office/visits/${bill.id}`, {
+        token,
+        now: nl(FRI11, '08:50'),
+        body: moveBody(bill, { worker_id: workerId('Jo') }),
+      })
+    ).status,
+    200,
+  )
   assert.equal((await checkIn(sam, bill.id, nl(FRI11, '09:02'))).status, 201)
   const today = await api('GET', '/api/worker/visits', { key: sam })
   assert.deepEqual(today.body.open_dates, [FRI11])
   const friday = await api('GET', `/api/worker/visits?date=${FRI11}`, { key: sam })
-  const card = friday.body.visits.find(v => v.id === bill.id)
+  const card = friday.body.visits.find((v) => v.id === bill.id)
   assert.ok(card, "Friday's list has the open visit")
   assert.equal(card.reassigned, true)
   assert.equal(card.check_in.at, nl(FRI11, '09:02'))
@@ -941,33 +1321,56 @@ test('family privacy: a checked-out visit with a non-shareable note shows none o
   const margaret = await visitOf(token, MON, 'Margaret')
   const key = keyOf('Jo')
   const NOTE = 'Ate well, talked about the SAMPLE garden.'
-  const REASON = 'SAMPLE reason: away at her sister\'s'
+  const REASON = "SAMPLE reason: away at her sister's"
   assert.equal((await checkIn(key, margaret.id, nl(MON, '08:32'), { location: pinOf('Margaret') })).status, 201)
   const tasks = [
     { task_id: 1, kind: 'personal_care', label: 'Personal care', done: true },
     { task_id: 2, kind: 'meal_prep', label: 'Meal preparation', done: true },
-    { task_id: 3, kind: 'medication_reminder', label: 'Medication reminder', done: false }
+    { task_id: 3, kind: 'medication_reminder', label: 'Medication reminder', done: false },
   ]
   assert.equal((await checkOut(key, margaret.id, nl(MON, '09:28'), { tasks, note: NOTE })).status, 201)
   const tuesday = await visitOf(token, TUE, 'Margaret')
-  assert.equal((await api('POST', `/api/office/visits/${tuesday.id}/cancel`, { token, body: { reason: REASON, version: tuesday.version } })).status, 200)
+  assert.equal(
+    (await api('POST', `/api/office/visits/${tuesday.id}/cancel`, { token, body: { reason: REASON, version: tuesday.version } })).status,
+    200,
+  )
 
   const now = nl(MON, '10:00')
   const r = await api('GET', `/api/family/${familyKey('Margaret')}`, { now })
   assert.equal(r.status, 200, r.text)
-  const client = SAMPLE.clients.find(c => c.name.startsWith('Margaret'))
+  const client = SAMPLE.clients.find((c) => c.name.startsWith('Margaret'))
   const never = [
-    NOTE, client.entry_notes, client.address, String(client.lat), String(client.lng), REASON, 'distance', 'location', 'Within 250 m',
-    'Jo W.', 'Linda P.', 'Daughter', ...SAMPLE.workers.map(w => w.phone), ...SAMPLE.clients.flatMap(c => c.family_contacts.map(f => f.phone)),
-    ...SAMPLE.funders.map(f => f.name)
+    NOTE,
+    client.entry_notes,
+    client.address,
+    String(client.lat),
+    String(client.lng),
+    REASON,
+    'distance',
+    'location',
+    'Within 250 m',
+    'Jo W.',
+    'Linda P.',
+    'Daughter',
+    ...SAMPLE.workers.map((w) => w.phone),
+    ...SAMPLE.clients.flatMap((c) => c.family_contacts.map((f) => f.phone)),
+    ...SAMPLE.funders.map((f) => f.name),
   ]
   for (const s of never) assert.ok(!r.text.includes(s), `the family answer contains ${JSON.stringify(s)}`)
   assert.deepEqual(r.body.agency, { name: AGENCY, sample: true, office_phone: '709-555-0100' })
   assert.deepEqual(r.body.client, { name: 'Margaret P. (SAMPLE)', initials: 'MP' })
-  assert.deepEqual(r.body.today.visits, [{
-    time_label: '8:30 AM – 9:30 AM', worker_first_name: 'Jo', status: 'left', status_label: 'Arrived 8:32 AM, left 9:28 AM',
-    arrived_label: '8:32 AM', left_label: '9:28 AM', tasks_done: ['Personal care', 'Meal preparation'], note: null
-  }])
+  assert.deepEqual(r.body.today.visits, [
+    {
+      time_label: '8:30 AM – 9:30 AM',
+      worker_first_name: 'Jo',
+      status: 'left',
+      status_label: 'Arrived 8:32 AM, left 9:28 AM',
+      arrived_label: '8:32 AM',
+      left_label: '9:28 AM',
+      tasks_done: ['Personal care', 'Meal preparation'],
+      note: null,
+    },
+  ])
   assert.equal(r.body.week.days[1].visits[0].status, 'cancelled')
   assert.equal(r.body.updated_label, 'Mon Sep 14, 10:00 AM')
 
@@ -977,8 +1380,19 @@ test('family privacy: a checked-out visit with a non-shareable note shows none o
   const after = await api('GET', `/api/family/${familyKey('Margaret')}`, { now })
   assert.ok(after.text.includes(NOTE), 'a shareable note reaches the family')
   assert.equal(after.body.today.visits[0].note, NOTE)
-  expectError(await api('PUT', `/api/office/visits/${tuesday.id}/note`, { token, now, body: { shareable: true } }), 404, 'not_found', undefined, 'This visit has no note.')
-  expectError(await api('PUT', `/api/office/visits/${margaret.id}/note`, { token, now, body: { shareable: 'yes' } }), 400, 'bad_request', 'shareable')
+  expectError(
+    await api('PUT', `/api/office/visits/${tuesday.id}/note`, { token, now, body: { shareable: true } }),
+    404,
+    'not_found',
+    undefined,
+    'This visit has no note.',
+  )
+  expectError(
+    await api('PUT', `/api/office/visits/${margaret.id}/note`, { token, now, body: { shareable: 'yes' } }),
+    400,
+    'bad_request',
+    'shareable',
+  )
 })
 
 test('family: status labels for scheduled, not checked in yet, no check-in recorded, arrived, left and cancelled; unknown key 404', async () => {
@@ -987,9 +1401,21 @@ test('family: status labels for scheduled, not checked in yet, no check-in recor
   const alex = keyOf('Alex')
   const mon = await visitOf(token, MON, 'Walter', now)
   assert.equal((await checkIn(alex, mon.id, nl(MON, '09:02'), { now })).status, 201)
-  assert.equal((await checkOut(alex, mon.id, nl(MON, '09:58'), { now, tasks: [{ task_id: null, kind: 'meal_prep', label: 'Meal preparation', done: true }] })).status, 201)
+  assert.equal(
+    (
+      await checkOut(alex, mon.id, nl(MON, '09:58'), {
+        now,
+        tasks: [{ task_id: null, kind: 'meal_prep', label: 'Meal preparation', done: true }],
+      })
+    ).status,
+    201,
+  )
   const tue = await visitOf(token, TUE, 'Walter', now)
-  assert.equal((await api('POST', `/api/office/visits/${tue.id}/cancel`, { token, now, body: { reason: 'Away (SAMPLE)', version: tue.version } })).status, 200)
+  assert.equal(
+    (await api('POST', `/api/office/visits/${tue.id}/cancel`, { token, now, body: { reason: 'Away (SAMPLE)', version: tue.version } }))
+      .status,
+    200,
+  )
   const wed = await visitOf(token, WED, 'Walter', now)
   assert.equal((await checkIn(alex, wed.id, nl(WED, '09:03'), { now })).status, 201)
 
@@ -997,27 +1423,43 @@ test('family: status labels for scheduled, not checked in yet, no check-in recor
   assert.equal(walter.status, 200, walter.text)
   assert.equal(walter.body.week.week_label, 'Week of Mon Sep 14')
   assert.equal(walter.body.week.days.length, 7)
-  const statuses = walter.body.week.days.map(d => d.visits.map(v => [v.status, v.status_label]))
+  const statuses = walter.body.week.days.map((d) => d.visits.map((v) => [v.status, v.status_label]))
   assert.deepEqual(statuses, [
-    [['left', 'Arrived 9:02 AM, left 9:58 AM']], [['cancelled', 'Cancelled']], [['arrived', 'Arrived 9:03 AM']],
-    [['scheduled', 'Scheduled']], [['scheduled', 'Scheduled']], [], []
+    [['left', 'Arrived 9:02 AM, left 9:58 AM']],
+    [['cancelled', 'Cancelled']],
+    [['arrived', 'Arrived 9:03 AM']],
+    [['scheduled', 'Scheduled']],
+    [['scheduled', 'Scheduled']],
+    [],
+    [],
   ])
   assert.equal(walter.body.today.date, WED)
-  assert.deepEqual(walter.body.today.visits.map(v => [v.status, v.worker_first_name, v.arrived_label, v.left_label]), [['arrived', 'Alex', '9:03 AM', null]])
+  assert.deepEqual(
+    walter.body.today.visits.map((v) => [v.status, v.worker_first_name, v.arrived_label, v.left_label]),
+    [['arrived', 'Alex', '9:03 AM', null]],
+  )
   assert.deepEqual(walter.body.week.days[0].visits[0].tasks_done, ['Meal preparation'])
 
   const ron = await api('GET', `/api/family/${familyKey('Ron')}`, { now })
-  assert.deepEqual(ron.body.week.days.map(d => d.visits.map(v => v.status_label)),
-    [['No check-in recorded'], [], ['Not checked in yet'], [], ['Scheduled'], [], []])
+  assert.deepEqual(
+    ron.body.week.days.map((d) => d.visits.map((v) => v.status_label)),
+    [['No check-in recorded'], [], ['Not checked in yet'], [], ['Scheduled'], [], []],
+  )
   assert.equal(ron.body.week.days[2].visits[0].status, 'not_checked_in')
 
-  expectError(await api('GET', '/api/family/not-a-real-key-at-all', { now }), 404, 'not_found', undefined, "This link doesn't work. Ask the agency for a new one.")
+  expectError(
+    await api('GET', '/api/family/not-a-real-key-at-all', { now }),
+    404,
+    'not_found',
+    undefined,
+    "This link doesn't work. Ask the agency for a new one.",
+  )
   expectError(await api('GET', '/api/family/', { now }), 404, 'not_found')
 })
 
 // ================================================================ M2
 
-const workerInput = w => {
+const workerInput = (w) => {
   const { id, initials, zone_names, availability_label, max_week_label, worker_url, ...input } = w
   return input
 }
@@ -1027,13 +1469,21 @@ test('worker key: deactivating a worker keeps their link; their saved check-out 
   const bill = await visitOf(token, MON, 'Bill')
   const key = keyOf('Sam')
   assert.equal((await checkIn(key, bill.id, nl(MON, '09:02'))).status, 201)
-  const sam = (await api('GET', '/api/office/workers', { token })).body.workers.find(w => w.name.startsWith('Sam'))
-  const off = await api('PUT', `/api/office/workers/${sam.id}`, { token, now: nl(MON, '09:10'), body: { ...workerInput(sam), active: false } })
+  const sam = (await api('GET', '/api/office/workers', { token })).body.workers.find((w) => w.name.startsWith('Sam'))
+  const off = await api('PUT', `/api/office/workers/${sam.id}`, {
+    token,
+    now: nl(MON, '09:10'),
+    body: { ...workerInput(sam), active: false },
+  })
   assert.equal(off.status, 200, off.text)
   assert.equal(off.body.active, false)
   const list = await api('GET', '/api/worker/visits', { key, now: nl(MON, '09:20') })
   assert.equal(list.status, 200, list.text)
-  assert.deepEqual(list.body.visits.map(v => v.id), [bill.id], 'the started visit stays theirs, the unstarted one is taken off')
+  assert.deepEqual(
+    list.body.visits.map((v) => v.id),
+    [bill.id],
+    'the started visit stays theirs, the unstarted one is taken off',
+  )
   const out = await checkOut(key, bill.id, nl(MON, '09:58'), { now: nl(MON, '10:30') })
   assert.equal(out.status, 201, out.text)
   assert.equal((await visitOf(token, MON, 'Bill', nl(MON, '10:30'))).worked_seconds, 56 * 60)
@@ -1075,13 +1525,38 @@ test('office agency: GET and PUT, and the public agency follows', async () => {
   const r = await api('GET', '/api/office/agency', { token })
   assert.equal(r.status, 200, r.text)
   assert.deepEqual(r.body, {
-    name: AGENCY, sample: true, timezone: 'America/St_Johns', office_phone: '709-555-0100', late_after_minutes: 15, missed_after_minutes: 30,
-    near_metres: 250, office: { label: 'SAMPLE office, Grand Falls-Windsor', lat: 48.964, lng: -55.66444 }, zones: SAMPLE.zones, funders: SAMPLE.funders
+    name: AGENCY,
+    sample: true,
+    timezone: 'America/St_Johns',
+    office_phone: '709-555-0100',
+    late_after_minutes: 15,
+    missed_after_minutes: 30,
+    near_metres: 250,
+    office: { label: 'SAMPLE office, Grand Falls-Windsor', lat: 48.964, lng: -55.66444 },
+    zones: SAMPLE.zones,
+    funders: SAMPLE.funders,
   })
   expectError(await api('GET', '/api/office/agency'), 401, 'unauthorized')
-  expectError(await api('PUT', '/api/office/agency', { token, body: { name: ' ', office_phone: '709-555-0100' } }), 400, 'bad_request', 'name', 'Give the agency a name.')
-  expectError(await api('PUT', '/api/office/agency', { token, body: { name: 'N'.repeat(81), office_phone: '709-555-0100' } }), 400, 'bad_request', 'name')
-  expectError(await api('PUT', '/api/office/agency', { token, body: { name: 'Exploits Home Support', office_phone: '555' } }), 400, 'bad_request', 'office_phone', 'Type a 10-digit phone number, like 709-555-0152.')
+  expectError(
+    await api('PUT', '/api/office/agency', { token, body: { name: ' ', office_phone: '709-555-0100' } }),
+    400,
+    'bad_request',
+    'name',
+    'Give the agency a name.',
+  )
+  expectError(
+    await api('PUT', '/api/office/agency', { token, body: { name: 'N'.repeat(81), office_phone: '709-555-0100' } }),
+    400,
+    'bad_request',
+    'name',
+  )
+  expectError(
+    await api('PUT', '/api/office/agency', { token, body: { name: 'Exploits Home Support', office_phone: '555' } }),
+    400,
+    'bad_request',
+    'office_phone',
+    'Type a 10-digit phone number, like 709-555-0152.',
+  )
   const put = await api('PUT', '/api/office/agency', { token, body: { name: 'Exploits Home Support', office_phone: '(709) 555-0109' } })
   assert.equal(put.status, 200, put.text)
   assert.equal(put.body.sample, false)
@@ -1092,9 +1567,21 @@ test('office agency: GET and PUT, and the public agency follows', async () => {
 
 test('office PIN: 4 to 8 digits; a wrong current PIN is 401 field current and keeps the session; the new PIN signs in', async () => {
   const { token } = await setup()
-  expectError(await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '12' } }), 400, 'bad_request', 'new', 'Use 4 to 8 digits.')
+  expectError(
+    await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '12' } }),
+    400,
+    'bad_request',
+    'new',
+    'Use 4 to 8 digits.',
+  )
   expectError(await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '123456789' } }), 400, 'bad_request', 'new')
-  expectError(await api('PUT', '/api/office/pin', { token, body: { current: '1111', new: '2468' } }), 401, 'unauthorized', 'current', 'That PIN is not right.')
+  expectError(
+    await api('PUT', '/api/office/pin', { token, body: { current: '1111', new: '2468' } }),
+    401,
+    'unauthorized',
+    'current',
+    'That PIN is not right.',
+  )
   assert.equal((await api('GET', '/api/office/clients', { token })).status, 200, 'the session stays')
   expectError(await api('PUT', '/api/office/pin', { body: { current: '4826', new: '2468' } }), 401, 'unauthorized')
   assert.equal((await api('PUT', '/api/office/pin', { token, body: { current: '4826', new: '246813' } })).status, 200)
@@ -1107,7 +1594,8 @@ test('office PIN: a successful change ends every other session; a wrong current 
   const b = (await api('POST', '/api/office/signin', { body: { pin: '4826' } })).body.token
   const c = (await api('POST', '/api/office/signin', { body: { pin: '4826' } })).body.token
   expectError(await api('PUT', '/api/office/pin', { token: a, body: { current: '1111', new: '2468' } }), 401, 'unauthorized', 'current')
-  for (const t of [a, b, c]) assert.equal((await api('GET', '/api/office/clients', { token: t })).status, 200, 'a wrong current PIN ends no session')
+  for (const t of [a, b, c])
+    assert.equal((await api('GET', '/api/office/clients', { token: t })).status, 200, 'a wrong current PIN ends no session')
   assert.equal((await api('PUT', '/api/office/pin', { token: a, body: { current: '4826', new: '2468' } })).status, 200)
   assert.equal((await api('GET', '/api/office/clients', { token: a })).status, 200, "the caller's session stays")
   for (const t of [b, c]) {
@@ -1122,15 +1610,27 @@ test('office PIN: a successful change ends every other session; a wrong current 
 test('rate guards: 5 wrong PINs from one IP → 429 even for the right PIN; other IPs and a passed window are fine; wrong current PINs count', async () => {
   const { token } = await setup()
   const ip = '10.9.9.1'
-  for (let i = 0; i < 5; i++) expectError(await api('POST', '/api/office/signin', { ip, body: { pin: '1111' } }), 401, 'unauthorized', 'pin')
-  expectError(await api('POST', '/api/office/signin', { ip, body: { pin: '4826' } }), 429, 'rate_limited', undefined, 'Too many tries. Wait 15 minutes and try again.')
+  for (let i = 0; i < 5; i++)
+    expectError(await api('POST', '/api/office/signin', { ip, body: { pin: '1111' } }), 401, 'unauthorized', 'pin')
+  expectError(
+    await api('POST', '/api/office/signin', { ip, body: { pin: '4826' } }),
+    429,
+    'rate_limited',
+    undefined,
+    'Too many tries. Wait 15 minutes and try again.',
+  )
   assert.equal((await api('POST', '/api/office/signin', { ip: '10.9.9.2', body: { pin: '4826' } })).status, 200)
   assert.equal((await api('POST', '/api/office/signin', { ip, now: plusMs(NOW, 15 * 60000 - 1000), body: { pin: '4826' } })).status, 429)
   assert.equal((await api('POST', '/api/office/signin', { ip, now: plusMs(NOW, 15 * 60000 + 1000), body: { pin: '4826' } })).status, 200)
 
   const ip3 = '10.9.9.3'
   for (let i = 0; i < 4; i++) await api('POST', '/api/office/signin', { ip: ip3, body: { pin: '0000' } })
-  expectError(await api('PUT', '/api/office/pin', { token, ip: ip3, body: { current: '0000', new: '2468' } }), 401, 'unauthorized', 'current')
+  expectError(
+    await api('PUT', '/api/office/pin', { token, ip: ip3, body: { current: '0000', new: '2468' } }),
+    401,
+    'unauthorized',
+    'current',
+  )
   expectError(await api('POST', '/api/office/signin', { ip: ip3, body: { pin: '4826' } }), 429, 'rate_limited')
   expectError(await api('PUT', '/api/office/pin', { token, ip: ip3, body: { current: '4826', new: '2468' } }), 429, 'rate_limited')
 })
@@ -1140,21 +1640,38 @@ test('rate guards: 30 unknown family keys from one IP → 429 for every lookup f
   const ip = '10.8.8.1'
   const known = familyKey('Walter')
   for (let i = 0; i < 30; i++) expectError(await api('GET', `/api/family/guess-${i}-aaaaaaaaaaaaaaaa`, { ip }), 404, 'not_found')
-  expectError(await api('GET', `/api/family/${known}`, { ip }), 429, 'rate_limited', undefined, 'Too many tries. Wait a few minutes and try again.')
+  expectError(
+    await api('GET', `/api/family/${known}`, { ip }),
+    429,
+    'rate_limited',
+    undefined,
+    'Too many tries. Wait a few minutes and try again.',
+  )
   expectError(await api('GET', '/api/family/guess-31-aaaaaaaaaaaaaaaa', { ip }), 429, 'rate_limited')
   assert.equal((await api('GET', `/api/family/${known}`, { ip: '10.8.8.2' })).status, 200)
   assert.equal((await api('GET', `/api/family/${known}`, { ip, now: plusMs(NOW, 10 * 60000 + 1000) })).status, 200)
 })
 
-test('fix times: the office sets a missing check-out; the phone\'s later check-out is 409; the voided phone event stays', async () => {
+test("fix times: the office sets a missing check-out; the phone's later check-out is 409; the voided phone event stays", async () => {
   const { token, keyOf, clientId } = await setup()
   const bill = await visitOf(token, MON, 'Bill')
   const phoneIn = await checkIn(keyOf('Sam'), bill.id, nl(MON, '09:03'))
   assert.equal(phoneIn.status, 201)
   const now = nl(MON, '13:00')
   let v = await visitOf(token, MON, 'Bill', now)
-  const put = (body, visit = v) => api('PUT', `/api/office/visits/${visit.id}/times`, { token, now, body: { version: visit.version, reason: 'Phone battery died (SAMPLE)', ...body } })
-  expectError(await put({ check_in_at: null, check_out_at: null }), 400, 'bad_request', 'check_in_at', 'Give a check-in or a check-out time.')
+  const put = (body, visit = v) =>
+    api('PUT', `/api/office/visits/${visit.id}/times`, {
+      token,
+      now,
+      body: { version: visit.version, reason: 'Phone battery died (SAMPLE)', ...body },
+    })
+  expectError(
+    await put({ check_in_at: null, check_out_at: null }),
+    400,
+    'bad_request',
+    'check_in_at',
+    'Give a check-in or a check-out time.',
+  )
   expectError(await put({ check_out_at: nl(MON, '10:01'), reason: '' }), 400, 'bad_request', 'reason', 'Say why the time is being fixed.')
   expectError(await put({ check_out_at: nl(MON, '10:01'), reason: 'MCP 1234 5678 9012' }), 400, 'bad_request', 'reason', HEALTH)
   expectError(await put({ check_out_at: nl(MON, '09:03') }), 400, 'bad_request', 'check_out_at', 'Check-out has to be after check-in.')
@@ -1182,18 +1699,24 @@ test('fix times: the office sets a missing check-out; the phone\'s later check-o
   assert.equal(fixIn.body.worked_seconds, 61 * 60)
   const rows = await storedEvents(bill.id)
   assert.equal(rows.length, 3, JSON.stringify(rows))
-  assert.deepEqual(rows.filter(e => e.voided_at).map(e => e.id), [phoneIn.body.event.id])
+  assert.deepEqual(
+    rows.filter((e) => e.voided_at).map((e) => e.id),
+    [phoneIn.body.event.id],
+  )
   const payroll = await api('GET', `/api/office/reports/payroll?from=${MON}&to=${MON}`, { token, now })
   assert.equal(payroll.body.total.seconds, 61 * 60)
 
-  const loose = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '14:00', end: '15:00' } })
+  const loose = await api('POST', '/api/office/visits', {
+    token,
+    body: { client_id: clientId('Walter'), worker_id: null, date: MON, start: '14:00', end: '15:00' },
+  })
   expectError(await put({ check_in_at: nl(MON, '14:00') }, loose.body), 400, 'bad_request', 'worker_id', 'Assign a worker first.')
   const walter = await visitOf(token, MON, 'Walter', now)
   expectError(await put({ check_out_at: nl(MON, '10:00') }, walter), 400, 'bad_request', 'check_out_at')
 })
 
 /** A worker's visit worked from `startHm` for exactly `seconds`, through the phone routes. */
-async function work (token, key, date, clientPrefix, startHm, seconds) {
+async function work(token, key, date, clientPrefix, startHm, seconds) {
   const v = await visitOf(token, date, clientPrefix)
   const at = nl(date, startHm)
   assert.equal((await checkIn(key, v.id, at)).status, 201)
@@ -1216,24 +1739,65 @@ test('reports: payroll exactness — 1:00:20 + 0:45:20 + 2:10:20 is 14 160 s and
     to: WED,
     period_label: 'Mon Sep 14 to Wed Sep 16',
     rows: [
-      { worker_id: workerId('Alex'), worker_name: 'Alex B. (SAMPLE)', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min',
-        clients: [{ client_id: clientId('Walter'), client_name: 'Walter G. (SAMPLE)', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min' }] },
-      { worker_id: workerId('Sam'), worker_name: 'Sam R. (SAMPLE)', visits: 3, seconds: 14160, hours: '3.93', hm_label: '3 h 56 min',
+      {
+        worker_id: workerId('Alex'),
+        worker_name: 'Alex B. (SAMPLE)',
+        visits: 1,
+        seconds: 3600,
+        hours: '1.00',
+        hm_label: '1 h 0 min',
         clients: [
-          { client_id: clientId('Bill'), client_name: 'Bill S. (SAMPLE)', visits: 2, seconds: 11440, hours: '3.18', hm_label: '3 h 10 min' },
-          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' }
-        ] }
+          {
+            client_id: clientId('Walter'),
+            client_name: 'Walter G. (SAMPLE)',
+            visits: 1,
+            seconds: 3600,
+            hours: '1.00',
+            hm_label: '1 h 0 min',
+          },
+        ],
+      },
+      {
+        worker_id: workerId('Sam'),
+        worker_name: 'Sam R. (SAMPLE)',
+        visits: 3,
+        seconds: 14160,
+        hours: '3.93',
+        hm_label: '3 h 56 min',
+        clients: [
+          {
+            client_id: clientId('Bill'),
+            client_name: 'Bill S. (SAMPLE)',
+            visits: 2,
+            seconds: 11440,
+            hours: '3.18',
+            hm_label: '3 h 10 min',
+          },
+          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' },
+        ],
+      },
     ],
     total: { visits: 4, seconds: 17760, hours: '4.93', hm_label: '4 h 56 min' },
-    incomplete: [{ visit_id: open.id, worker_name: 'Alex B. (SAMPLE)', client_name: 'Walter G. (SAMPLE)', date_label: 'Tue Sep 15', check_in_label: '9:01 AM' }],
-    note: 'Hours are check-out minus check-in, added up to the second and rounded once.'
+    incomplete: [
+      {
+        visit_id: open.id,
+        worker_name: 'Alex B. (SAMPLE)',
+        client_name: 'Walter G. (SAMPLE)',
+        date_label: 'Tue Sep 15',
+        check_in_label: '9:01 AM',
+      },
+    ],
+    note: 'Hours are check-out minus check-in, added up to the second and rounded once.',
   })
 })
 
 test('reports: payroll period uses the NL date of the check-in (23:50 NDT on the last day counts, 00:10 the next day does not)', async () => {
   const { token, keyOf, clientId, workerId } = await setup()
   const make = async (date, start, end) => {
-    const r = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Doris'), worker_id: workerId('Jo'), date, start, end } })
+    const r = await api('POST', '/api/office/visits', {
+      token,
+      body: { client_id: clientId('Doris'), worker_id: workerId('Jo'), date, start, end },
+    })
     assert.equal(r.status, 201, r.text)
     return r.body
   }
@@ -1263,19 +1827,76 @@ test('reports: billing by funder with scheduled minutes, and the period refusals
     to: MON,
     period_label: 'Mon Sep 14 to Mon Sep 14',
     funders: [
-      { funder_id: 1, funder_name: 'SAMPLE Regional home support program', visits: 2, seconds: 6340, hours: '1.76', hm_label: '1 h 45 min', scheduled_hours: '2.50',
+      {
+        funder_id: 1,
+        funder_name: 'SAMPLE Regional home support program',
+        visits: 2,
+        seconds: 6340,
+        hours: '1.76',
+        hm_label: '1 h 45 min',
+        scheduled_hours: '2.50',
         clients: [
-          { client_id: clientId('Bill'), client_name: 'Bill S. (SAMPLE)', visits: 1, scheduled_minutes: 60, scheduled_hours: '1.00', seconds: 3620, hours: '1.01', hm_label: '1 h 0 min' },
-          { client_id: clientId('Ruby'), client_name: 'Ruby T. (SAMPLE)', visits: 1, scheduled_minutes: 90, scheduled_hours: '1.50', seconds: 2720, hours: '0.76', hm_label: '0 h 45 min' }
-        ] },
-      { funder_id: 3, funder_name: 'SAMPLE Veterans program', visits: 1, seconds: 3600, hours: '1.00', hm_label: '1 h 0 min', scheduled_hours: '1.00',
-        clients: [{ client_id: clientId('Walter'), client_name: 'Walter G. (SAMPLE)', visits: 1, scheduled_minutes: 60, scheduled_hours: '1.00', seconds: 3600, hours: '1.00', hm_label: '1 h 0 min' }] }
+          {
+            client_id: clientId('Bill'),
+            client_name: 'Bill S. (SAMPLE)',
+            visits: 1,
+            scheduled_minutes: 60,
+            scheduled_hours: '1.00',
+            seconds: 3620,
+            hours: '1.01',
+            hm_label: '1 h 0 min',
+          },
+          {
+            client_id: clientId('Ruby'),
+            client_name: 'Ruby T. (SAMPLE)',
+            visits: 1,
+            scheduled_minutes: 90,
+            scheduled_hours: '1.50',
+            seconds: 2720,
+            hours: '0.76',
+            hm_label: '0 h 45 min',
+          },
+        ],
+      },
+      {
+        funder_id: 3,
+        funder_name: 'SAMPLE Veterans program',
+        visits: 1,
+        seconds: 3600,
+        hours: '1.00',
+        hm_label: '1 h 0 min',
+        scheduled_hours: '1.00',
+        clients: [
+          {
+            client_id: clientId('Walter'),
+            client_name: 'Walter G. (SAMPLE)',
+            visits: 1,
+            scheduled_minutes: 60,
+            scheduled_hours: '1.00',
+            seconds: 3600,
+            hours: '1.00',
+            hm_label: '1 h 0 min',
+          },
+        ],
+      },
     ],
     total: { visits: 3, seconds: 9940, hours: '2.76', hm_label: '2 h 45 min', scheduled_hours: '3.50' },
-    note: 'Hours worked are check-out minus check-in.'
+    note: 'Hours worked are check-out minus check-in.',
   })
-  expectError(await api('GET', `/api/office/reports/billing?from=${TUE}&to=${MON}`, { token }), 400, 'bad_request', 'to', 'The end date has to be on or after the start date.')
-  expectError(await api('GET', `/api/office/reports/billing?from=2026-07-01&to=2026-09-01`, { token }), 400, 'bad_request', 'to', 'Pick up to 62 days at a time.')
+  expectError(
+    await api('GET', `/api/office/reports/billing?from=${TUE}&to=${MON}`, { token }),
+    400,
+    'bad_request',
+    'to',
+    'The end date has to be on or after the start date.',
+  )
+  expectError(
+    await api('GET', `/api/office/reports/billing?from=2026-07-01&to=2026-09-01`, { token }),
+    400,
+    'bad_request',
+    'to',
+    'Pick up to 62 days at a time.',
+  )
   assert.equal((await api('GET', `/api/office/reports/billing?from=2026-07-01&to=2026-08-31`, { token })).status, 200, '62 days is allowed')
   expectError(await api('GET', `/api/office/reports/billing?to=${MON}`, { token }), 400, 'bad_request', 'from')
   expectError(await api('GET', `/api/office/reports/billing?from=${MON}&to=${MON}`), 401, 'unauthorized')
@@ -1286,7 +1907,10 @@ test('reports: billing scheduled_hours come from summed minutes: three 20-minute
   const clients = ['Margaret', 'Ron', 'Gladys'] // all SAMPLE Regional home support program
   for (const [i, name] of clients.entries()) {
     const start = `1${4 + i}:00`
-    const v = await api('POST', '/api/office/visits', { token, body: { client_id: clientId(name), worker_id: workerId('Sam'), date: MON, start, end: `1${4 + i}:20` } })
+    const v = await api('POST', '/api/office/visits', {
+      token,
+      body: { client_id: clientId(name), worker_id: workerId('Sam'), date: MON, start, end: `1${4 + i}:20` },
+    })
     assert.equal(v.status, 201, v.text)
     assert.equal((await checkIn(keyOf('Sam'), v.body.id, nl(MON, start))).status, 201)
     assert.equal((await checkOut(keyOf('Sam'), v.body.id, plus(nl(MON, start), 20))).status, 201)
@@ -1295,8 +1919,14 @@ test('reports: billing scheduled_hours come from summed minutes: three 20-minute
   const r = await api('GET', `/api/office/reports/billing?from=${MON}&to=${MON}`, { token, now })
   assert.equal(r.status, 200, r.text)
   const [funder] = r.body.funders
-  assert.deepEqual(funder.clients.map(c => [c.client_name, c.scheduled_minutes, c.scheduled_hours]),
-    [['Gladys W. (SAMPLE)', 20, '0.33'], ['Margaret P. (SAMPLE)', 20, '0.33'], ['Ron K. (SAMPLE)', 20, '0.33']])
+  assert.deepEqual(
+    funder.clients.map((c) => [c.client_name, c.scheduled_minutes, c.scheduled_hours]),
+    [
+      ['Gladys W. (SAMPLE)', 20, '0.33'],
+      ['Margaret P. (SAMPLE)', 20, '0.33'],
+      ['Ron K. (SAMPLE)', 20, '0.33'],
+    ],
+  )
   assert.equal(funder.scheduled_hours, '1.00', 'the funder from 60 summed minutes, not 0.33 + 0.33 + 0.33')
   assert.equal(r.body.total.scheduled_hours, '1.00', 'the total from summed minutes')
   const csv = (await api('GET', `/api/office/reports/billing.csv?from=${MON}&to=${MON}`, { token, now })).text.split('\r\n')
@@ -1305,7 +1935,7 @@ test('reports: billing scheduled_hours come from summed minutes: three 20-minute
     'SAMPLE Regional home support program,Margaret P. (SAMPLE),1,0.33,0.33,0 h 20 min,1200',
     'SAMPLE Regional home support program,Ron K. (SAMPLE),1,0.33,0.33,0 h 20 min,1200',
     'SAMPLE Regional home support program total,,3,1.00,1.00,1 h 0 min,3600',
-    'Total,,3,1.00,1.00,1 h 0 min,3600'
+    'Total,,3,1.00,1.00,1 h 0 min,3600',
   ])
 })
 
@@ -1316,25 +1946,53 @@ test('reports: missed excludes cancelled visits, includes a visit with no worker
   const walter = await visitOf(token, MON, 'Walter')
   assert.equal((await checkIn(keyOf('Alex'), walter.id, nl(MON, '09:15'))).status, 201)
   const ruby = await visitOf(token, MON, 'Ruby')
-  assert.equal((await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'Away (SAMPLE)', version: ruby.version } })).status, 200)
-  const loose = await api('POST', '/api/office/visits', { token, body: { client_id: clientId('Doris'), worker_id: null, date: MON, start: '10:00', end: '11:00' } })
+  assert.equal(
+    (await api('POST', `/api/office/visits/${ruby.id}/cancel`, { token, body: { reason: 'Away (SAMPLE)', version: ruby.version } })).status,
+    200,
+  )
+  const loose = await api('POST', '/api/office/visits', {
+    token,
+    body: { client_id: clientId('Doris'), worker_id: null, date: MON, start: '10:00', end: '11:00' },
+  })
   const r = await api('GET', `/api/office/reports/missed?from=${MON}&to=${MON}`, { token, now: nl(MON, '12:30') })
   assert.equal(r.status, 200, r.text)
   const bill = await visitOf(token, MON, 'Bill')
   const ron = await visitOf(token, MON, 'Ron')
   const gladys = await visitOf(token, MON, 'Gladys')
-  const missed = (v, worker) => ({ visit_id: v.id, date: MON, date_label: 'Mon Sep 14', time_label: v.time_label, client_name: v.client_name, worker_name: worker, what: 'missed', what_label: 'Missed: no check-in', late_minutes: null, check_in_label: null })
+  const missed = (v, worker) => ({
+    visit_id: v.id,
+    date: MON,
+    date_label: 'Mon Sep 14',
+    time_label: v.time_label,
+    client_name: v.client_name,
+    worker_name: worker,
+    what: 'missed',
+    what_label: 'Missed: no check-in',
+    late_minutes: null,
+    check_in_label: null,
+  })
   assert.deepEqual(r.body, {
     from: MON,
     to: MON,
     period_label: 'Mon Sep 14 to Mon Sep 14',
     rows: [
       missed(bill, 'Sam R. (SAMPLE)'),
-      { visit_id: walter.id, date: MON, date_label: 'Mon Sep 14', time_label: '9:00 AM – 10:00 AM', client_name: 'Walter G. (SAMPLE)', worker_name: 'Alex B. (SAMPLE)', what: 'late', what_label: 'Late: checked in 15 min after the start', late_minutes: 15, check_in_label: '9:15 AM' },
+      {
+        visit_id: walter.id,
+        date: MON,
+        date_label: 'Mon Sep 14',
+        time_label: '9:00 AM – 10:00 AM',
+        client_name: 'Walter G. (SAMPLE)',
+        worker_name: 'Alex B. (SAMPLE)',
+        what: 'late',
+        what_label: 'Late: checked in 15 min after the start',
+        late_minutes: 15,
+        check_in_label: '9:15 AM',
+      },
       missed(ron, 'Jo W. (SAMPLE)'),
       missed(loose.body, null),
-      missed(gladys, 'Jo W. (SAMPLE)') // 12:00 + 30 min is exactly now
-    ]
+      missed(gladys, 'Jo W. (SAMPLE)'), // 12:00 + 30 min is exactly now
+    ],
   })
   // A week nobody opened still reports its missed visits.
   const nextWeek = await api('GET', '/api/office/reports/missed?from=2026-09-21&to=2026-09-21', { token, now: '2026-09-21T23:00:00.000Z' })
@@ -1343,7 +2001,13 @@ test('reports: missed excludes cancelled visits, includes a visit with no worker
 
 test('reports: mileage follows check-in order, not schedule order', async () => {
   const { token, keyOf, clientId, workerId } = await setup()
-  const make = async (client, start, end) => (await api('POST', '/api/office/visits', { token, body: { client_id: clientId(client), worker_id: workerId('Sam'), date: MON, start, end } })).body
+  const make = async (client, start, end) =>
+    (
+      await api('POST', '/api/office/visits', {
+        token,
+        body: { client_id: clientId(client), worker_id: workerId('Sam'), date: MON, start, end },
+      })
+    ).body
   const margaret = await make('Margaret', '13:00', '13:30')
   const walter = await make('Walter', '14:00', '14:30')
   const frank = await make('Frank', '15:00', '15:30')
@@ -1362,30 +2026,40 @@ test('reports: mileage follows check-in order, not schedule order', async () => 
     from: MON,
     to: MON,
     period_label: 'Mon Sep 14 to Mon Sep 14',
-    rows: [{
-      worker_id: workerId('Sam'), worker_name: 'Sam R. (SAMPLE)', date: MON, date_label: 'Mon Sep 14',
-      legs: [
-        { from_client: 'Walter G. (SAMPLE)', to_client: 'Margaret P. (SAMPLE)', metres: m1, km: kmText(m1) },
-        { from_client: 'Margaret P. (SAMPLE)', to_client: 'Frank H. (SAMPLE)', metres: m2, km: kmText(m2) }
-      ],
-      metres: m1 + m2,
-      km: kmText(m1 + m2)
-    }],
+    rows: [
+      {
+        worker_id: workerId('Sam'),
+        worker_name: 'Sam R. (SAMPLE)',
+        date: MON,
+        date_label: 'Mon Sep 14',
+        legs: [
+          { from_client: 'Walter G. (SAMPLE)', to_client: 'Margaret P. (SAMPLE)', metres: m1, km: kmText(m1) },
+          { from_client: 'Margaret P. (SAMPLE)', to_client: 'Frank H. (SAMPLE)', metres: m2, km: kmText(m2) },
+        ],
+        metres: m1 + m2,
+        km: kmText(m1 + m2),
+      },
+    ],
     total: [{ worker_id: workerId('Sam'), worker_name: 'Sam R. (SAMPLE)', metres: m1 + m2, km: kmText(m1 + m2) }],
-    note: "Straight-line distance between clients, in the order the worker checked in. Not road distance. The drive to the first client and home from the last isn't counted."
+    note: "Straight-line distance between clients, in the order the worker checked in. Not road distance. The drive to the first client and home from the last isn't counted.",
   })
 })
 
 test('reports: CSV headers, CRLF, quoting, the formula guard and the filename, for all four', async () => {
   const { token, keyOf, workerId } = await setup()
   const add = async (name, lat) => {
-    const r = await api('POST', '/api/office/clients', { token, body: goodClient({ name, lat, lng: -55.67, zone_id: 1, funder_id: 2, patterns: [], family_contacts: [] }) })
+    const r = await api('POST', '/api/office/clients', {
+      token,
+      body: goodClient({ name, lat, lng: -55.67, zone_id: 1, funder_id: 2, patterns: [], family_contacts: [] }),
+    })
     assert.equal(r.status, 201, r.text)
     return r.body
   }
   const kit = await add('Kit "K" O\'Brien, Jr. (SAMPLE)', 48.97)
   const sum = await add('=SUM(A1) (SAMPLE)', 48.98)
-  const visit = async (client, start, end) => (await api('POST', '/api/office/visits', { token, body: { client_id: client.id, worker_id: workerId('Sam'), date: MON, start, end } })).body
+  const visit = async (client, start, end) =>
+    (await api('POST', '/api/office/visits', { token, body: { client_id: client.id, worker_id: workerId('Sam'), date: MON, start, end } }))
+      .body
   const v1 = await visit(kit, '13:00', '14:00')
   const v2 = await visit(sum, '14:30', '15:00')
   assert.equal((await checkIn(keyOf('Sam'), v1.id, nl(MON, '13:00'))).status, 201)
@@ -1393,7 +2067,7 @@ test('reports: CSV headers, CRLF, quoting, the formula guard and the filename, f
   assert.equal((await checkIn(keyOf('Sam'), v2.id, nl(MON, '14:30'))).status, 201)
   assert.equal((await checkOut(keyOf('Sam'), v2.id, plusMs(nl(MON, '14:30'), 2720 * 1000))).status, 201)
   const now = nl(MON, '15:30')
-  const csv = async kind => {
+  const csv = async (kind) => {
     const r = await api('GET', `/api/office/reports/${kind}.csv?from=${MON}&to=${MON}`, { token, now })
     assert.equal(r.status, 200, r.text)
     assert.equal(r.headers.get('content-type'), 'text/csv; charset=utf-8')
@@ -1406,29 +2080,41 @@ test('reports: CSV headers, CRLF, quoting, the formula guard and the filename, f
   }
   const KIT = '"Kit ""K"" O\'Brien, Jr. (SAMPLE)"'
   const SUM = "'=SUM(A1) (SAMPLE)"
-  assert.equal(await csv('payroll'), [
-    'Worker,Client,Visits,Hours (decimal),Hours and minutes,Seconds',
-    `Sam R. (SAMPLE),${SUM},1,0.76,0 h 45 min,2720`,
-    `Sam R. (SAMPLE),${KIT},1,1.01,1 h 0 min,3620`,
-    'Sam R. (SAMPLE) total,,2,1.76,1 h 45 min,6340',
-    'Total,,2,1.76,1 h 45 min,6340', ''
-  ].join('\r\n'))
-  assert.equal(await csv('billing'), [
-    'Funder,Client,Visits,Scheduled hours,Hours worked (decimal),Hours and minutes,Seconds',
-    `Private pay (SAMPLE),${SUM},1,0.50,0.76,0 h 45 min,2720`,
-    `Private pay (SAMPLE),${KIT},1,1.00,1.01,1 h 0 min,3620`,
-    'Private pay (SAMPLE) total,,2,1.50,1.76,1 h 45 min,6340',
-    'Total,,2,1.50,1.76,1 h 45 min,6340', ''
-  ].join('\r\n'))
+  assert.equal(
+    await csv('payroll'),
+    [
+      'Worker,Client,Visits,Hours (decimal),Hours and minutes,Seconds',
+      `Sam R. (SAMPLE),${SUM},1,0.76,0 h 45 min,2720`,
+      `Sam R. (SAMPLE),${KIT},1,1.01,1 h 0 min,3620`,
+      'Sam R. (SAMPLE) total,,2,1.76,1 h 45 min,6340',
+      'Total,,2,1.76,1 h 45 min,6340',
+      '',
+    ].join('\r\n'),
+  )
+  assert.equal(
+    await csv('billing'),
+    [
+      'Funder,Client,Visits,Scheduled hours,Hours worked (decimal),Hours and minutes,Seconds',
+      `Private pay (SAMPLE),${SUM},1,0.50,0.76,0 h 45 min,2720`,
+      `Private pay (SAMPLE),${KIT},1,1.00,1.01,1 h 0 min,3620`,
+      'Private pay (SAMPLE) total,,2,1.50,1.76,1 h 45 min,6340',
+      'Total,,2,1.50,1.76,1 h 45 min,6340',
+      '',
+    ].join('\r\n'),
+  )
   const missed = (await csv('missed')).split('\r\n')
   assert.equal(missed[0], 'Date,Scheduled,Client,Worker,What happened,Minutes late')
   assert.equal(missed[1], '2026-09-14,8:30 AM – 9:30 AM,Margaret P. (SAMPLE),Jo W. (SAMPLE),Missed: no check-in,')
   const km = kmText(distanceM(48.97, -55.67, 48.98, -55.67))
-  assert.equal(await csv('mileage'), [
-    'Worker,Date,From,To,Kilometres (straight line)',
-    `Sam R. (SAMPLE),2026-09-14,${KIT},${SUM},${km}`,
-    `Sam R. (SAMPLE) total,,,,${km}`, ''
-  ].join('\r\n'))
+  assert.equal(
+    await csv('mileage'),
+    [
+      'Worker,Date,From,To,Kilometres (straight line)',
+      `Sam R. (SAMPLE),2026-09-14,${KIT},${SUM},${km}`,
+      `Sam R. (SAMPLE) total,,,,${km}`,
+      '',
+    ].join('\r\n'),
+  )
   expectError(await api('GET', `/api/office/reports/payroll.csv?from=${MON}&to=${MON}`, { now }), 401, 'unauthorized')
 })
 
@@ -1442,29 +2128,44 @@ test('demo seed: a lived-in fortnight with exactly one missed, a late Sam R. vis
     assert.equal(r.body.clients.length, 12)
     const token = (await api('POST', '/api/office/signin', { now, body: { pin: '4826' } })).body.token
     const day = await dayVisits(token, WED, now)
-    assert.equal(day.filter(v => v.alert === 'missed').length, 1, `${now}: ${JSON.stringify(day.map(v => [v.client_name, v.start, v.alert, v.status]))}`)
-    assert.ok(day.some(v => v.alert === 'late' && v.worker_name === 'Sam R. (SAMPLE)' && v.pattern_id === null), 'Sam R. is late')
-    assert.equal(day.filter(v => v.status === 'checked_in').length, 1)
+    assert.equal(
+      day.filter((v) => v.alert === 'missed').length,
+      1,
+      `${now}: ${JSON.stringify(day.map((v) => [v.client_name, v.start, v.alert, v.status]))}`,
+    )
+    assert.ok(
+      day.some((v) => v.alert === 'late' && v.worker_name === 'Sam R. (SAMPLE)' && v.pattern_id === null),
+      'Sam R. is late',
+    )
+    assert.equal(day.filter((v) => v.status === 'checked_in').length, 1)
     for (const v of day) {
-      if (Date.parse(v.starts_at) + 30 * 60000 <= Date.parse(now) && v.alert !== 'missed') assert.equal(v.status, 'checked_out', `${v.client_name} ${v.start}`)
+      if (Date.parse(v.starts_at) + 30 * 60000 <= Date.parse(now) && v.alert !== 'missed')
+        assert.equal(v.status, 'checked_out', `${v.client_name} ${v.start}`)
     }
     const thisWeek = await week(token, MON, now)
-    assert.ok(thisWeek.conflicts.some(c => c.kind === 'double_booked' && c.worker_id === r.body.workers.find(w => w.name.startsWith('Chris')).id))
+    assert.ok(
+      thisWeek.conflicts.some(
+        (c) => c.kind === 'double_booked' && c.worker_id === r.body.workers.find((w) => w.name.startsWith('Chris')).id,
+      ),
+    )
     const lastWeek = await week(token, '2026-09-07', now)
     assert.equal(lastWeek.visits.length, 36)
-    assert.ok(lastWeek.visits.every(v => v.status === 'checked_out'), 'last week is all done')
-    assert.equal(lastWeek.visits.find(v => v.client_name.startsWith('Edna') && v.date === '2026-09-11').worker_name, 'Chris M. (SAMPLE)')
-    const past = [...lastWeek.visits, ...thisWeek.visits].filter(v => v.check_out)
+    assert.ok(
+      lastWeek.visits.every((v) => v.status === 'checked_out'),
+      'last week is all done',
+    )
+    assert.equal(lastWeek.visits.find((v) => v.client_name.startsWith('Edna') && v.date === '2026-09-11').worker_name, 'Chris M. (SAMPLE)')
+    const past = [...lastWeek.visits, ...thisWeek.visits].filter((v) => v.check_out)
     for (const v of past) {
       const inAfter = (Date.parse(v.check_in.at) - Date.parse(v.starts_at)) / 60000
       assert.ok(inAfter >= 0 && inAfter <= 9, `check-in ${inAfter} min after the start`)
     }
-    const locations = past.map(v => v.check_in.location)
-    assert.equal(locations.filter(l => l === 'far').length, 1)
-    assert.equal(locations.filter(l => l === 'not_shared').length, 1)
-    const notes = past.filter(v => v.note)
-    assert.ok(notes.length > past.length / 3 && notes.length < past.length * 2 / 3, `${notes.length} notes on ${past.length} visits`)
-    assert.ok(notes.some(v => v.note.shareable) && notes.some(v => !v.note.shareable))
+    const locations = past.map((v) => v.check_in.location)
+    assert.equal(locations.filter((l) => l === 'far').length, 1)
+    assert.equal(locations.filter((l) => l === 'not_shared').length, 1)
+    const notes = past.filter((v) => v.note)
+    assert.ok(notes.length > past.length / 3 && notes.length < (past.length * 2) / 3, `${notes.length} notes on ${past.length} visits`)
+    assert.ok(notes.some((v) => v.note.shareable) && notes.some((v) => !v.note.shareable))
     const payroll = await api('GET', `/api/office/reports/payroll?from=${addDays(WED, -13)}&to=${WED}`, { token, now })
     assert.ok(payroll.body.rows.length >= 4 && payroll.body.total.seconds > 0)
 
@@ -1489,9 +2190,13 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
     [TUE, 'Frank', { note: 'Daughter called from 709 555 0152 709 555 0153' }, { note_refused: HEALTH }],
     [WED, 'Bill', { note: 123 }, { note_refused: TWO_LINES }],
     [WED, 'Ruby', { tasks: undefined, note: 'Kept this note.' }, { tasks_refused: TASKS }],
-    [THU, 'Frank', { tasks: [{ task_id: 1, kind: 'medication_reminder', label: 'Gave her pills', done: true }], note: 'MCP 1234 5678 9012' },
-      { tasks_refused: MEDICATION, note_refused: HEALTH }],
-    [FRI, 'Bill', { note: 'A clean note. (SAMPLE)' }, {}]
+    [
+      THU,
+      'Frank',
+      { tasks: [{ task_id: 1, kind: 'medication_reminder', label: 'Gave her pills', done: true }], note: 'MCP 1234 5678 9012' },
+      { tasks_refused: MEDICATION, note_refused: HEALTH },
+    ],
+    [FRI, 'Bill', { note: 'A clean note. (SAMPLE)' }, {}],
   ]
   for (const [date, client, body, refused] of cases) {
     const v = await visitOf(token, date, client)
@@ -1499,7 +2204,11 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
     assert.equal((await checkIn(key, v.id, at)).status, 201)
     const id = randomUUID()
     const outAt = plusMs(at, 3600 * 1000)
-    const r = await api('POST', '/api/worker/events', { key, now: outAt, body: { id, visit_id: v.id, kind: 'check_out', at: outAt, tasks: [], note: '', ...body } })
+    const r = await api('POST', '/api/worker/events', {
+      key,
+      now: outAt,
+      body: { id, visit_id: v.id, kind: 'check_out', at: outAt, tasks: [], note: '', ...body },
+    })
     assert.equal(r.status, 201, `${client} ${date}: ${r.text}`)
     assert.equal(r.body.note_refused, refused.note_refused, r.text)
     assert.equal(r.body.tasks_refused, refused.tasks_refused, r.text)
@@ -1508,7 +2217,11 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
     assert.equal(office.worked_seconds, 3600)
     assert.equal(office.note?.text ?? null, refused.note_refused ? null : body.note)
     assert.deepEqual(office.tasks_done, [])
-    const again = await api('POST', '/api/worker/events', { key, now: plus(outAt, 5), body: { id, visit_id: v.id, kind: 'check_out', at: outAt, tasks: [], ...body } })
+    const again = await api('POST', '/api/worker/events', {
+      key,
+      now: plus(outAt, 5),
+      body: { id, visit_id: v.id, kind: 'check_out', at: outAt, tasks: [], ...body },
+    })
     assert.equal(again.status, 200, again.text)
     assert.equal(again.body.duplicate, true)
     // Clarification 16: the resend's answer repeats what was refused (and a clean check-out's has neither field).
@@ -1520,8 +2233,12 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
   const later = nl(FRI, '18:00')
   const views = [
     (await api('GET', `/api/office/week?start=${MON}`, { token, now: later })).text,
-    ...(await Promise.all([MON, TUE, WED, THU, FRI].map(d => api('GET', `/api/office/day?date=${d}`, { token, now: later })))).map(r => r.text),
-    ...(await Promise.all(['Bill', 'Ruby', 'Frank'].map(c => api('GET', `/api/family/${familyKey(c)}`, { now: later })))).map(r => r.text)
+    ...(await Promise.all([MON, TUE, WED, THU, FRI].map((d) => api('GET', `/api/office/day?date=${d}`, { token, now: later })))).map(
+      (r) => r.text,
+    ),
+    ...(await Promise.all(['Bill', 'Ruby', 'Frank'].map((c) => api('GET', `/api/family/${familyKey(c)}`, { now: later })))).map(
+      (r) => r.text,
+    ),
   ]
   for (const text of views) {
     for (const s of ['note_refused', 'tasks_refused', TWO_LINES, TASKS, MEDICATION]) assert.ok(!text.includes(s), `a view contains ${s}`)
@@ -1531,9 +2248,9 @@ test('check-out: a note or a task list that breaks a rule never costs the check-
 test('soft-remove: a check-in tapped before the pattern changed lands, shows cancelled and visited, and counts for payroll', async () => {
   const tapped = nl(WED, '08:55')
   const { token, keyOf, clientId, workerId } = await setup(tapped)
-  const before = (await week(token, MON, tapped)).visits.filter(v => v.client_name.startsWith('Walter'))
-  const wed9 = before.find(v => v.date === WED)
-  const thu9 = before.find(v => v.date === THU)
+  const before = (await week(token, MON, tapped)).visits.filter((v) => v.client_name.startsWith('Walter'))
+  const wed9 = before.find((v) => v.date === WED)
+  const thu9 = before.find((v) => v.date === THU)
   const client = (await api('GET', `/api/office/clients/${clientId('Walter')}`, { token, now: tapped })).body
   const input = clientInput(client)
   input.patterns[0] = { ...input.patterns[0], start: '10:00', end: '11:00' }
@@ -1545,35 +2262,59 @@ test('soft-remove: a check-in tapped before the pattern changed lands, shows can
   const late = await checkIn(keyOf('Alex'), wed9.id, tapped, { now: nl(WED, '09:30') })
   assert.equal(late.status, 201, late.text)
   assert.equal(late.body.event.at, tapped)
-  const board = (await dayVisits(token, WED, nl(WED, '09:31'))).filter(v => v.client_name.startsWith('Walter'))
-  assert.deepEqual(board.map(v => [v.id === wed9.id, v.start, v.status, v.cancelled, v.cancel_reason, v.visited_after_cancel]), [
-    [true, '09:00', 'checked_in', true, 'Removed when the visit pattern changed.', true],
-    [false, '10:00', 'scheduled', false, null, false]
-  ])
+  const board = (await dayVisits(token, WED, nl(WED, '09:31'))).filter((v) => v.client_name.startsWith('Walter'))
+  assert.deepEqual(
+    board.map((v) => [v.id === wed9.id, v.start, v.status, v.cancelled, v.cancel_reason, v.visited_after_cancel]),
+    [
+      [true, '09:00', 'checked_in', true, 'Removed when the visit pattern changed.', true],
+      [false, '10:00', 'scheduled', false, null, false],
+    ],
+  )
   assert.equal(board[0].check_in.at, tapped)
   const phone = await api('GET', `/api/worker/visits?date=${WED}`, { key: keyOf('Alex'), now: nl(WED, '09:31') })
-  assert.deepEqual(phone.body.visits.filter(v => v.client_name.startsWith('Walter')).map(v => [v.start, v.cancelled]), [['09:00', true], ['10:00', false]])
+  assert.deepEqual(
+    phone.body.visits.filter((v) => v.client_name.startsWith('Walter')).map((v) => [v.start, v.cancelled]),
+    [
+      ['09:00', true],
+      ['10:00', false],
+    ],
+  )
 
   assert.equal((await checkOut(keyOf('Alex'), wed9.id, nl(WED, '09:55'))).status, 201)
   const now = nl(WED, '18:00')
   const payroll = await api('GET', `/api/office/reports/payroll?from=${WED}&to=${WED}`, { token, now })
-  assert.deepEqual(payroll.body.rows.map(r => [r.worker_id, r.seconds, r.clients.map(c => c.client_name)]), [[workerId('Alex'), 3600, ['Walter G. (SAMPLE)']]])
+  assert.deepEqual(
+    payroll.body.rows.map((r) => [r.worker_id, r.seconds, r.clients.map((c) => c.client_name)]),
+    [[workerId('Alex'), 3600, ['Walter G. (SAMPLE)']]],
+  )
   const billing = await api('GET', `/api/office/reports/billing?from=${WED}&to=${WED}`, { token, now })
   assert.equal(billing.body.total.seconds, 3600)
   const missed = await api('GET', `/api/office/reports/missed?from=${WED}&to=${WED}`, { token, now })
-  assert.ok(!missed.body.rows.some(r => r.visit_id === wed9.id), 'a cancelled visit is never missed')
+  assert.ok(!missed.body.rows.some((r) => r.visit_id === wed9.id), 'a cancelled visit is never missed')
 
   // Office edits to a removed visit with no event are 404.
   expectError(await api('PUT', `/api/office/visits/${thu9.id}`, { token, now, body: moveBody(thu9) }), 404, 'not_found')
-  expectError(await api('POST', `/api/office/visits/${thu9.id}/cancel`, { token, now, body: { reason: 'x', version: thu9.version } }), 404, 'not_found')
-  expectError(await api('PUT', `/api/office/visits/${thu9.id}/times`, { token, now, body: { check_in_at: nl(THU, '09:00'), reason: 'x', version: thu9.version } }), 404, 'not_found')
+  expectError(
+    await api('POST', `/api/office/visits/${thu9.id}/cancel`, { token, now, body: { reason: 'x', version: thu9.version } }),
+    404,
+    'not_found',
+  )
+  expectError(
+    await api('PUT', `/api/office/visits/${thu9.id}/times`, {
+      token,
+      now,
+      body: { check_in_at: nl(THU, '09:00'), reason: 'x', version: thu9.version },
+    }),
+    404,
+    'not_found',
+  )
 })
 
 test('soft-remove: a removed visit with no events appears nowhere — week, day, phone, family, conflicts, missed', async () => {
   const change = nl(WED, '08:57')
   const { token, keyOf, clientId, familyKey } = await setup(change)
-  const before = (await week(token, MON, change)).visits.filter(v => v.client_name.startsWith('Walter'))
-  const removedIds = before.filter(v => v.date >= WED).map(v => v.id)
+  const before = (await week(token, MON, change)).visits.filter((v) => v.client_name.startsWith('Walter'))
+  const removedIds = before.filter((v) => v.date >= WED).map((v) => v.id)
   const client = (await api('GET', `/api/office/clients/${clientId('Walter')}`, { token, now: change })).body
   const input = clientInput(client)
   input.patterns[0] = { ...input.patterns[0], start: '10:00', end: '11:00' }
@@ -1582,40 +2323,69 @@ test('soft-remove: a removed visit with no events appears nowhere — week, day,
   const now = nl(FRI, '23:00')
   const raw = [
     (await api('GET', `/api/office/week?start=${MON}`, { token, now })).text,
-    ...(await Promise.all([WED, THU, FRI].map(d => api('GET', `/api/office/day?date=${d}`, { token, now })))).map(r => r.text),
+    ...(await Promise.all([WED, THU, FRI].map((d) => api('GET', `/api/office/day?date=${d}`, { token, now })))).map((r) => r.text),
     (await api('GET', `/api/worker/visits?date=${FRI}`, { key: keyOf('Alex'), now })).text,
     (await api('GET', `/api/family/${familyKey('Walter')}`, { now })).text,
-    (await api('GET', `/api/office/reports/missed?from=${MON}&to=${FRI}`, { token, now })).text
+    (await api('GET', `/api/office/reports/missed?from=${MON}&to=${FRI}`, { token, now })).text,
   ]
-  for (const text of raw) for (const id of removedIds) assert.ok(!new RegExp(`"(id|visit_id)":${id}[,}]`).test(text) && !text.includes(`,${id}]`) && !text.includes(`[${id},`) && !text.includes(`[${id}]`), `removed visit ${id} in ${text.slice(0, 80)}`)
+  for (const text of raw)
+    for (const id of removedIds)
+      assert.ok(
+        !new RegExp(`"(id|visit_id)":${id}[,}]`).test(text) &&
+          !text.includes(`,${id}]`) &&
+          !text.includes(`[${id},`) &&
+          !text.includes(`[${id}]`),
+        `removed visit ${id} in ${text.slice(0, 80)}`,
+      )
   const w = await week(token, MON, now)
-  assert.deepEqual(w.visits.filter(v => v.client_name.startsWith('Walter')).map(v => [v.date, v.start]),
-    [[MON, '09:00'], [TUE, '09:00'], [WED, '10:00'], [THU, '10:00'], [FRI, '10:00']])
+  assert.deepEqual(
+    w.visits.filter((v) => v.client_name.startsWith('Walter')).map((v) => [v.date, v.start]),
+    [
+      [MON, '09:00'],
+      [TUE, '09:00'],
+      [WED, '10:00'],
+      [THU, '10:00'],
+      [FRI, '10:00'],
+    ],
+  )
   const missed = (await api('GET', `/api/office/reports/missed?from=${WED}&to=${FRI}`, { token, now })).body.rows
-  assert.deepEqual(missed.filter(r => r.client_name.startsWith('Walter')).map(r => [r.date, r.time_label]),
-    [[WED, '10:00 AM – 11:00 AM'], [THU, '10:00 AM – 11:00 AM'], [FRI, '10:00 AM – 11:00 AM']])
+  assert.deepEqual(
+    missed.filter((r) => r.client_name.startsWith('Walter')).map((r) => [r.date, r.time_label]),
+    [
+      [WED, '10:00 AM – 11:00 AM'],
+      [THU, '10:00 AM – 11:00 AM'],
+      [FRI, '10:00 AM – 11:00 AM'],
+    ],
+  )
   const family = (await api('GET', `/api/family/${familyKey('Walter')}`, { now })).body
-  assert.deepEqual(family.week.days.map(d => d.visits.map(v => v.time_label)),
-    [['9:00 AM – 10:00 AM'], ['9:00 AM – 10:00 AM'], ['10:00 AM – 11:00 AM'], ['10:00 AM – 11:00 AM'], ['10:00 AM – 11:00 AM'], [], []])
+  assert.deepEqual(
+    family.week.days.map((d) => d.visits.map((v) => v.time_label)),
+    [['9:00 AM – 10:00 AM'], ['9:00 AM – 10:00 AM'], ['10:00 AM – 11:00 AM'], ['10:00 AM – 11:00 AM'], ['10:00 AM – 11:00 AM'], [], []],
+  )
 })
 
-test('soft-remove: a deactivated client\'s removed visits appear nowhere, and a late check-in still lands with the inactive reason', async () => {
+test("soft-remove: a deactivated client's removed visits appear nowhere, and a late check-in still lands with the inactive reason", async () => {
   const change = nl(WED, '08:57')
   const { token, keyOf, clientId } = await setup(change)
-  const before = (await week(token, MON, change)).visits.filter(v => v.client_name.startsWith('Walter'))
+  const before = (await week(token, MON, change)).visits.filter((v) => v.client_name.startsWith('Walter'))
   const client = (await api('GET', `/api/office/clients/${clientId('Walter')}`, { token, now: change })).body
   const put = await api('PUT', `/api/office/clients/${client.id}`, { token, now: change, body: { ...clientInput(client), active: false } })
   assert.equal(put.body.rebuilt_visits, 3)
   const now = nl(FRI, '23:00')
-  assert.deepEqual((await week(token, MON, now)).visits.filter(v => v.client_name.startsWith('Walter')).map(v => v.date), [MON, TUE])
-  assert.ok(!(await dayVisits(token, THU, now)).some(v => v.client_name.startsWith('Walter')))
+  assert.deepEqual(
+    (await week(token, MON, now)).visits.filter((v) => v.client_name.startsWith('Walter')).map((v) => v.date),
+    [MON, TUE],
+  )
+  assert.ok(!(await dayVisits(token, THU, now)).some((v) => v.client_name.startsWith('Walter')))
   const missed = (await api('GET', `/api/office/reports/missed?from=${WED}&to=${FRI}`, { token, now })).body.rows
-  assert.ok(!missed.some(r => r.client_name.startsWith('Walter')), JSON.stringify(missed))
+  assert.ok(!missed.some((r) => r.client_name.startsWith('Walter')), JSON.stringify(missed))
 
-  const wed9 = before.find(v => v.date === WED)
+  const wed9 = before.find((v) => v.date === WED)
   const r = await checkIn(keyOf('Alex'), wed9.id, nl(WED, '08:55'), { now: nl(WED, '09:40') })
   assert.equal(r.status, 201, r.text)
-  const shown = (await dayVisits(token, WED, now)).find(v => v.id === wed9.id)
-  assert.deepEqual([shown.cancelled, shown.cancel_reason, shown.visited_after_cancel, shown.status],
-    [true, 'Removed when the client was made inactive.', true, 'checked_in'])
+  const shown = (await dayVisits(token, WED, now)).find((v) => v.id === wed9.id)
+  assert.deepEqual(
+    [shown.cancelled, shown.cancel_reason, shown.visited_after_cancel, shown.status],
+    [true, 'Removed when the client was made inactive.', true, 'checked_in'],
+  )
 })

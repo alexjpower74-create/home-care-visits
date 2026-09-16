@@ -7,5 +7,5 @@ await runControl({
   tests: ['check-out: a note or a task list that breaks a rule never costs the check-out'],
   api: true,
   breaks: [{ file: 'src/index.js', find: '    out.note_refused = e.body.error\n', replace: '    throw e\n' }],
-  describe: 'a note that breaks a rule refuses the check-out with it'
+  describe: 'a note that breaks a rule refuses the check-out with it',
 })

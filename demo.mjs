@@ -14,8 +14,12 @@ const BASE = `http://127.0.0.1:${PORT}`
 const STATE = join(WORKER, `.state-${PORT}`)
 const env = { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' }
 
-async function answers (url) {
-  try { return (await fetch(url, { signal: AbortSignal.timeout(1500) })).ok } catch { return false }
+async function answers(url) {
+  try {
+    return (await fetch(url, { signal: AbortSignal.timeout(1500) })).ok
+  } catch {
+    return false
+  }
 }
 
 if (await answers(`${BASE}/api/agency`)) {
@@ -24,39 +28,77 @@ if (await answers(`${BASE}/api/agency`)) {
 }
 
 rmSync(STATE, { recursive: true, force: true })
-const migrate = spawnSync('wrangler', ['d1', 'migrations', 'apply', 'home-care-visits', '--local', '--persist-to', STATE],
-  { cwd: WORKER, env, encoding: 'utf8' })
+const migrate = spawnSync('wrangler', ['d1', 'migrations', 'apply', 'home-care-visits', '--local', '--persist-to', STATE], {
+  cwd: WORKER,
+  env,
+  encoding: 'utf8',
+})
 if (migrate.status !== 0) {
   console.error(`Migrations failed:\n${migrate.stdout}\n${migrate.stderr}`)
   process.exit(1)
 }
 
-const dev = spawn('wrangler', ['dev', '--local', '--port', String(PORT), '--inspector-port', String(PORT + 10),
-  '--persist-to', STATE, '--var', 'TEST_MODE:1', '--show-interactive-dev-session=false'],
-{ cwd: WORKER, env, stdio: ['ignore', 'ignore', 'inherit'] })
-const stop = () => { try { dev.kill('SIGTERM') } catch {} }
-for (const s of ['SIGINT', 'SIGTERM']) process.on(s, () => { stop(); process.exit(0) })
-dev.on('exit', code => { console.error(`wrangler dev stopped (exit ${code}).`); process.exit(code ?? 1) })
+const dev = spawn(
+  'wrangler',
+  [
+    'dev',
+    '--local',
+    '--port',
+    String(PORT),
+    '--inspector-port',
+    String(PORT + 10),
+    '--persist-to',
+    STATE,
+    '--var',
+    'TEST_MODE:1',
+    '--show-interactive-dev-session=false',
+  ],
+  { cwd: WORKER, env, stdio: ['ignore', 'ignore', 'inherit'] },
+)
+const stop = () => {
+  try {
+    dev.kill('SIGTERM')
+  } catch {}
+}
+for (const s of ['SIGINT', 'SIGTERM'])
+  process.on(s, () => {
+    stop()
+    process.exit(0)
+  })
+dev.on('exit', (code) => {
+  console.error(`wrangler dev stopped (exit ${code}).`)
+  process.exit(code ?? 1)
+})
 
 let up = false
 for (let i = 0; i < 120 && !up; i++) {
   up = await answers(`${BASE}/api/agency`)
-  if (!up) await new Promise(r => setTimeout(r, 500))
+  if (!up) await new Promise((r) => setTimeout(r, 500))
 }
-if (!up) { console.error(`wrangler dev did not come up on ${PORT}.`); stop(); process.exit(1) }
+if (!up) {
+  console.error(`wrangler dev did not come up on ${PORT}.`)
+  stop()
+  process.exit(1)
+}
 
 const res = await fetch(`${BASE}/api/test/seed`, {
-  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scenario: 'demo' }),
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ scenario: 'demo' }),
 })
-if (!res.ok) { console.error(`Seeding the demo failed: ${res.status} ${await res.text()}`); stop(); process.exit(1) }
+if (!res.ok) {
+  console.error(`Seeding the demo failed: ${res.status} ${await res.text()}`)
+  stop()
+  process.exit(1)
+}
 const seed = await res.json()
 
 const lines = [
   'Home Care Visits demo (SAMPLE data, this computer only)',
   '',
   `Office:   ${BASE}/office/   PIN ${seed.pin}`,
-  ...seed.workers.map(w => `Worker:   ${w.worker_url}   (${w.name})`),
-  ...seed.clients.slice(0, 3).map(c => `Family:   ${c.family_url}   (${c.name})`),
+  ...seed.workers.map((w) => `Worker:   ${w.worker_url}   (${w.name})`),
+  ...seed.clients.slice(0, 3).map((c) => `Family:   ${c.family_url}   (${c.name})`),
   '',
   'Every client has its own family link on the office Clients screen; every worker has a link on Workers.',
 ]

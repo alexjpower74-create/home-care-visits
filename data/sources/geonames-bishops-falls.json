@@ -1,88 +1,95 @@
 {
-"links": {
+  "links": {
     "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames?q=Bishop%27s+Falls&province=10" },
-    "alternate": [ 
-         { "mediatype": "application/json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.json?q=Bishop%27s+Falls&province=10" },
-         { "mediatype": "text/html", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.html?q=Bishop%27s+Falls&province=10" },
-         { "mediatype": "text/csv", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.csv?q=Bishop%27s+Falls&province=10" }, 
-         { "mediatype": "application/vnd.google-earth.kml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.kml?q=Bishop%27s+Falls&province=10" },
-         { "mediatype": "application/gml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.gml?q=Bishop%27s+Falls&province=10" },
-         { "mediatype": "application/vnd.geo+json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.geojson?q=Bishop%27s+Falls&province=10" }
-         
-     ]
-},
-"items": [
+    "alternate": [
+      {
+        "mediatype": "application/json",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.json?q=Bishop%27s+Falls&province=10"
+      },
+      { "mediatype": "text/html", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.html?q=Bishop%27s+Falls&province=10" },
+      { "mediatype": "text/csv", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.csv?q=Bishop%27s+Falls&province=10" },
+      {
+        "mediatype": "application/vnd.google-earth.kml+xml",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.kml?q=Bishop%27s+Falls&province=10"
+      },
+      {
+        "mediatype": "application/gml+xml",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.gml?q=Bishop%27s+Falls&province=10"
+      },
+      {
+        "mediatype": "application/vnd.geo+json",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.geojson?q=Bishop%27s+Falls&province=10"
+      }
+    ]
+  },
+  "items": [
+    {
+      "id": "AABVP",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AABVP" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dfdf0efad05311d892e2080020a0f4c9" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Bishop's Falls",
 
-    {   
-        "id": "AABVP",
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AABVP" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dfdf0efad05311d892e2080020a0f4c9" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Bishop's Falls",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "dfdf0efad05311d892e2080020a0f4c9",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dfdf0efad05311d892e2080020a0f4c9" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "TOWN",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" }
-            } 
-        },
-        "generic": {
-            "code": "2",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" }
-            } 
-        },   
-        "location": "Exploits",
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.0209528,
-        "longitude": -55.4898944,
-        "map": ["002E03","002E04","002D13"],
-        "relevance": 7500000,
-        "bbox": [
-            -55.5731612,
-            48.9731207,
-            -55.3921973,
-            49.0747049
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.4898944,49.0209528]},
-        
-        "decision": "1996-04-12"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "dfdf0efad05311d892e2080020a0f4c9",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dfdf0efad05311d892e2080020a0f4c9" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "TOWN",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" }
+        }
+      },
+      "generic": {
+        "code": "2",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" }
+        }
+      },
+      "location": "Exploits",
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.0209528,
+      "longitude": -55.4898944,
+      "map": ["002E03", "002E04", "002D13"],
+      "relevance": 7500000,
+      "bbox": [-55.5731612, 48.9731207, -55.3921973, 49.0747049],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.4898944, 49.0209528] },
+
+      "decision": "1996-04-12"
     }
-]}
+  ]
+}

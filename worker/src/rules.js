@@ -3,13 +3,13 @@
 export const LATE_MS = 15 * 60000
 export const MISSED_MS = 30 * 60000
 
-const toMs = t => (typeof t === 'number' ? t : Date.parse(t))
+const toMs = (t) => (typeof t === 'number' ? t : Date.parse(t))
 
 /**
  * The late/missed rule. `visit` needs `cancelled`, `check_in` (the effective one or null) and `starts_at`.
  * Exactly 15:00 after the start is late; exactly 30:00 is missed.
  */
-export function alertFor (visit, nowMs) {
+export function alertFor(visit, nowMs) {
   if (visit.cancelled || visit.check_in) return 'none'
   const start = toMs(visit.starts_at)
   if (nowMs >= start + MISSED_MS) return 'missed'
@@ -26,7 +26,7 @@ const BEFORE_START_MS = 12 * 3600000
  * at ≥ starts_at − 12 hours. Otherwise the server's now is stored and the event is flagged `at_adjusted`.
  * Returns `{ atMs, adjusted }`, both whole seconds.
  */
-export function keptTime (atMs, nowMs, startsAtMs) {
+export function keptTime(atMs, nowMs, startsAtMs) {
   const at = Math.floor(atMs / 1000) * 1000
   const now = Math.floor(nowMs / 1000) * 1000
   if (at >= now - WINDOW_BACK_MS && at <= now + WINDOW_AHEAD_MS && at >= startsAtMs - BEFORE_START_MS) {

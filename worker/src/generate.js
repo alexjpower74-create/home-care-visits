@@ -3,14 +3,14 @@
 
 import { addDays, localToUtc } from './time.js'
 
-const toMs = t => (typeof t === 'number' ? t : Date.parse(t))
+const toMs = (t) => (typeof t === 'number' ? t : Date.parse(t))
 
 /**
  * The visits a set of patterns generates in the week starting `weekStart` (a Monday).
  * A pattern: `{ id, client_id, days: [1..7], start, end, worker_id, valid_from_at, ended_at }`.
  * Returns `{ pattern_id, pattern_date, client_id, date, start, end, starts_at, ends_at, worker_id }` with ms instants.
  */
-export function patternVisits (patterns, weekStart) {
+export function patternVisits(patterns, weekStart) {
   const out = []
   for (const p of patterns) {
     const days = typeof p.days === 'string' ? JSON.parse(p.days) : p.days
@@ -25,8 +25,15 @@ export function patternVisits (patterns, weekStart) {
       if (startsAt < validFrom) continue
       if (ended !== null && startsAt >= ended) continue
       out.push({
-        pattern_id: p.id, pattern_date: date, client_id: p.client_id, date, start: p.start, end: p.end,
-        starts_at: startsAt, ends_at: endsAt, worker_id: p.worker_id ?? null
+        pattern_id: p.id,
+        pattern_date: date,
+        client_id: p.client_id,
+        date,
+        start: p.start,
+        end: p.end,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        worker_id: p.worker_id ?? null,
       })
     }
   }

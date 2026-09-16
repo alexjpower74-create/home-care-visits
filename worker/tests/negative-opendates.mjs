@@ -6,6 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['worker visits: open_dates lists the earlier days'],
   api: true,
-  breaks: [{ file: 'src/index.js', find: '.bind(worker.id, addDays(today, -7), today).all()', replace: '.bind(worker.id, addDays(today, -1), today).all()' }],
-  describe: 'open_dates leave out days older than yesterday'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: '.bind(worker.id, addDays(today, -7), today)\n      .all()',
+      replace: '.bind(worker.id, addDays(today, -1), today)\n      .all()',
+    },
+  ],
+  describe: 'open_dates leave out days older than yesterday',
 })

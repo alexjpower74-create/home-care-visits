@@ -5,6 +5,6 @@ await runControl({
   title: 'negative:travelgap',
   testFile: 'tests/conflicts.test.mjs',
   tests: ['conflicts: travel-gap boundary', 'conflicts: the SAMPLE base week', 'conflicts: a hand-built week'],
-  breaks: [{ file: 'src/conflicts.js', find: 'Math.ceil(metres * 1.3 / 1000)', replace: 'Math.ceil(metres / 1000)' }],
-  describe: 'the needed travel time drops the 1.3 factor on the straight-line distance'
+  breaks: [{ file: 'src/conflicts.js', find: 'Math.ceil((metres * 1.3) / 1000)', replace: 'Math.ceil(metres / 1000)' }],
+  describe: 'the needed travel time drops the 1.3 factor on the straight-line distance',
 })

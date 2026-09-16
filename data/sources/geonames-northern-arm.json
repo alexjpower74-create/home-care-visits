@@ -1,664 +1,633 @@
 {
-"links": {
+  "links": {
     "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames?q=Northern+Arm&province=10" },
-    "alternate": [ 
-         { "mediatype": "application/json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.json?q=Northern+Arm&province=10" },
-         { "mediatype": "text/html", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.html?q=Northern+Arm&province=10" },
-         { "mediatype": "text/csv", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.csv?q=Northern+Arm&province=10" }, 
-         { "mediatype": "application/vnd.google-earth.kml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.kml?q=Northern+Arm&province=10" },
-         { "mediatype": "application/gml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.gml?q=Northern+Arm&province=10" },
-         { "mediatype": "application/vnd.geo+json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.geojson?q=Northern+Arm&province=10" }
-         
-     ]
-},
-"items": [
+    "alternate": [
+      { "mediatype": "application/json", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.json?q=Northern+Arm&province=10" },
+      { "mediatype": "text/html", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.html?q=Northern+Arm&province=10" },
+      { "mediatype": "text/csv", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.csv?q=Northern+Arm&province=10" },
+      {
+        "mediatype": "application/vnd.google-earth.kml+xml",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.kml?q=Northern+Arm&province=10"
+      },
+      { "mediatype": "application/gml+xml", "href": "https://geogratis.gc.ca/services/geoname/en/geonames.gml?q=Northern+Arm&province=10" },
+      {
+        "mediatype": "application/vnd.geo+json",
+        "href": "https://geogratis.gc.ca/services/geoname/en/geonames.geojson?q=Northern+Arm&province=10"
+      }
+    ]
+  },
+  "items": [
+    {
+      "id": "AAPRP",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRP" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579ff849c20c3b65eac7350ff4deb" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm",
 
-    {   
-        "id": "AAPRP",
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRP" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579ff849c20c3b65eac7350ff4deb" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c1579ff849c20c3b65eac7350ff4deb",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579ff849c20c3b65eac7350ff4deb" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "BAY",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
-            } 
-        },
-        "generic": {
-            "code": "1402",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 47.721111,
-        "longitude": -56.141944,
-        "map": ["011P09","C.4644"],
-        "relevance": 1000000,
-        "bbox": [
-            -56.2578509,
-            47.6227342,
-            -56.0088549,
-            47.8819804
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-56.141944,47.721111]},
-        
-        "decision": "1956-12-06"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c1579ff849c20c3b65eac7350ff4deb",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579ff849c20c3b65eac7350ff4deb" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "BAY",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
+        }
+      },
+      "generic": {
+        "code": "1402",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 47.721111,
+      "longitude": -56.141944,
+      "map": ["011P09", "C.4644"],
+      "relevance": 1000000,
+      "bbox": [-56.2578509, 47.6227342, -56.0088549, 47.8819804],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-56.141944, 47.721111] },
+
+      "decision": "1956-12-06"
     },
-    {   
-        "id": "AAPRQ",
+    {
+      "id": "AAPRQ",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRQ" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a3d849c20c3c4589fe03a9fa119" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/RIV" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/601" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm Brook",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRQ" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a3d849c20c3c4589fe03a9fa119" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/RIV" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/601" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm Brook",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c157a3d849c20c3c4589fe03a9fa119",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a3d849c20c3c4589fe03a9fa119" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "RIV",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/RIV" }
-            } 
-        },
-        "generic": {
-            "code": "601",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/601" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.1527778,
-        "longitude": -55.3869445,
-        "map": ["002E03","002E04"],
-        "relevance": 1000000,
-        "bbox": [
-            -55.6412276,
-            49.0681114,
-            -55.3827017,
-            49.1662926
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.3869445,49.1527778]},
-        
-        "decision": "1954-08-05"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c157a3d849c20c3c4589fe03a9fa119",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a3d849c20c3c4589fe03a9fa119" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "RIV",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/RIV" }
+        }
+      },
+      "generic": {
+        "code": "601",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/601" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.1527778,
+      "longitude": -55.3869445,
+      "map": ["002E03", "002E04"],
+      "relevance": 1000000,
+      "bbox": [-55.6412276, 49.0681114, -55.3827017, 49.1662926],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.3869445, 49.1527778] },
+
+      "decision": "1954-08-05"
     },
-    {   
-        "id": "AAPRO",
+    {
+      "id": "AAPRO",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRO" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579b7849c20c3dafc55de17f9549c" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRO" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579b7849c20c3dafc55de17f9549c" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c1579b7849c20c3dafc55de17f9549c",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579b7849c20c3dafc55de17f9549c" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "BAY",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
-            } 
-        },
-        "generic": {
-            "code": "1402",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.1591667,
-        "longitude": -55.3727778,
-        "map": ["002E03","C.4524"],
-        "relevance": 1000000,
-        "bbox": [
-            -55.3927778,
-            49.1391667,
-            -55.3527778,
-            49.1791667
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.3727778,49.1591667]},
-        
-        "decision": "1952-02-06"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c1579b7849c20c3dafc55de17f9549c",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1579b7849c20c3dafc55de17f9549c" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "BAY",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
+        }
+      },
+      "generic": {
+        "code": "1402",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.1591667,
+      "longitude": -55.3727778,
+      "map": ["002E03", "C.4524"],
+      "relevance": 1000000,
+      "bbox": [-55.3927778, 49.1391667, -55.3527778, 49.1791667],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.3727778, 49.1591667] },
+
+      "decision": "1952-02-06"
     },
-    {   
-        "id": "AAPRK",
+    {
+      "id": "AAPRK",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRK" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dd9a4ee7d05311d892e2080020a0f4c9" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRK" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dd9a4ee7d05311d892e2080020a0f4c9" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "dd9a4ee7d05311d892e2080020a0f4c9",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dd9a4ee7d05311d892e2080020a0f4c9" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "TOWN",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" }
-            } 
-        },
-        "generic": {
-            "code": "2",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.1861222,
-        "longitude": -55.3862583,
-        "map": ["002E03"],
-        "relevance": 250000,
-        "bbox": [
-            -55.4576024,
-            49.111554,
-            -55.3202933,
-            49.2567092
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.3862583,49.1861222]},
-        
-        "decision": "1996-04-19"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "dd9a4ee7d05311d892e2080020a0f4c9",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/dd9a4ee7d05311d892e2080020a0f4c9" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "TOWN",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/TOWN" }
+        }
+      },
+      "generic": {
+        "code": "2",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/2" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.1861222,
+      "longitude": -55.3862583,
+      "map": ["002E03"],
+      "relevance": 250000,
+      "bbox": [-55.4576024, 49.111554, -55.3202933, 49.2567092],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.3862583, 49.1861222] },
+
+      "decision": "1996-04-19"
     },
-    {   
-        "id": "AAPRR",
+    {
+      "id": "AAPRR",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRR" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a7a849c20c37bf13087a32a82a8" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/CAPE" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1604" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm Point",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRR" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a7a849c20c37bf13087a32a82a8" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/CAPE" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1604" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm Point",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c157a7a849c20c37bf13087a32a82a8",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a7a849c20c37bf13087a32a82a8" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "CAPE",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/CAPE" }
-            } 
-        },
-        "generic": {
-            "code": "1604",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1604" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.1580556,
-        "longitude": -55.3552778,
-        "map": ["002E03","C.4524"],
-        "relevance": 250000,
-        "bbox": [
-            -55.3752778,
-            49.1380556,
-            -55.3352778,
-            49.1780556
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.3552778,49.1580556]},
-        
-        "decision": "1952-02-06"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c157a7a849c20c37bf13087a32a82a8",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c157a7a849c20c37bf13087a32a82a8" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "CAPE",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/CAPE" }
+        }
+      },
+      "generic": {
+        "code": "1604",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1604" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.1580556,
+      "longitude": -55.3552778,
+      "map": ["002E03", "C.4524"],
+      "relevance": 250000,
+      "bbox": [-55.3752778, 49.1380556, -55.3352778, 49.1780556],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.3552778, 49.1580556] },
+
+      "decision": "1952-02-06"
     },
-    {   
-        "id": "AAPRL",
+    {
+      "id": "AAPRL",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRL" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1578cc849c20c36c7cc2dbd65c5948" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRL" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1578cc849c20c36c7cc2dbd65c5948" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c1578cc849c20c36c7cc2dbd65c5948",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1578cc849c20c36c7cc2dbd65c5948" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "BAY",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
-            } 
-        },
-        "generic": {
-            "code": "1402",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 51.365,
-        "longitude": -56.0286111,
-        "map": ["012P08"],
-        "relevance": 250000,
-        "bbox": [
-            -56.0498573,
-            51.334376,
-            -55.9982262,
-            51.3892107
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-56.0286111,51.365]},
-        
-        "decision": "1955-05-10"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c1578cc849c20c36c7cc2dbd65c5948",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c1578cc849c20c36c7cc2dbd65c5948" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "BAY",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
+        }
+      },
+      "generic": {
+        "code": "1402",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 51.365,
+      "longitude": -56.0286111,
+      "map": ["012P08"],
+      "relevance": 250000,
+      "bbox": [-56.0498573, 51.334376, -55.9982262, 51.3892107],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-56.0286111, 51.365] },
+
+      "decision": "1955-05-10"
     },
-    {   
-        "id": "AAPRN",
+    {
+      "id": "AAPRN",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRN" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15797a849c20c355ae30c14802e51c" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRN" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15797a849c20c355ae30c14802e51c" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c15797a849c20c355ae30c14802e51c",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15797a849c20c355ae30c14802e51c" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "BAY",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
-            } 
-        },
-        "generic": {
-            "code": "1402",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 50.5205556,
-        "longitude": -56.3441667,
-        "map": ["012I09"],
-        "relevance": 250000,
-        "bbox": [
-            -56.3707149,
-            50.5095402,
-            -56.3225487,
-            50.5370638
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-56.3441667,50.5205556]},
-        
-        "decision": "1955-04-07"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c15797a849c20c355ae30c14802e51c",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15797a849c20c355ae30c14802e51c" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "BAY",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
+        }
+      },
+      "generic": {
+        "code": "1402",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 50.5205556,
+      "longitude": -56.3441667,
+      "map": ["012I09"],
+      "relevance": 250000,
+      "bbox": [-56.3707149, 50.5095402, -56.3225487, 50.5370638],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-56.3441667, 50.5205556] },
+
+      "decision": "1955-04-07"
     },
-    {   
-        "id": "AAPRM",
+    {
+      "id": "AAPRM",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRM" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15793b849c20c3833358583e29ca7f" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/AAPRM" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15793b849c20c3833358583e29ca7f" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c15793b849c20c3833358583e29ca7f",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15793b849c20c3833358583e29ca7f" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "BAY",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
-            } 
-        },
-        "generic": {
-            "code": "1402",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 50.6144445,
-        "longitude": -56.2427778,
-        "map": ["012I09"],
-        "relevance": 50000,
-        "bbox": [
-            -56.271934,
-            50.5963682,
-            -56.2103465,
-            50.6321034
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-56.2427778,50.6144445]},
-        
-        "decision": "1955-04-07"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c15793b849c20c3833358583e29ca7f",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c15793b849c20c3833358583e29ca7f" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "BAY",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/BAY" }
+        }
+      },
+      "generic": {
+        "code": "1402",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/1402" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 50.6144445,
+      "longitude": -56.2427778,
+      "map": ["012I09"],
+      "relevance": 50000,
+      "bbox": [-56.271934, 50.5963682, -56.2103465, 50.6321034],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-56.2427778, 50.6144445] },
+
+      "decision": "1955-04-07"
     },
-    {   
-        "id": "ACROW",
+    {
+      "id": "ACROW",
+      "links": {
+        "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/ACROW" },
+        "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c2359380a001204705ab5d7b57c31a7" },
+        "language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
+        "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
+        "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/LAKE" },
+        "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/951" },
+        "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+      },
+      "name": "Northern Arm Lake",
+
+      "language": {
+        "code": "und",
+
         "links": {
-           "self": { "href": "https://geogratis.gc.ca/services/geoname/en/geonames/ACROW" },
-           "feature": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c2359380a001204705ab5d7b57c31a7" },"language": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" },
-           "status": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" },
-           "concise": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/LAKE" },
-           "generic": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/951" },
-           "province": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }  
-        },
-        "name": "Northern Arm Lake",
-        
-        "language": {
-            "code": "und",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
-            } 
-        },
-        "feature": {
-            "id": "0c2359380a001204705ab5d7b57c31a7",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c2359380a001204705ab5d7b57c31a7" }
-            }
-        },
-        
-        "category": "O",
-        "status": {
-            "code": "official",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
-            } 
-        },
-        "concise": {
-            "code": "LAKE",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/LAKE" }
-            } 
-        },
-        "generic": {
-            "code": "951",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/951" }
-            } 
-        },   
-        "location": null,
-        "province": {
-            "code": "10",
-            
-            "links": {
-                "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
-            } 
-        },
-        "latitude": 49.080689,
-        "longitude": -55.639733,
-        "map": ["002E04"],
-        "relevance": 50000,
-        "bbox": [
-            -55.659733,
-            49.060689,
-            -55.619733,
-            49.100689
-        ],
-        "accuracy": 100,
-        "position": {"type":"Point","coordinates":[-55.639733,49.080689]},
-        
-        "decision": "2014-02-13"
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/language/und" }
+        }
+      },
+      "feature": {
+        "id": "0c2359380a001204705ab5d7b57c31a7",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/features/0c2359380a001204705ab5d7b57c31a7" }
+        }
+      },
+
+      "category": "O",
+      "status": {
+        "code": "official",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/status/official" }
+        }
+      },
+      "concise": {
+        "code": "LAKE",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/concise/LAKE" }
+        }
+      },
+      "generic": {
+        "code": "951",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/generic/951" }
+        }
+      },
+      "location": null,
+      "province": {
+        "code": "10",
+
+        "links": {
+          "self": { "href": "https://geogratis.gc.ca/services/geoname/en/codes/province/10" }
+        }
+      },
+      "latitude": 49.080689,
+      "longitude": -55.639733,
+      "map": ["002E04"],
+      "relevance": 50000,
+      "bbox": [-55.659733, 49.060689, -55.619733, 49.100689],
+      "accuracy": 100,
+      "position": { "type": "Point", "coordinates": [-55.639733, 49.080689] },
+
+      "decision": "2014-02-13"
     }
-]}
+  ]
+}

@@ -6,10 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['worker visits: a visit this worker checked in to stays on their list after a reassignment'],
   api: true,
-  breaks: [{
-    file: 'src/index.js',
-    find: " OR EXISTS (SELECT 1 FROM events ce WHERE ce.visit_id = v.id AND ce.kind = 'check_in' AND ce.voided_at IS NULL AND ce.worker_id = ?2))",
-    replace: ')'
-  }],
-  describe: "the worker's list leaves out a visit they checked in to once the office gives it to someone else"
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: " OR EXISTS (SELECT 1 FROM events ce WHERE ce.visit_id = v.id AND ce.kind = 'check_in' AND ce.voided_at IS NULL AND ce.worker_id = ?2))",
+      replace: ')',
+    },
+  ],
+  describe: "the worker's list leaves out a visit they checked in to once the office gives it to someone else",
 })

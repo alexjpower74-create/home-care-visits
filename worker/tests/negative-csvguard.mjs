@@ -6,5 +6,5 @@ await runControl({
   tests: ['reports: CSV'],
   api: true,
   breaks: [{ file: 'src/reports.js', find: "  if (FORMULA.test(s)) s = `'${s}`\n", replace: '' }],
-  describe: 'a text cell starting with = is written as is'
+  describe: 'a text cell starting with = is written as is',
 })
