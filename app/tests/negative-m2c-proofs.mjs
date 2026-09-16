@@ -6,7 +6,7 @@ import { control, replaceOnce } from './negative-lib.mjs'
 
 const app = (copy, file) => path.join(copy, 'app', 'public', file)
 const EARLIER_LOOP = '  for (let d = EARLIER_DAYS; d >= 1; d--) {'
-const FORGET_LINE = '      if (rec?.key === key) s.removeItem(k);'
+const FORGET_LINE = '      if (rec?.key === key) s.removeItem(k)'
 
 const inactive = (project) => [
   {
@@ -27,8 +27,8 @@ const inactive = (project) => [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'office/sheet.js'),
-        '    const inactive = v.worker_id != null && !workers.some(w => w.id === v.worker_id)',
-        '    const inactive = false /* PROOF */ && v.worker_id != null && !workers.some(w => w.id === v.worker_id)',
+        '    const inactive =\n      v.worker_id != null && !workers.some((w) => w.id === v.worker_id)',
+        '    const inactive =\n      false /* PROOF */ && v.worker_id != null && !workers.some((w) => w.id === v.worker_id)',
       ),
   },
   {
@@ -61,8 +61,8 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/app.js'),
-        "    const queuedIn = queued.some(i => i.event.kind === 'check_in');",
-        '    const queuedIn = false; // PROOF',
+        "    const queuedIn = queued.some((i) => i.event.kind === 'check_in')",
+        '    const queuedIn = false // PROOF',
       ),
   },
   {
@@ -78,7 +78,7 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/app.js'),
-        '    await loadEarlier(S.answer?.date ?? localDate(Date.now(), TZ), true);',
+        '    await loadEarlier(S.answer?.date ?? localDate(Date.now(), TZ), true)',
         '    if (S.answer) await loadEarlier(S.answer.date, true); // PROOF',
       ),
   },
@@ -101,8 +101,8 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/app.js'),
-        "  const refusedIn = S.refused.filter(i => i.event.visit_id === v.id && i.event.kind === 'check_in').at(-1) ?? null;",
-        '  const refusedIn = null; // PROOF',
+        "  const refusedIn = S.refused.filter((i) => i.event.visit_id === v.id && i.event.kind === 'check_in').at(-1) ?? null",
+        '  const refusedIn = null // PROOF',
       ),
   },
   {
@@ -112,7 +112,7 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/app.js'),
-        "  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : refusedIn ? 'refused' : 'todo';",
+        "  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : refusedIn ? 'refused' : 'todo'",
         "  const status = cout ? 'done' : cin ? 'in' : v.cancelled ? 'cancelled' : 'todo'; // PROOF",
       ),
   },
@@ -121,7 +121,7 @@ const PROOFS = [
     what: 'clarification 8 (typing) removed: the page does not check the note for health card numbers',
     args: ['worker.spec.mjs', '--project', 'chromium-390', '-g', '12-digit number in the note'],
     breakIt: (copy) =>
-      replaceOnce(app(copy, 'w/app.js'), '  if (HEALTH_CARD.test(t)) return NOTE_CARD;', '  // PROOF: no health card check'),
+      replaceOnce(app(copy, 'w/app.js'), '  if (HEALTH_CARD.test(t)) return NOTE_CARD', '  // PROOF: no health card check'),
   },
   {
     name: 'proof-without-note',
@@ -141,8 +141,8 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/app.js'),
-        '  onSent: answers => { rememberRefusals(answers); load(); },',
-        '  onSent: () => { load(); }, // PROOF',
+        '  onSent: (answers) => {\n    rememberRefusals(answers)\n    load()\n  },',
+        '  onSent: () => {\n    load()\n  }, // PROOF',
       ),
   },
   {
@@ -152,7 +152,7 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/queue.js'),
-        'const BACKOFF_MS = [5000, 15000, 30000, 60000];',
+        'const BACKOFF_MS = [5000, 15000, 30000, 60000]',
         'const BACKOFF_MS = [30000, 30000, 30000, 60000]; // PROOF: a slow retry schedule',
       ),
   },
@@ -162,8 +162,8 @@ const PROOFS = [
     args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'office PC without WebGL'],
     breakIt: (copy) => {
       const file = app(copy, 'office/clients.js')
-      replaceOnce(file, "  if (!window.maplibregl || !L.maplibreGL || !webgl()) return 'plain';", '  // PROOF: no WebGL check')
-      replaceOnce(file, '  try {\n    layer.addTo(map);\n  } catch {', '  layer.addTo(map); // PROOF: no fallback\n  try {\n  } catch {')
+      replaceOnce(file, "  if (!window.maplibregl || !L.maplibreGL || !webgl()) return 'plain'", '  // PROOF: no WebGL check')
+      replaceOnce(file, '  try {\n    layer.addTo(map)\n  } catch {', '  layer.addTo(map) // PROOF: no fallback\n  try {\n  } catch {')
     },
   },
   {
@@ -173,7 +173,7 @@ const PROOFS = [
     breakIt: (copy) =>
       replaceOnce(
         app(copy, 'w/app.js'),
-        '  patchChildren(el, next);\n  return true;',
+        '  patchChildren(el, next)\n  return true',
         '  el.innerHTML = html; // PROOF: replace everything\n  return true;',
       ),
   },
@@ -181,7 +181,7 @@ const PROOFS = [
     name: 'proof-webgl-required',
     what: 'DECISIONS 54: office/clients.js never finds WebGL, so every browser gets the plain background',
     args: ['office.spec.mjs', '--project', 'chromium-1280', '-g', 'the OpenFreeMap attribution and its three links'],
-    breakIt: (copy) => replaceOnce(app(copy, 'office/clients.js'), '    return !!gl;', '    return false; // PROOF: no browser has WebGL'),
+    breakIt: (copy) => replaceOnce(app(copy, 'office/clients.js'), '    return !!gl', '    return false; // PROOF: no browser has WebGL'),
   },
   ...inactive('chromium-1280'),
   ...inactive('chromium-390'),
